@@ -21,36 +21,36 @@ Flag tests
 Library
 
   Exposed-modules:
-                       HAppS.Server,
-                       HAppS.Server.Cookie,
-                       HAppS.Server.HTTP.Client,
-                       HAppS.Server.HTTP.Types,
-                       HAppS.Server.HTTP.LowLevel,
-                       HAppS.Server.HTTP.FileServe,
-                       HAppS.Server.SimpleHTTP,
-                       HAppS.Server.JSON,
-                       HAppS.Server.MessageWrap,
-                       HAppS.Server.MinHaXML,
-                       HAppS.Server.SURI,
-                       HAppS.Server.XSLT,
-                       HAppS.Server.Cron,
-                       HAppS.Server.StdConfig,
-                       HAppS.Store.Util
+                       Happstack.Server,
+                       Happstack.Server.Cookie,
+                       Happstack.Server.HTTP.Client,
+                       Happstack.Server.HTTP.Types,
+                       Happstack.Server.HTTP.LowLevel,
+                       Happstack.Server.HTTP.FileServe,
+                       Happstack.Server.SimpleHTTP,
+                       Happstack.Server.JSON,
+                       Happstack.Server.MessageWrap,
+                       Happstack.Server.MinHaXML,
+                       Happstack.Server.SURI,
+                       Happstack.Server.XSLT,
+                       Happstack.Server.Cron,
+                       Happstack.Server.StdConfig,
+                       Happstack.Store.Util
   if flag(tests)
     Exposed-modules:   
-                       HAppS.Server.Tests
+                       Happstack.Server.Tests
   Other-modules:       
-                       HAppS.Server.S3,
-                       HAppS.Server.HTTPClient.HTTP,
-                       HAppS.Server.HTTPClient.Stream,
-                       HAppS.Server.HTTPClient.TCP,
-                       HAppS.Server.HTTP.Clock,
-                       HAppS.Server.HTTP.Handler,
-                       HAppS.Server.HTTP.LazyLiner,
-                       HAppS.Server.HTTP.Listen,
-                       HAppS.Server.HTTP.Multipart,
-                       HAppS.Server.HTTP.RFC822Headers,
-                       HAppS.Server.SURI.ParseURI
+                       Happstack.Server.S3,
+                       Happstack.Server.HTTPClient.HTTP,
+                       Happstack.Server.HTTPClient.Stream,
+                       Happstack.Server.HTTPClient.TCP,
+                       Happstack.Server.HTTP.Clock,
+                       Happstack.Server.HTTP.Handler,
+                       Happstack.Server.HTTP.LazyLiner,
+                       Happstack.Server.HTTP.Listen,
+                       Happstack.Server.HTTP.Multipart,
+                       Happstack.Server.HTTP.RFC822Headers,
+                       Happstack.Server.SURI.ParseURI
 
   Build-Depends:       base, HaXml >= 1.13 && < 1.14, parsec<3, mtl, network,
                        hslogger >= 1.0.2, happstack-data, happstack-util,
