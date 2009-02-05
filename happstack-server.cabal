@@ -1,0 +1,90 @@
+Name:                happstack-server
+Version:             0.1.9
+Synopsis:            Web related tools and services.
+Description:         Web framework
+License:             BSD3
+License-file:        COPYING
+Author:              Happstack team, HAppS LLC
+Maintainer:          Happstack team <happs@googlegroups.com>
+homepage:            http://happstack.com
+Category:            Web, Distributed Computing
+Build-Type:          Simple
+Cabal-Version:       >= 1.2.3
+
+Flag base4
+    Description: Choose the even newer, even smaller, split-up base package.
+
+Flag tests
+    Description: Build the testsuite, and include the tests in the library
+    Default: True
+
+Library
+
+  Exposed-modules:
+                       HAppS.Server,
+                       HAppS.Server.Cookie,
+                       HAppS.Server.HTTP.Client,
+                       HAppS.Server.HTTP.Types,
+                       HAppS.Server.HTTP.LowLevel,
+                       HAppS.Server.HTTP.FileServe,
+                       HAppS.Server.SimpleHTTP,
+                       HAppS.Server.JSON,
+                       HAppS.Server.MessageWrap,
+                       HAppS.Server.MinHaXML,
+                       HAppS.Server.SURI,
+                       HAppS.Server.XSLT,
+                       HAppS.Server.Cron,
+                       HAppS.Server.StdConfig,
+                       HAppS.Store.Util
+  if flag(tests)
+    Exposed-modules:   
+                       HAppS.Server.Tests
+  Other-modules:       
+                       HAppS.Server.S3,
+                       HAppS.Server.HTTPClient.HTTP,
+                       HAppS.Server.HTTPClient.Stream,
+                       HAppS.Server.HTTPClient.TCP,
+                       HAppS.Server.HTTP.Clock,
+                       HAppS.Server.HTTP.Handler,
+                       HAppS.Server.HTTP.LazyLiner,
+                       HAppS.Server.HTTP.Listen,
+                       HAppS.Server.HTTP.Multipart,
+                       HAppS.Server.HTTP.RFC822Headers,
+                       HAppS.Server.SURI.ParseURI
+
+  Build-Depends:       base, HaXml >= 1.13 && < 1.14, parsec<3, mtl, network,
+                       hslogger >= 1.0.2, happstack-data, happstack-util,
+                       happstack-state, happstack-ixset, template-haskell, xhtml, html,
+                       bytestring, containers, old-time, old-locale, directory, 
+                       process, extensible-exceptions
+  hs-source-dirs:      src
+  if flag(tests)
+    hs-source-dirs:    tests
+
+  if !os(windows)
+     Build-Depends:    unix
+     cpp-options:      -DUNIX
+  if flag(base4)
+    Build-Depends:     base >= 4 && < 5, syb
+
+  if flag(tests)
+    Build-Depends:     HUnit
+
+  -- Should have ", DeriveDataTypeable, PatternSignatures" but Cabal complains
+  Extensions:          TemplateHaskell, DeriveDataTypeable, MultiParamTypeClasses,
+                       TypeFamilies, FlexibleContexts, OverlappingInstances,
+                       FlexibleInstances, UndecidableInstances, ScopedTypeVariables,
+                       TypeSynonymInstances, PatternGuards, PatternSignatures,
+                       CPP, ForeignFunctionInterface
+  ghc-options:         -Wall
+  GHC-Prof-Options:    -auto-all
+
+Executable happstack-server-tests
+  Main-Is: Test.hs
+  GHC-Options: -threaded
+  Build-depends: HUnit
+  hs-source-dirs: tests, src
+  if flag(tests)
+    Buildable: True
+  else
+    Buildable: False

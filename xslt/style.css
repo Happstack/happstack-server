@@ -1,0 +1,108 @@
+html{
+	background-color:#eeF;
+}
+
+body{
+	text-align:center;
+	font-family:none;
+	width:100%;
+	padding: 0px;
+	margin:0px;
+	}
+
+#body{
+	margin:0px auto;
+	text-align:left;
+	width:750px;
+	}
+
+#footer {
+	margin-top:50px;
+	border-top:2px solid black;
+	font-weight: bold;
+	font-size:10px;
+	}
+
+#header select {
+	font-size:10px;
+}
+
+
+#titleBlock {
+	margin-bottom:50px;
+	xborder-bottom:2px solid black;
+	display:block;
+}
+
+#siteName {
+	font-face: Arial;
+	font-style: italic;
+	font-size:36px;
+	font-weight: bold;
+
+	margin-bottom:0px;
+	padding-bottom:0px;
+}
+#tagLine {
+	padding-top:0px;
+	margin-top:0px;
+	xfont-size:40px;
+}
+
+
+.pipemenu {
+	margin-left: 0;
+	padding-left: 0;
+	} 
+
+.pipemenu li {
+	margin-left: 0;
+	padding: 3px 15px;
+	border-left: 1px solid #000;
+	list-style: none;
+	display: inline;
+	}
+	
+.pipemenu li.first {
+	border-left: none;
+	}
+
+
+
+th {
+ border-bottom:2px solid black;
+}
+
+.row .actions {padding:0px;margin:0px;}
+.row .actions li {padding:3px 5px;}
+
+
+.row {
+  clear: both;
+  padding-top: 10px;
+  margin-bottom: 10px;
+  font-size:12px;
+  }
+
+tr.row {font-size:13px;}
+.formSpace .row {vertical-align: text-top;}
+
+div.row .formLabel {
+	padding-left:20px;
+  }
+
+div.row .formEl {
+  text-align: left;
+  padding-left:20px;
+  }
+
+
+dt {font-weight: bold;padding-top:15px;}
+
+.instructEl {
+	border:0px;
+	padding: 0px;
+	
+	margin-left:10px;
+	}
+

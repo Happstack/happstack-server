@@ -1,0 +1,110 @@
+<html>
+ <head>
+  <meta http-equiv="Pragma" content="no-cache"/>
+  <title>Chat</title>
+  <script type="text/javascript">
+    function sendMessage(f)
+    {
+      simpleAjaxRequest("/send?msg="+f.msg.value);
+      f.msg.value="";
+      return false;
+    }
+    function startSystem()
+    {
+      simpleAjaxRequest("/clear",function(r) { fillChatSpace(); });
+    }
+    function fillChatSpace()
+    {
+      var space = document.getElementById("chatSpace");
+      var ok = function(r) {
+          space.innerHTML = r.responseText;
+	  fillChatSpace();
+        };
+      var fail = function(r) { space.innerHTML = "Error";
+                               simpleAjaxRequest("/clear", function(r){}, function(r){});
+			       setTimeout("fillChatSpace()",1000); };
+      simpleAjaxRequest("/get", ok,fail);
+    }
+function simpleAjaxRequest(uri, onsuccess, onfailure, method, post) {
+  var r = newRequest();
+  r.open(method||"GET", uri);
+  r.onreadystatechange = function () {
+    try {
+      if(r.readyState == 4 ) {
+        if(r.status == 200) {
+          if(onsuccess) onsuccess(r);
+        } else {
+          if(onfailure) onfailure(r,r.status);
+          else alert('Status: '+r.status);
+        }
+      }
+    } catch (e) {
+      if(onfailure) onfailure(r, e.description);
+      else alert('Description: '+e);
+    }
+  }
+  r.send(post);
+}
+
+function newRequest() {
+  try
+  {
+    var requester = new XMLHttpRequest();
+  }
+  catch (error)
+  {
+    try
+    {
+      var requester = new ActiveXObject("Microsoft.XMLHTTP");
+    }
+    catch (error)
+    {
+      return false;
+    }
+  }
+  return requester
+}
+
+var isIE = (window.navigator.userAgent.indexOf("MSIE") > 0);
+
+if (! isIE) {
+  HTMLElement.prototype.__defineGetter__("innerText", 
+              function () { return(this.textContent); });
+  HTMLElement.prototype.__defineSetter__("innerText", 
+              function (txt) { this.textContent = txt; });
+}
+function getCookie(c_name)
+{
+if (document.cookie.length>0)
+  {
+  c_start=document.cookie.indexOf(c_name + "=");
+  if (c_start!=-1)
+    { 
+    c_start=c_start + c_name.length+1; 
+    c_end=document.cookie.indexOf(";",c_start);
+    if (c_end==-1) c_end=document.cookie.length;
+    return unescape(document.cookie.substring(c_start+1,c_end-1));
+    } 
+  }
+return "";
+}
+  </script>
+  <style type="text/css">
+    div#chatSpace{
+    }
+    input {
+      border: 1px solid black;
+    }
+  </style>
+ </head>
+ <body onload="startSystem()">
+  <form onsubmit="return sendMessage(this);">
+    <script type="text/javascript">
+      document.write(getCookie("nick") + ":");
+    </script>
+    <input type="text" name="msg"/>
+  </form>
+  <div id="chatSpace">
+  </div>
+ </body>
+</html>
