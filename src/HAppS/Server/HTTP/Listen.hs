@@ -9,8 +9,10 @@ import HAppS.Server.HTTP.Handler
 import Control.Exception.Extensible as E
 import Control.Concurrent
 import Network
-import Network.Socket as Socket hiding (listen)
+import Network.Socket as Socket (
+  PortNumber(..), SockAddr(..), accept, socketToHandle)
 import System.IO
+import HAppS.Util.HostAddress
 
 {-
 #ifndef mingw32_HOST_OS
@@ -24,9 +26,14 @@ import System.Posix.Signals
 acceptLite :: Socket -> IO (Handle, HostName, Socket.PortNumber)
 acceptLite sock = do
   (sock', addr) <- Socket.accept sock
-  (Just peer, _) <- getNameInfo [NI_NUMERICHOST] True False addr
   h <- socketToHandle sock' ReadWriteMode
   (PortNumber p) <- Network.socketPort sock'
+  
+  let peer = case addr of
+               (SockAddrInet _ ha) -> showHostAddress ha
+               (SockAddrInet6 _ _ ha6 _) -> showHostAddress6 ha6
+               _ -> error "unexpected SockAddr constructor"
+
   return (h, peer, p)
 
 
