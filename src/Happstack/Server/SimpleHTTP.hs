@@ -175,6 +175,18 @@ instance Monad m => Monad (WebT m) where
                                               Ok out' a'  -> return $ Ok (out' . out) a'
     return x = WebT $ return (Ok id x)
 
+instance (Monad m) => MonadPlus (ServerPartT m)
+ where mzero = ServerPartT $ \_ -> noHandle
+       mplus a b = ServerPartT $ \rq -> (unServerPartT a rq)
+                     `mplus` (unServerPartT b rq)
+
+instance (Monad m) => MonadPlus (WebT m) where
+ mzero = noHandle
+ mplus a b = WebT $ do a' <- unWebT a
+                       case a' of
+                         NoHandle -> unWebT b
+                         _        -> return a'
+
 instance (Monad m) => Monoid (ServerPartT m a)
  where mempty = ServerPartT $ \_ -> noHandle
        mappend a b = ServerPartT $ \rq -> (unServerPartT a rq)
@@ -546,12 +558,7 @@ tempRedirect val res = do modifyResponse $ redirect 307 val
 
 
 multi :: Monad m => [ServerPartT m a] -> ServerPartT m a
-multi ls = ServerPartT $ \rq -> foldr servPlus noHandle [ unServerPartT l rq | l <- ls ]
-    where servPlus a b = WebT $
-                         do a' <- unWebT a
-                            case a' of
-                              NoHandle -> unWebT b
-                              _        -> return a'
+multi ls = msum ls
 
 withRequest :: (Request -> WebT m a) -> ServerPartT m a
 withRequest fn = ServerPartT $ fn
