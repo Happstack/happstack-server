@@ -171,7 +171,7 @@ instance Monad m => Monad (WebT m) where
                           Ok out a    -> do r' <- unWebT (g a)
                                             case r' of
                                               NoHandle    -> return NoHandle
-                                              Escape res -> return $ Escape res
+                                              Escape res -> return $ Escape $ out res
                                               Ok out' a'  -> return $ Ok (out' . out) a'
     return x = WebT $ return (Ok id x)
 
@@ -236,11 +236,9 @@ noHandle :: Monad m => WebT m a
 noHandle = WebT $ return NoHandle
 
 escape :: (Monad m, ToMessage resp) => WebT m resp -> WebT m a
-escape gen = WebT $ do res <- unWebT gen
-                       case res of
-                         NoHandle    -> return NoHandle
-                         Escape r -> return $ Escape r
-                         Ok out a    -> return $ Escape $ out $ toResponse a
+escape gen = gen >>= escape'
+
+escape' a = WebT $ return $ Escape $ toResponse a
 
 ho :: [OptDescr (Conf -> Conf)]
 ho = [Option [] ["http-port"] (ReqArg (\h c -> c { port = read h }) "port") "port to bind http server"]
