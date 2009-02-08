@@ -33,6 +33,7 @@ module Happstack.Server.SimpleHTTP
     , Result(..)
     , noHandle
     , escape
+    , escape'
     , executeSP
     , executeW
 
@@ -240,6 +241,7 @@ noHandle = WebT $ return NoHandle
 escape :: (Monad m, ToMessage resp) => WebT m resp -> WebT m a
 escape gen = gen >>= escape'
 
+escape' :: (Monad m, ToMessage a1) => a1 -> WebT m a
 escape' a = WebT $ return $ Escape $ toResponse a
 
 ho :: [OptDescr (Conf -> Conf)]
