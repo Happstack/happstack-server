@@ -15,6 +15,104 @@
 --
 -- By default, the built-in HTTP server will be used. However, other back-ends
 -- like CGI\/FastCGI can used if so desired.
+-- 
+-- So the general nature of 'simpleHTTP' is no different than what you'd expect
+-- from a web application container.  First you figure out when function is
+-- going to process your request, process the request to generate a response,
+-- then return that response to the client. The web application container is
+-- started with 'simpleHTTP', which takes a configuration and a list of
+-- possible response-building structures ('ServerPartT' which I'll return too
+-- in a moment), and picks the first response builder that is willing to accept
+-- the request, passes the request into the response builder.  A simple "hello world" style
+-- HAppS simpleHTTP server looks like:
+--
+-- @
+--   main = simpleHTTP nullConf {port = 5000} [anyRequest $ ok $ toResponse \"Hello World!\" ]
+-- @
+--
+-- @simpleHTTP nullConf {port =5000}@ creates a HTTP server on port 5000.
+-- @anyRequest@ simply ignores your request (so the particular URL or method
+-- you use doesn't matter).  @ok@ sets the response code to "200" (i.e. HTTP
+-- OK).  Finally toResponse converts it's argument to a 'Response' (which among
+-- other things tells the server the mime type you should be returning).
+--
+-- 'ServerPartT' is the basic response builder.  As you might expect, it's a
+-- container for a function that takes a Request and converts it a response
+-- suitable for sending back to the server.  The simplist 'ServerPartT' ignores
+-- the request and simply provides a response.  Not coincidentally, this is called
+-- 'anyRequest' and we used it in our "hello word" example above.  Its definition
+-- is quite simple:
+--
+-- @
+--  anyRequest aResponse = ServerPartT \\x -> aResponse
+-- @
+-- 
+-- 'ServerPartT' is also avalible in monadic form.  Here is a do block
+-- that validates basic authentication
+-- It takes a realm name as a string, a Map of username to password
+-- and a server part to run if authentication fails.
+--
+-- 
+-- @basicAuth'@ acts like a guard, and only produces a response when
+-- authentication fails.  So put it before any ServerPartTs you want
+-- to demand authentication for in any list of ServerPartTs.
+--
+-- @
+--  escapeSP a = anyRequest $ escape' a
+--  nohandleSP = anyRequest $ noHandle
+--  getHeaderSP a = ServerPartT $ \rq -> return $ getHeader a rq
+--  basicAuth' realmName authMap unauthorizedPart = do
+--      authHeader <- getHeaderSP \"authorization\"
+--      case authHeader of
+--         Nothing -> err
+--         Just x  -> case parseHeader x of 
+--                      (name, ':':pass) | validLogin name pass -> noHandleSP
+--                      _                                       -> err
+--      validLogin name pass = M.lookup name authMap == Just pass
+--      parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
+--      headerName  = \"WWW-Authenticate\"
+--      headerValue = \"Basic realm=\\\"\" ++ realmName ++ \"\\\"\"
+--      err = unauthorizedPart >>= escapeSP
+-- @
+-- 
+-- -- TODO move escapeSP noHandleSP and getHeaderSP into the module proper
+--
+-- The response object that a 'ServerPartT' expects is a 'WebT' which is
+-- container (i.e. Monad) for responses.  Let's start with a few examples.
+--
+-- @
+--   main = simpleHTTP nullConf {port = 5000} [ anyRequest $ myWebT ]
+--   myWebT = do
+--     setResponseCode 200
+--     return $ toResponse \"Hello World!\"
+-- @
+--
+-- This is exactly the same as our first example, though a little more verbose.
+-- Why the extra verbosity?  The monadic form gives us access to two control
+-- structures, noHandle and escape'.  noHandle causes the do block to 
+-- exit immediately and fail to be chosen to handle the request while escape'
+-- stops all processing and produces the result you have generated so far.  Here
+-- is an example of "noHandle"
+--
+-- @
+--   main = simpleHTTP nullConf {port = 5000} [ anyRequest $ myWebT ]
+--   myWebT = do
+--     line <- liftIO $ do -- IO
+--         putStr \"return? \"
+--         getLine
+--     when (take 2 line /= \"ok\") $ noHandle
+--     setResponseCode 200
+--     return $ toResponse \"Hello World!\"
+-- @
+-- 
+-- This example will ask in the console \"return? \" if you type \"ok\" it will
+-- show \"Hello World!\" and if you don\'t it will return a 404.
+--
+-- TODO -- while the monad forms of ServerPartT and WebT are quite handy
+-- we're missing virtually all the functions that could be useful in a monad.
+-- I.e. getHeaderSP, setHeaderW, escapeSP and noHandleSP referenced above don't
+-- actually exist in the module
+-- 
 -----------------------------------------------------------------------------
 module Happstack.Server.SimpleHTTP
     ( module Happstack.Server.HTTP.Types
@@ -143,9 +241,12 @@ import System.Process (runInteractiveProcess, waitForProcess)
 import System.Exit
 import Text.Show.Functions ()
 
+-- | An alias for WebT when using the IO monad (which is most of the time)
 type Web a = WebT IO a
+-- | An alias for using ServerPartT when using the IO monad (again, this is most of the time)
 type ServerPart a = ServerPartT IO a
 
+-- | ServerPartT is a container for 
 newtype ServerPartT m a = ServerPartT { unServerPartT :: Request -> WebT m a }
 
 instance (Monad m) => Monad (ServerPartT m) where
