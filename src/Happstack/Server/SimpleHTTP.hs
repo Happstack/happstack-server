@@ -392,12 +392,9 @@ simpleHTTP conf hs
 -- | Generate a result from a list of @ServerParts@ and a @Request@. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
 simpleHTTP' :: (ToMessage a, Monad m) => [ServerPartT m a] -> Request -> m Response
-simpleHTTP' hs req
-    = do res <- unWebT (unServerPartT (multi hs) req)
-         case res of
-           NoHandle    -> return $ result 404 "No suitable handler found"
-           Escape r -> return r
-           Ok out a    -> return $ out $ toResponse a
+simpleHTTP' hs req =  executeW standardNotFound $ executeSP (msum hs) req
+    where
+        standardNotFound = return $ result 404 "No suitable handler found"
 
 executeSP :: ServerPartT m a -> Request -> WebT m a
 executeSP = unServerPartT
