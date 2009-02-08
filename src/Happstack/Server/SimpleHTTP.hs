@@ -189,27 +189,13 @@ instance Monad m => Monad (WebT m) where
                                               NoHandle    -> return NoHandle
                                               Escape res -> return $ Escape $ out res
                                               Ok out' a'  -> return $ Ok (out' . out) a'
-                                              SetFilter out' a' -> return $ Ok out' a'
+                                              SetFilter out' a' -> return $ SetFilter out' a'
                           SetFilter out a -> do r' <- unWebT (g a)
                                                 case r' of
                                                   NoHandle -> return NoHandle
                                                   Escape res -> return $ Escape $ out res
-                                                  Ok out' a' -> return $ Ok (out' . out) a'
-                                                  -- It's ok to return SetFilter here
-                                                  -- instead of Ok.  The semantics of 
-                                                  -- SetFilter and Ok on the left of bind
-                                                  -- are the same, so the result would 
-                                                  -- be the same.
-                                                  --
-                                                  -- If you did return SetFilter then
-                                                  -- if someone were to bind this result
-                                                  -- on the right side again, it would
-                                                  -- behave like a second invocation of
-                                                  -- setFilter.  While that's a highly
-                                                  -- contrived example, I still think
-                                                  -- it's less confusing trigger the
-                                                  -- SetFilter behavior only once.
-                                                  SetFilter out' a' -> return $ Ok out' a'
+                                                  Ok out' a' -> return $ SetFilter (out' . out) a'
+                                                  SetFilter out' a' -> return $ SetFilter out' a'
     return x = WebT $ return (Ok id x)
 
 instance (Monad m) => MonadPlus (ServerPartT m)
