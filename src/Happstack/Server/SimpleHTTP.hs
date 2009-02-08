@@ -33,6 +33,8 @@ module Happstack.Server.SimpleHTTP
     , Result(..)
     , noHandle
     , escape
+    , executeSP
+    , executeW
 
 
       -- * ServerPart primitives.
@@ -265,6 +267,17 @@ simpleHTTP' hs req
            Escape r -> return r
            Ok out a    -> return $ out $ toResponse a
 
+executeSP :: ServerPartT m a -> Request -> WebT m a
+executeSP sp req = unServerPartT sp $ req
+
+executeW :: (Monad m, ToMessage msg) => m Response -> WebT m msg -> m Response
+executeW def web = do r <-unWebT $ escape web
+                      case r of
+                        (Escape r') -> return r'
+                        -- Note that because we called "escape" Ok isn't possible here
+                        -- this can only be NoHandle
+                        _ -> def 
+                  
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
