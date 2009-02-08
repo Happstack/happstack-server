@@ -32,7 +32,10 @@ module Happstack.Server.SimpleHTTP
     , WebT(..)
     , Result(..)
     , noHandle
+    , finishWith
     , escape
+    , setResponseFilter
+    , ignoreResponseFilter
     , escape'
     , executeSP
     , executeW
@@ -156,14 +159,24 @@ instance (MonadIO m) => MonadIO (ServerPartT m) where
 
 newtype WebT m a = WebT { unWebT :: m (Result a) }
 
-data Result a = NoHandle
-              | Ok (Response -> Response) a
-              | Escape Response
+-- | Result is part of the implementation of the WebT do semantics
+--  
+--
+data Result a = NoHandle -- ^ NoHandle is essentially "fail"  It aborts the Monad computation.
+                         --  It's a lot like Nothing from Maybe that way.
+              | Ok (Response -> Response) a -- ^ Ok contains a filter and a result
+                                            -- (>>=) ensures that filters in Ok are always composed
+              | Escape Response -- ^ causes the computation in the do block to immediate exit
+                                -- It's used to implement finishWith.  It's called "Escape"
+                                -- and not "Finish" for historical reasons.
+              | SetFilter (Response -> Response) a -- ^ SetFilter is a lot like Ok, except
+                                                   -- it's filter doesn't compose with previous filters
                 deriving Show
 
 instance Functor Result where
     fmap _ NoHandle = NoHandle
     fmap fn (Ok out a) = Ok out (fn a)
+    fmap fn (SetFilter out a) = SetFilter out (fn a)
     fmap _ (Escape r) = Escape r
 
 instance Monad m => Monad (WebT m) where
@@ -176,6 +189,27 @@ instance Monad m => Monad (WebT m) where
                                               NoHandle    -> return NoHandle
                                               Escape res -> return $ Escape $ out res
                                               Ok out' a'  -> return $ Ok (out' . out) a'
+                                              SetFilter out' a' -> return $ Ok out' a'
+                          SetFilter out a -> do r' <- unWebT (g a)
+                                                case r' of
+                                                  NoHandle -> return NoHandle
+                                                  Escape res -> return $ Escape $ out res
+                                                  Ok out' a' -> return $ Ok (out' . out) a'
+                                                  -- It's ok to return SetFilter here
+                                                  -- instead of Ok.  The semantics of 
+                                                  -- SetFilter and Ok on the left of bind
+                                                  -- are the same, so the result would 
+                                                  -- be the same.
+                                                  --
+                                                  -- If you did return SetFilter then
+                                                  -- if someone were to bind this result
+                                                  -- on the right side again, it would
+                                                  -- behave like a second invocation of
+                                                  -- setFilter.  While that's a highly
+                                                  -- contrived example, I still think
+                                                  -- it's less confusing trigger the
+                                                  -- SetFilter behavior only once.
+                                                  SetFilter out' a' -> return $ Ok out' a'
     return x = WebT $ return (Ok id x)
 
 instance (Monad m) => MonadPlus (ServerPartT m)
@@ -238,11 +272,20 @@ instance MonadError e m => MonadError e (WebT m) where
 noHandle :: Monad m => WebT m a
 noHandle = WebT $ return NoHandle
 
+finishWith :: (Monad m, ToMessage a1) => a1 -> WebT m a
+finishWith a = WebT $ return $ Escape $ toResponse a
+
+setResponseFilter:: Monad m => (Response->Response) -> WebT m ()
+setResponseFilter f = WebT $ return $ SetFilter f ()
+
+ignoreResponseFilter :: Monad m => WebT m ()
+ignoreResponseFilter = setResponseFilter id
+
 escape :: (Monad m, ToMessage resp) => WebT m resp -> WebT m a
-escape gen = gen >>= escape'
+escape gen = ignoreResponseFilter >> gen >>= finishWith
 
 escape' :: (Monad m, ToMessage a1) => a1 -> WebT m a
-escape' a = WebT $ return $ Escape $ toResponse a
+escape' a = ignoreResponseFilter >> finishWith a
 
 ho :: [OptDescr (Conf -> Conf)]
 ho = [Option [] ["http-port"] (ReqArg (\h c -> c { port = read h }) "port") "port to bind http server"]
