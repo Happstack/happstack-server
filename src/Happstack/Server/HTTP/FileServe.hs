@@ -96,7 +96,7 @@ returnFile mime rq fp =
 -- if fp has , separated then return concatenation with content-type of last
 -- and last modified of latest
 tr :: (Eq a) => a -> a -> [a] -> [a]
-tr a b list = map (\x->if x==a then b else x) list
+tr a b = map (\x->if x==a then b else x)
 ltrim :: String -> String
 ltrim = dropWhile (flip elem " \t\r")   
 
@@ -129,7 +129,7 @@ fakeFile :: (Integral a) =>
             a -> ((ClockTime, Int64), (String, L.ByteString))
 fakeFile fakeLen = ((TOD 0 0,L.length body),("text/javascript",body))
     where
-      body = L.pack $ (("//"++(show len)++" ") ++ ) $ (take len $ repeat '0') ++ "\n"
+      body = L.pack $ (("//"++(show len)++" ") ++ ) $ (replicate len '0') ++ "\n"
       len = fromIntegral fakeLen
 
 getFile :: (MonadIO m) =>
@@ -174,7 +174,7 @@ renderResponse _ rq ((modtime,size),(ct,body)) = do
 
 
 getExt :: String -> String
-getExt fPath = reverse $ takeWhile (/='.') $ reverse fPath
+getExt = reverse . takeWhile (/='.') . reverse
 
 -- | Ready collection of common mime types.
 mimeTypes :: MimeMap

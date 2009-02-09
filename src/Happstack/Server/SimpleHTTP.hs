@@ -256,7 +256,7 @@ instance (Monad m) => Monad (ServerPartT m) where
     return x = ServerPartT $ \_ -> return x
 
 instance (MonadIO m) => MonadIO (ServerPartT m) where
-    liftIO m = ServerPartT $ const (liftIO m)
+    liftIO = ServerPartT . const . liftIO
 
 newtype WebT m a = WebT { unWebT :: m (Result a) }
 
@@ -324,10 +324,10 @@ instance (Monad m) => Monoid (WebT m a) where
                              _        -> return a'
 
 instance MonadTrans WebT where
-    lift m = WebT (liftM (Ok id) m)
+    lift = WebT . liftM (Ok id)
 
 instance MonadIO m => MonadIO (WebT m) where
-    liftIO m = WebT (liftM (Ok id) $ liftIO m)
+    liftIO = WebT . liftM (Ok id) . liftIO
 
 instance Functor m => Functor (WebT m) where
     fmap fn (WebT m) = WebT $ fmap (fmap fn) m
@@ -345,14 +345,14 @@ instance (Monad m, Functor m) => Applicative (WebT m) where
 
 instance MonadReader r m => MonadReader r (WebT m) where
     ask = lift ask
-    local fn m = WebT $ local fn (unWebT m)
+    local fn = WebT . local fn . unWebT
 
 instance MonadState st m => MonadState st (WebT m) where
     get = lift get
     put = lift . put
 
 instance MonadError e m => MonadError e (WebT m) where
-	throwError err = WebT $ throwError err
+	throwError = WebT . throwError 
  	catchError action handler = WebT $ catchError (unWebT action) (unWebT . handler)
 
 
@@ -360,7 +360,7 @@ noHandle :: Monad m => WebT m a
 noHandle = WebT $ return NoHandle
 
 finishWith :: (Monad m, ToMessage a1) => a1 -> WebT m a
-finishWith a = WebT $ return $ Escape $ toResponse a
+finishWith = WebT . return . Escape . toResponse
 
 setResponseFilter:: Monad m => (Response->Response) -> WebT m ()
 setResponseFilter f = WebT $ return $ SetFilter f ()
@@ -400,7 +400,7 @@ simpleHTTP' hs req
            Ok out a    -> return $ out $ toResponse a
 
 executeSP :: ServerPartT m a -> Request -> WebT m a
-executeSP sp req = unServerPartT sp $ req
+executeSP = unServerPartT
 
 executeW :: (Monad m, ToMessage msg) => m Response -> WebT m msg -> m Response
 executeW def web = do r <-unWebT $ escape web
@@ -598,7 +598,7 @@ rproxyServe defaultHost list  = withRequest $ \rq ->
 
 -- | Run an IO action and, if it returns @Just@, pass it to the second argument.
 require :: MonadIO m => IO (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
-require fn = requireM (liftIO fn)
+require = requireM . liftIO
 
 requireM :: Monad m => m (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
 requireM fn handle
@@ -644,8 +644,8 @@ setResponseCode code
     = modifyResponse $ \r -> r{rsCode = code}
 
 addCookie :: Monad m => Seconds -> Cookie -> WebT m ()
-addCookie sec cookie
-    = modifyResponse $ addHeader "Set-Cookie" (mkCookieHeader sec cookie)
+addCookie sec 
+    = modifyResponse . addHeader "Set-Cookie" . mkCookieHeader sec
 
 addCookies :: Monad m => [(Seconds, Cookie)] -> WebT m ()
 addCookies = mapM_ (uncurry addCookie)
@@ -669,15 +669,15 @@ badRequest = resp 400
 
 -- | Respond with @401 Unauthorized@.
 unauthorized :: Monad m => a -> WebT m a
-unauthorized val  = resp 401 val
+unauthorized = resp 401
 
 -- | Respond with @403 Forbidden@.
 forbidden :: Monad m => a -> WebT m a
-forbidden val = resp 403 val
+forbidden = resp 403
 
 -- | Respond with @404 Not Found@.
 notFound :: Monad m => a -> WebT m a
-notFound val = resp 404 val
+notFound = resp 404
 
 -- | Respond with @303 See Other@.
 seeOther :: (Monad m, ToSURI uri) => uri -> res -> WebT m res
@@ -701,10 +701,10 @@ tempRedirect val res = do modifyResponse $ redirect 307 val
 
 
 multi :: Monad m => [ServerPartT m a] -> ServerPartT m a
-multi ls = msum ls
+multi = msum
 
 withRequest :: (Request -> WebT m a) -> ServerPartT m a
-withRequest fn = ServerPartT $ fn
+withRequest = ServerPartT
 
 debugFilter :: (MonadIO m, Show a) => [ServerPartT m a] -> [ServerPartT m a]
 debugFilter handle = [

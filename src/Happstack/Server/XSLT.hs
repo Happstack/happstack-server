@@ -74,7 +74,7 @@ procFPSIO xsltp xsl inp =
     return [s]
 
 xsltFPS :: XSLPath -> [P.ByteString] -> [P.ByteString]
-xsltFPS xsl inp = unsafePerformIO $ xsltFPSIO xsl inp
+xsltFPS xsl = unsafePerformIO . xsltFPSIO xsl
 
 xsltFPSIO :: XSLPath -> [P.ByteString] -> IO [P.ByteString]
 xsltFPSIO xsl inp = 

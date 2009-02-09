@@ -140,7 +140,7 @@ isBoundary b s = startsWithDashes s && b `BS.isPrefixOf` BS.drop 2 s
 isClose :: ByteString -- ^ The boundary, without the initial dashes
         -> ByteString 
         -> Bool
-isClose b s = startsWithDashes (BS.drop (2+BS.length b) s)
+isClose b = startsWithDashes . BS.drop (2+BS.length b)
 
 -- | Checks whether a string starts with two dashes.
 startsWithDashes :: ByteString -> Bool
@@ -153,7 +153,7 @@ startsWithDashes s = BS.pack "--" `BS.isPrefixOf` s
 
 -- | Drop everything up to and including the first CRLF.
 dropLine :: ByteString -> Maybe ByteString
-dropLine s = fmap snd (splitAtCRLF s)
+dropLine = fmap snd . splitAtCRLF
 
 -- | Split a string at the first empty line. The CRLF (if any) before the
 --   empty line is included in the first result. The CRLF after the
@@ -197,7 +197,7 @@ findCRLF s =
                            _           -> Just (j,1)
 
 findCRorLF :: ByteString -> Maybe Int64
-findCRorLF s = BS.findIndex (\c -> c == '\n' || c == '\r') s
+findCRorLF = BS.findIndex (\c -> c == '\n' || c == '\r')
 
 startsWithCRLF :: ByteString -> Bool
 startsWithCRLF s = not (BS.null s) && (c == '\n' || c == '\r')

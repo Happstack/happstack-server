@@ -39,7 +39,7 @@ instance Ord SURI where
 
 -- | Render should be used for prettyprinting URIs.
 render :: (ToSURI a) => a -> String
-render x = (show . suri . toSURI) x
+render = show . suri . toSURI
 parse :: String -> Maybe SURI
 parse =  fmap SURI . URI.parseURIReference 
 

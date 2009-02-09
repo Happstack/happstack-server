@@ -59,7 +59,7 @@ xmlElem :: (t -> [Content])
            -> Types.Element
 xmlElem f = \name attrs val -> xmlelem name attrs (f val)
 	where 
-	xmlelem name attrs = Types.Elem name (map (uncurry attr) attrs)
+	xmlelem name = Types.Elem name . map (uncurry attr)
 	attr name val= (name,AttValue [Left val])
 
 textElem :: Name -> [(Name, String)] -> CharData -> Types.Element
@@ -103,7 +103,7 @@ xmlEscaper=stdXmlEscaper
 xmlStdEscape :: Types.Element -> Types.Element
 xmlStdEscape = xmlEscape stdXmlEscaper
 verbim :: (Verbatim a) => a -> String
-verbim x =verbatim x
+verbim = verbatim
 
 simpleProlog :: StyleSheet -> Prolog
 simpleProlog style = 
@@ -135,7 +135,7 @@ class ToElement x where toElement::x->Types.Element
 instance (ToElement x) => ToElement (Maybe x) where 
     toElement = maybe (emptyElem "Nothing" []) toElement
 
-instance ToElement String where toElement s = textElem "String" [] s
+instance ToElement String where toElement = textElem "String" []
 instance ToElement Types.Element where toElement = id
 instance ToElement CalendarTime where 
     toElement = recToEl "CalendarTime" 
@@ -147,7 +147,7 @@ instance ToElement CalendarTime where
                 ,attrFS "sec" ctSec
                 ,attrFS "time" time 
                 ] []
-        where time ct = epochPico ct
+        where time = epochPico
 
 instance ToElement Int where toElement = toElement . show
 instance ToElement Integer where toElement = toElement . show

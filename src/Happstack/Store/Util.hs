@@ -27,9 +27,9 @@ type With st' st a = Ev (StateT st' STM) a -> Ev (StateT st STM) a
 
 
 byTime::(Typeable a) => IxSet a -> [a]
-byTime = concat . map (\(Published _,es)->es) . groupBy
+byTime = concatMap (\(Published _,es)->es) . groupBy
 byRevTime::(Typeable a) => IxSet a -> [a]
-byRevTime = concat . map (\(Published _,es)->es) . rGroupBy
+byRevTime = concatMap (\(Published _,es)->es) . rGroupBy
 
 
 fun0_1 :: String -> String -> String -> Dec

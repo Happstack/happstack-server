@@ -53,7 +53,7 @@ pHeaders :: Parser [Header]
 pHeaders = many pHeader
 
 parseHeaders :: Monad m => SourceName -> String -> m [Header]
-parseHeaders s inp = parseM pHeaders s inp
+parseHeaders = parseM pHeaders
 
 pHeader :: Parser Header
 pHeader = 

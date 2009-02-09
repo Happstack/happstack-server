@@ -145,7 +145,7 @@ import Data.Bits ((.&.))
 import Data.Char
 import Data.List (partition,elemIndex,intersperse)
 import Data.Maybe
-import Control.Monad (when,guard)
+import Control.Monad (when,guard, forM)
 import Numeric (readHex)
 import Text.ParserCombinators.ReadP
 import Text.Read.Lex 
@@ -204,7 +204,7 @@ data URIAuthority = URIAuthority { user :: Maybe String,
 -- >  Some or all of the parts "<user>:<password>@", ":<password>",
 -- >  ":<port>", and "/<url-path>" may be excluded.
 parseURIAuthority :: String -> Maybe URIAuthority
-parseURIAuthority s = listToMaybe (map fst (readP_to_S pURIAuthority s))
+parseURIAuthority = listToMaybe . map fst . readP_to_S pURIAuthority
 
 
 pURIAuthority :: ReadP URIAuthority
@@ -433,7 +433,7 @@ retrieveHeaders name x = filter matchname (getHeaders x)
 -- | Lookup presence of specific HeaderName in a list of Headers
 -- Returns the value from the first matching header.
 findHeader :: HasHeaders a => HeaderName -> a -> Maybe String
-findHeader n x = lookupHeader n (getHeaders x)
+findHeader n = lookupHeader n . getHeaders
 
 -- An anomally really:
 lookupHeader :: HeaderName -> [Header] -> Maybe String
@@ -492,7 +492,7 @@ data Request =
 instance Show Request where
     show (Request u m h _) =
         show m ++ sp ++ alt_uri ++ sp ++ httpVersion ++ crlf
-        ++ foldr (++) [] (map show h) ++ crlf
+        ++ concatMap show h ++ crlf
         where
             alt_uri = show $ if null (uriPath u) || head (uriPath u) /= '/' 
                         then u { uriPath = '/' : uriPath u } 
@@ -531,7 +531,7 @@ data Response =
 instance Show Response where
     show (Response (a,b,c) reason headers _) =
         httpVersion ++ ' ' : map intToDigit [a,b,c] ++ ' ' : reason ++ crlf
-        ++ foldr (++) [] (map show headers) ++ crlf
+        ++ concatMap show headers ++ crlf
 
 
 
@@ -726,7 +726,7 @@ sendHTTPPipelined :: Stream s => s -> [Request] -> IO ([Response],Maybe ConnErro
 sendHTTPPipelined conn rqs = 
     do { (ok,rsp) <- Exception.catch (main (map fixHostHeader rqs))
                       (\(e::SomeException) -> do { close conn; throw e })
-       ; let fn list = when (or $ map findConnClose list)
+       ; let fn list = when (any findConnClose list)
                             (close conn)
        ; fn (map rqHeaders rqs ++ map rspHeaders ok)
        ; return (ok,rsp)
@@ -750,7 +750,7 @@ sendHTTPPipelined conn rqs =
                --              else show (insertHeader HdrExpect "100-continue" rqst)
 	       -- write body immediately, don't wait for 100 CONTINUE
                writeBlock conn $ concat $ intersperse "\r\n" [ show rqst ++ rqBody rqst | rqst <- rqsts ]
-               rets <- flip mapM rqsts $ \rqst ->
+               rets <- forM rqsts $ \rqst ->
                        do rsp <- getResponseHead
                           switchResponse True True rsp rqst
                return (sequenceResponses rets)

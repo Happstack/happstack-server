@@ -31,9 +31,9 @@ unproxify rq = rq {rqPaths = tail $ rqPaths rq,
                        setHeader "host" (head $ rqPaths rq) $
                    rqHeaders rq}
   where
-  appendInfo hdr val x = setHeader hdr (csv val $
+  appendInfo hdr val = setHeader hdr (csv val $
                                         maybe "" B.unpack $
-                                        getHeader hdr rq) x
+                                        getHeader hdr rq)
   forwardedFor = appendInfo "X-Forwarded-For" (fst $ rqPeer rq)
   forwardedHost = appendInfo "X-Forwarded-Host" 
                   (B.unpack $ fromJust $ getHeader "host" rq)

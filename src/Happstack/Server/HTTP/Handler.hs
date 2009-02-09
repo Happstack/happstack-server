@@ -168,7 +168,7 @@ putAugmentedResult h req res = do
   let ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
   raw <- getApproximateTime
   let cl = L.length $ rsBody res
-  let put x = P.hPut h x
+  let put = P.hPut h
   -- TODO: Hoist static headers to the toplevel.
   let stdHeaders = staticHeaders `M.union`
                    M.fromList ( [ (dateCLower,       HeaderPair dateC [raw])
@@ -190,7 +190,7 @@ putAugmentedResult h req res = do
 
 putRequest :: Handle -> Request -> IO ()
 putRequest h rq = do 
-    let put x = B.hPut h x
+    let put = B.hPut h
         ph (HeaderPair k vs) = map (\v -> B.concat [k, fsepC, v, crlfC]) vs
         sp = [B.pack " "]
     mapM_ put $ concat

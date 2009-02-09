@@ -118,7 +118,7 @@ instance HasHeaders Response where updateHeaders f rs = rs{rsHeaders=f $ rsHeade
 instance HasHeaders Request where updateHeaders f rq = rq{rqHeaders = f $ rqHeaders rq} 
                                   headers = rqHeaders
 
-instance HasHeaders Headers where updateHeaders f hs = f hs
+instance HasHeaders Headers where updateHeaders f = f
                                   headers = id
 
 newtype RqBody = Body L.ByteString deriving (Read,Show,Typeable)
@@ -138,11 +138,11 @@ mkHeaders hdrs
 
 -- | Lookup header value. Key is case-insensitive.
 getHeader :: HasHeaders r => String -> r -> Maybe ByteString
-getHeader key = getHeaderBS (pack key)
+getHeader = getHeaderBS . pack
 
 -- | Lookup header value. Key is a case-insensitive bytestring.
 getHeaderBS :: HasHeaders r => ByteString -> r -> Maybe ByteString
-getHeaderBS key = getHeaderUnsafe (P.map toLower key)
+getHeaderBS = getHeaderUnsafe . P.map toLower
 
 -- | Lookup header value with a case-sensitive key. The key must be lowercase.
 getHeaderUnsafe :: HasHeaders r => ByteString -> r -> Maybe ByteString
@@ -150,7 +150,7 @@ getHeaderUnsafe key var = listToMaybe =<< fmap hValue (getHeaderUnsafe' key var)
 
 -- | Lookup header with a case-sensitive key. The key must be lowercase.
 getHeaderUnsafe' :: HasHeaders r => ByteString -> r -> Maybe HeaderPair
-getHeaderUnsafe' key r = M.lookup key (headers r)
+getHeaderUnsafe' key = M.lookup key . headers
 
 --------------------------------------------------------------
 -- Querying header status
@@ -205,7 +205,7 @@ addHeaderUnsafe key val = updateHeaders (M.insertWith join key val)
 
 
 result :: Int -> String -> Response
-result code s = resultBS code (L.pack s)
+result code = resultBS code . L.pack
 
 resultBS :: Int -> L.ByteString -> Response
 resultBS code s = Response code M.empty nullRsFlags s Nothing
