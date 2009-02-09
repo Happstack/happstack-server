@@ -400,10 +400,10 @@ executeSP :: ServerPartT m a -> Request -> WebT m a
 executeSP = unServerPartT
 
 executeW :: (Monad m, ToMessage msg) => m Response -> WebT m msg -> m Response
-executeW def web = do r <-unWebT $ escape web
+executeW def web = do r <-unWebT $  web >>= finishWith
                       case r of
                         (Escape r') -> return r'
-                        -- Note that because we called "escape" Ok isn't possible here
+                        -- Note that because we called "finishWith" Ok isn't possible here
                         -- this can only be NoHandle
                         _ -> def 
                   
