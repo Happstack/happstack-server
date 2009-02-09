@@ -129,17 +129,11 @@ module Happstack.Server.SimpleHTTP
     , Web
     , WebT(..)
     , Result(..)
-    , noHandle
-    , finishWith
-    , escape
-    , setResponseFilter
-    , ignoreResponseFilter
-    , escape'
     , executeSP
     , executeW
 
 
-      -- * ServerPart primitives.
+      -- * Processing requests
     , webQuery
     , webUpdate
     , flatten
@@ -168,6 +162,12 @@ module Happstack.Server.SimpleHTTP
     , setResponseCode
     , basicAuth
       -- * Creating Results.
+    , noHandle
+    , finishWith
+    , escape
+    , setResponseFilter
+    , ignoreResponseFilter
+    , escape'
     , ok          -- :: ToMessage a => a -> IO Result
 --    , mbOk
     , badGateway
@@ -246,7 +246,8 @@ type Web a = WebT IO a
 -- | An alias for using ServerPartT when using the IO monad (again, this is most of the time)
 type ServerPart a = ServerPartT IO a
 
--- | ServerPartT is a container for 
+-- | ServerPartT is a container for methods that process Request  and return a WebT
+-- The basic request-response object.
 newtype ServerPartT m a = ServerPartT { unServerPartT :: Request -> WebT m a }
 
 instance (Monad m) => Monad (ServerPartT m) where
@@ -261,8 +262,6 @@ instance (MonadIO m) => MonadIO (ServerPartT m) where
 newtype WebT m a = WebT { unWebT :: m (Result a) }
 
 -- | Result is part of the implementation of the WebT do semantics
---  
---
 data Result a = NoHandle -- ^ NoHandle is essentially "fail"  It aborts the Monad computation.
                          --  It's a lot like Nothing from Maybe that way.
               | Ok (Response -> Response) a -- ^ Ok contains a filter and a result
@@ -356,40 +355,79 @@ instance MonadError e m => MonadError e (WebT m) where
  	catchError action handler = WebT $ catchError (unWebT action) (unWebT . handler)
 
 
+-- | noHandle is a control structure for use in WebT monads.
+-- It aborts a computation.
+--
+-- This is primarily useful because msum will take an array
+-- of WebT or ServerPartT and return the first one that
+-- isn't NoHandle, which is what simpleHTTP will do for you.
 noHandle :: Monad m => WebT m a
 noHandle = WebT $ return NoHandle
 
+-- | finishWith is a contorl structure for use in WebT monads.
+-- It ends the computation and returns the result you passed into it
+-- immediately.
 finishWith :: (Monad m, ToMessage a1) => a1 -> WebT m a
 finishWith = WebT . return . Escape . toResponse
 
+-- | Inside the WebT monad, if you want to ignore all previous
+-- alterations to your Response (primarily modifyResponse
+-- or previous calls of setResponseFilter) you can use this.
+--
+-- As an example:
+--
+-- @
+--   do
+--     modifyResponse f
+--     setResponseFilter id
+--     return "Hello World"
+-- @
+--
+-- setResponseFilter id will cause the first modifyResponse to be
+-- ignored.  This is particuarly useful for resetting your headers
 setResponseFilter:: Monad m => (Response->Response) -> WebT m ()
 setResponseFilter f = WebT $ return $ SetFilter f ()
 
+-- | this is an alias for setResponseFilter id
+-- It directly sets (as opposed to composing)
+-- your response filter.  In particular,
+-- it resets all your headers.
 ignoreResponseFilter :: Monad m => WebT m ()
 ignoreResponseFilter = setResponseFilter id
 
+-- | escape is used to create a WebT that resets headers
+-- and immediately ends the computation.  A combination of
+-- 'ignoreResponseFilter' and 'finishWith'
 escape :: (Monad m, ToMessage resp) => WebT m resp -> WebT m a
 escape gen = ignoreResponseFilter >> gen >>= finishWith
 
+-- | escape' is an alternate form of escape that can
+-- be easily used within a WebT do block.
 escape' :: (Monad m, ToMessage a1) => a1 -> WebT m a
 escape' a = ignoreResponseFilter >> finishWith a
 
+-- | ho is an array of OptDescr, useful for processing
+-- command line options into an Conf for simpleHTTP
 ho :: [OptDescr (Conf -> Conf)]
 ho = [Option [] ["http-port"] (ReqArg (\h c -> c { port = read h }) "port") "port to bind http server"]
 
+-- | parseConfig tries to parse your command line options
+-- into a Conf.
 parseConfig :: [String] -> Either [String] Conf
 parseConfig args
     = case getOpt Permute ho args of
         (flags,_,[]) -> Right $ foldr ($) nullConf flags
         (_,_,errs)   -> Left errs
 
--- | Use the built-in web-server to serve requests according to list of @ServerParts@.
+-- | Use the built-in web-server to serve requests according to list of 'ServerPartT's.
+-- The array of ServerPartT is passed though msum to pick the first handler that didn't 
+-- call noHandle
 simpleHTTP :: ToMessage a => Conf -> [ServerPartT IO a] -> IO ()
 simpleHTTP conf hs
     = listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< simpleHTTP' hs req)
 
 
--- | Generate a result from a list of @ServerParts@ and a @Request@. This is mainly used
+-- | Generate a result from a list of 'ServerParts' and a 'Request'. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
 simpleHTTP' :: (ToMessage a, Monad m) => [ServerPartT m a] -> Request -> m Response
 simpleHTTP' hs req =  executeW standardNotFound $ executeSP (msum hs) req
@@ -508,15 +546,20 @@ webQuery = liftIO . query
 webUpdate :: (MonadIO m, UpdateEvent ev res) => ev -> WebT m res
 webUpdate = liftIO . update
 
+-- | flatten turns your arbitrary ServerPartT m a and converts it too
+-- a 'Response' with 'toResponse'
 flatten :: (ToMessage a, Monad m) => ServerPartT m a -> ServerPartT m Response
 flatten = liftM toResponse
 
+-- | TODO
+-- This is for applying a WebT function to the msum of the array argument, then
+-- stuffing it back into a ServerPartT.  Why would you need this?
 localContext :: Monad m => (WebT m a -> WebT m' a) -> [ServerPartT m a] -> ServerPartT m' a
 localContext fn hs
     = ServerPartT $ \rq -> fn (unServerPartT (multi hs) rq)
 
 
--- | Pop a path element and run the @[ServerPart]@ if it matches the given string.
+-- | Pop a path element and run the @[ServerPartT]@ if it matches the given string.
 dir :: Monad m => String -> [ServerPartT m a] -> ServerPartT m a
 dir staticPath handle
     = ServerPartT $ \rq -> case rqPaths rq of
@@ -548,27 +591,40 @@ path handle
                                   -> unServerPartT (multi $ handle a) rq{rqPaths = xs}
                _ -> noHandle
 
+-- | grabs the rest of the URL (dirs + query) and passes it to your handler
 uriRest :: Monad m => (String -> ServerPartT m a) -> ServerPartT m a
 uriRest handle = withRequest $ \rq ->
                   unServerPartT (handle (rqURL rq)) rq
 
-
+-- | pops any path element and ignores when chosing a ServerPartT to handle the
+-- request.
 anyPath :: (Monad m) => [ServerPartT m r] -> ServerPartT m r
 anyPath x = path $ (\(_::String) -> x)
+
+-- | pops any path element and uses a single ServerPartT to handle the request
 anyPath' :: (Monad m) => ServerPartT m r -> ServerPartT m r
 anyPath' x = path $ (\(_::String) -> [x])
 
--- | Retrieve date from the input query or the cookies.
+-- | Retrieve data from the input query or the cookies.
 withData :: (FromData a, Monad m) => (a -> [ServerPartT m r]) -> ServerPartT m r
 withData = withDataFn fromData
 
+-- | withDataFn is like with data, but you pass in a RqData monad
+-- for reading.
 withDataFn :: Monad m => RqData a -> (a -> [ServerPartT m r]) -> ServerPartT m r
 withDataFn fn handle
     = ServerPartT $ \rq -> case runReaderT fn (rqInputs rq,rqCookies rq) of
                              Nothing -> noHandle
                              Just a  -> unServerPartT (multi $ handle a) rq
 
-
+-- | proxyServe is for creating ServerPartT's that proxy.
+-- The sole argument [String] is a list of allowed domains for
+-- proxying.  This matches the domain part of the request
+-- and the wildcard * can be used. E.g.
+--
+--  - \"*\" to match anything.
+--  - \"*.example.com\" to match anything under example.com
+--  - \"example.com\" to match just example.com
 proxyServe :: MonadIO m => [String] -> ServerPartT m Response
 proxyServe allowed = withRequest $ \rq -> 
                         if cond rq then proxyServe' rq else noHandle 
@@ -581,14 +637,20 @@ proxyServe allowed = withRequest $ \rq ->
      where
      domain = head (rqPaths rq) 
      superdomain = tail $ snd $ break (=='.') domain
-     wildcards = (map (drop 2) $ filter ("*." `isPrefixOf`) allowed)                                                                           
+     wildcards = (map (drop 2) $ filter ("*." `isPrefixOf`) allowed)
 
+-- | Takes a proxy Request and creates a Response.  Your basic proxy
+-- building block.  See 'unproxify'
 proxyServe' :: (MonadIO m) => Request -> WebT m Response
 proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
                 either (badGateway . toResponse . show) (escape . return)
 
-
-rproxyServe :: MonadIO m => String -> [(String, String)] -> ServerPartT m Response
+-- | This is a reverse proxy implementation.
+-- see 'unrproxify'
+rproxyServe :: MonadIO m =>
+    String -- ^ defaultHost
+    -> [(String, String)] -- ^ map to look up hostname mappings.  For the reverse proxy
+    -> ServerPartT m Response -- ^ the result is a ServerPartT that will reverse proxy for you.
 rproxyServe defaultHost list  = withRequest $ \rq ->
                 liftIO (getResponse (unrproxify defaultHost list rq)) >>=
                 either (badGateway . toResponse . show) (escape . return)
@@ -597,6 +659,7 @@ rproxyServe defaultHost list  = withRequest $ \rq ->
 require :: MonadIO m => IO (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
 require = requireM . liftIO
 
+-- | A varient of require that can run in any monad, not just IO
 requireM :: Monad m => m (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
 requireM fn handle
     = ServerPartT $ \rq -> do mbVal <- lift fn
