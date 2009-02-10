@@ -1,6 +1,5 @@
 module Happstack.Server 
 (
- module Happstack.State.Control
 ,module Happstack.Server.XSLT
 ,module Happstack.Server.SimpleHTTP
 ,module Happstack.Server.HTTP.Client
@@ -13,7 +12,6 @@ module Happstack.Server
 where
 import Happstack.Server.HTTP.Client
 import Happstack.Server.StdConfig
-import Happstack.State.Control
 import Happstack.Server.XSLT
 import Happstack.Server.SimpleHTTP
 import Happstack.Server.MessageWrap
