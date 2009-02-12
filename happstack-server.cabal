@@ -33,7 +33,6 @@ Library
                        Happstack.Server.MinHaXML,
                        Happstack.Server.SURI,
                        Happstack.Server.XSLT,
-                       Happstack.Server.Cron,
                        Happstack.Server.StdConfig,
                        Happstack.Store.Util
   if flag(tests)
