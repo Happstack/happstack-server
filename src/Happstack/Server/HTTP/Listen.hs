@@ -10,7 +10,7 @@ import Control.Exception.Extensible as E
 import Control.Concurrent
 import Network
 import Network.Socket as Socket (
-  PortNumber(..), SockAddr(..), accept, socketToHandle)
+  PortNumber(..), SockAddr(SockAddrInet), accept, socketToHandle)
 import System.IO
 import Happstack.Util.HostAddress
 
@@ -28,15 +28,10 @@ acceptLite sock = do
   (sock', addr) <- Socket.accept sock
   h <- socketToHandle sock' ReadWriteMode
   (PortNumber p) <- Network.socketPort sock'
-  
   let peer = case addr of
                (SockAddrInet _ ha) -> showHostAddress ha
-               (SockAddrInet6 _ _ ha6 _) -> showHostAddress6 ha6
-               _ -> error "unexpected SockAddr constructor"
-
+               _                   -> error "Only IPV4 is supported"
   return (h, peer, p)
-
-
 
 listen :: Conf -> (Request -> IO Response) -> IO ()
 listen conf hand = do
