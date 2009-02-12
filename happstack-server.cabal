@@ -53,8 +53,9 @@ Library
                        Happstack.Server.SURI.ParseURI
 
   Build-Depends:       base, HaXml >= 1.13 && < 1.14, parsec<3, mtl, network,
-                       hslogger >= 1.0.2, happstack-data, happstack-util,
-                       happstack-state, happstack-ixset, template-haskell, xhtml, html,
+                       hslogger >= 1.0.2, happstack-data >= 0.1.9,
+                       happstack-util >= 0.1.9, happstack-state >= 0.1.9,
+                       happstack-ixset >= 0.1.9, template-haskell, xhtml, html,
                        bytestring, containers, old-time, old-locale, directory, 
                        process, extensible-exceptions
   hs-source-dirs:      src
