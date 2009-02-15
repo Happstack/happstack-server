@@ -56,7 +56,7 @@ Library
                        happstack-util >= 0.1.9, happstack-state >= 0.1.9,
                        happstack-ixset >= 0.1.9, template-haskell, xhtml, html,
                        bytestring, containers, old-time, old-locale, directory, 
-                       process, extensible-exceptions
+                       process, extensible-exceptions, MaybeT
   hs-source-dirs:      src
   if flag(tests)
     hs-source-dirs:    tests

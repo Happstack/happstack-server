@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances, OverlappingInstances, ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances,
-    MultiParamTypeClasses, PatternGuards #-}
+    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving, NoMonomorphismRestriction #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -27,92 +27,68 @@
 -- HAppS simpleHTTP server looks like:
 --
 -- @
---   main = simpleHTTP nullConf {port = 5000} [anyRequest $ ok $ toResponse \"Hello World!\" ]
+--   main = simpleHTTP nullConf [ return \"Hello World!\" ]
 -- @
 --
--- @simpleHTTP nullConf {port =5000}@ creates a HTTP server on port 5000.
--- @anyRequest@ simply ignores your request (so the particular URL or method
--- you use doesn't matter).  @ok@ sets the response code to "200" (i.e. HTTP
--- OK).  Finally toResponse converts it's argument to a 'Response' (which among
--- other things tells the server the mime type you should be returning).
+-- @simpleHTTP nullConf@ creates a HTTP server on port 8000.
+-- return \"Hello World!\" creates a serverPartT that just returns that text.
 --
 -- 'ServerPartT' is the basic response builder.  As you might expect, it's a
 -- container for a function that takes a Request and converts it a response
--- suitable for sending back to the server.  The simplist 'ServerPartT' ignores
--- the request and simply provides a response.  Not coincidentally, this is called
--- 'anyRequest' and we used it in our "hello word" example above.  Its definition
--- is quite simple:
---
--- @
---  anyRequest aResponse = ServerPartT \\x -> aResponse
--- @
+-- suitable for sending back to the server.  Most of the time though you don't
+-- even need to worry about that as ServerPartT hides almost all the machinery
+-- for building your response by exposing a few type classes.
 -- 
--- 'ServerPartT' is also avalible in monadic form.  Here is a do block
--- that validates basic authentication
--- It takes a realm name as a string, a Map of username to password
--- and a server part to run if authentication fails.
---
+-- 'ServerPartT' is a pretty rich monad.  You can interact with your request,
+-- your response, do IO, etc.  Here is a do block that validates basic
+-- authentication It takes a realm name as a string, a Map of username to
+-- password and a server part to run if authentication fails.
 -- 
 -- @basicAuth'@ acts like a guard, and only produces a response when
 -- authentication fails.  So put it before any ServerPartTs you want
 -- to demand authentication for in any list of ServerPartTs.
 --
 -- @
---  escapeSP a = anyRequest $ escape' a
---  nohandleSP = anyRequest $ noHandle
---  getHeaderSP a = ServerPartT $ \rq -> return $ getHeader a rq
---  basicAuth' realmName authMap unauthorizedPart = do
---      authHeader <- getHeaderSP \"authorization\"
---      case authHeader of
---         Nothing -> err
---         Just x  -> case parseHeader x of 
---                      (name, ':':pass) | validLogin name pass -> noHandleSP
---                      _                                       -> err
---      validLogin name pass = M.lookup name authMap == Just pass
---      parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
---      headerName  = \"WWW-Authenticate\"
---      headerValue = \"Basic realm=\\\"\" ++ realmName ++ \"\\\"\"
---      err = unauthorizedPart >>= escapeSP
--- @
--- 
--- -- TODO move escapeSP noHandleSP and getHeaderSP into the module proper
 --
--- The response object that a 'ServerPartT' expects is a 'WebT' which is
--- container (i.e. Monad) for responses.  Let's start with a few examples.
+-- main = simpleHTTP nullConf [ myAuth, return \"Hello World!\" ]
+--     where
+--         myAuth = basicAuth\' \"Test\"
+--             (M.fromList [(\"hello\", \"world\")]) (return \"Login Failed\")
 --
--- @
---   main = simpleHTTP nullConf {port = 5000} [ anyRequest $ myWebT ]
---   myWebT = do
---     setResponseCode 200
---     return $ toResponse \"Hello World!\"
+-- basicAuth\' realmName authMap unauthorizedPart =
+--    do
+--        let validLogin name pass = M.lookup name authMap == Just pass
+--        let parseHeader = break (\':\'==) . Base64.decode . B.unpack . B.drop 6
+--        authHeader <- getHeaderM \"authorization\"
+--        case authHeader of
+--            Nothing -> err
+--            Just x  -> case parseHeader x of 
+--                (name, \':\':pass) | validLogin name pass -> mzero
+--                _                                       -> err
+--    where
+--        err = do
+--            unauthorized ()
+--            addHeaderM headerName headerValue
+--            unauthorizedPart
+--        headerValue = \"Basic realm=\\\"\" ++ realmName ++ \"\\\"\"
+--        headerName  = \"WWW-Authenticate\"
 -- @
 --
--- This is exactly the same as our first example, though a little more verbose.
--- Why the extra verbosity?  The monadic form gives us access to two control
--- structures, noHandle and escape'.  noHandle causes the do block to 
--- exit immediately and fail to be chosen to handle the request while escape'
--- stops all processing and produces the result you have generated so far.  Here
--- is an example of "noHandle"
+-- Here is another example that uses liftIO to embed IO in a request process
 --
 -- @
---   main = simpleHTTP nullConf {port = 5000} [ anyRequest $ myWebT ]
---   myWebT = do
+--   main = simpleHTTP nullConf [ myPart ]
+--   myPart = do
 --     line <- liftIO $ do -- IO
 --         putStr \"return? \"
 --         getLine
---     when (take 2 line /= \"ok\") $ noHandle
---     setResponseCode 200
---     return $ toResponse \"Hello World!\"
+--     when (take 2 line \/= \"ok\") $ (notfound () >> return \"refused\")
+--     return \"Hello World!\"
 -- @
 -- 
 -- This example will ask in the console \"return? \" if you type \"ok\" it will
--- show \"Hello World!\" and if you don\'t it will return a 404.
+-- show \"Hello World!\" and if you type anything else it will return a 404.
 --
--- TODO -- while the monad forms of ServerPartT and WebT are quite handy
--- we're missing virtually all the functions that could be useful in a monad.
--- I.e. getHeaderSP, setHeaderW, escapeSP and noHandleSP referenced above don't
--- actually exist in the module
--- 
 -----------------------------------------------------------------------------
 module Happstack.Server.SimpleHTTP
     ( module Happstack.Server.HTTP.Types
@@ -120,56 +96,37 @@ module Happstack.Server.SimpleHTTP
     , -- * SimpleHTTP
       simpleHTTP -- , simpleHTTP'
     , parseConfig
-    , FromReqURI(..)
-    , RqData
-    , FromData(..)
-    , ToMessage(..)
-    , ServerPart
+    -- * ServerPartT
     , ServerPartT(..)
-    , Web
-    , WebT(..)
-    , Result(..)
-    , executeSP
-    , executeW
-
-
-      -- * Processing requests
-    , webQuery
-    , webUpdate
-    , flatten
-    , localContext
-    , dir         -- :: String -> [ServerPart] -> ServerPart
-    , method      -- :: MatchMethod m => m -> IO Result -> ServerPart
-    , methodSP
---    , method'     -- :: MatchMethod m => m -> IO (Maybe Result) -> ServerPart
-    , path        -- :: FromReqURI a => (a -> [ServerPart]) -> ServerPart
-    , proxyServe
-    , rproxyServe
---    , limProxyServe
-    , uriRest 
-    , anyPath
-    , anyPath'
-    , withData    -- :: FromData a => (a -> [ServerPart]) -> ServerPart
-    , withDataFn
---    , modXml
-    , require     -- :: IO (Maybe a) -> (a -> [ServerPart]) -> ServerPart
-    , multi       -- :: [ServerPart] -> ServerPart
-    , withRequest -- :: (Request -> IO Result) -> ServerPart
-    , debugFilter
+    , ServerPart
+    , runServerPartT
+    , withRequest
     , anyRequest
-    , applyRequest
+    -- * WebT
+    , WebT(..)
+    , Web
+    , mkWebT
+    , ununWebT
+    , runWebT
+    -- * Type Classes
+    , FromReqURI(..)
+    , ToMessage(..)
+
+      -- * Manipulating requests
+    , FromData(..)
+    , ServerMonad(..)
+    , RqData
+    , noHandle
+    , getHeaderM
+    , escape
+    , escape'
+    , multi
+      -- * Manipulating responses
+    , FilterMonad(..)
+    , WebMonad(..)
+    , ok
     , modifyResponse
     , setResponseCode
-    , basicAuth
-      -- * Creating Results.
-    , noHandle
-    , finishWith
-    , escape
-    , setResponseFilter
-    , ignoreResponseFilter
-    , escape'
-    , ok          -- :: ToMessage a => a -> IO Result
---    , mbOk
     , badGateway
     , internalServerError
     , badRequest
@@ -182,6 +139,31 @@ module Happstack.Server.SimpleHTTP
     , tempRedirect
     , addCookie
     , addCookies
+    , addHeaderM
+
+     -- * guards and building blocks
+    , dir
+    , method
+    , methodSP
+    , path
+    , anyPath
+    , anyPath'
+    , withData
+    , withDataFn
+    , require
+    , basicAuth
+    , uriRest
+      -- * Processing requests
+    , webQuery
+    , webUpdate
+    , flatten
+    , localContext
+      -- * proxying
+    , proxyServe
+    , rproxyServe
+      -- * unknown
+    , debugFilter
+    , applyRequest
       -- * Parsing input and cookies
     , lookInput   -- :: String -> Data Input
     , lookBS      -- :: String -> Data B.ByteString
@@ -211,7 +193,7 @@ import qualified Happstack.Server.MinHaXML as H
 
 import Happstack.Server.HTTP.Types hiding (Version(..))
 import qualified Happstack.Server.HTTP.Types as Types
-import Happstack.Server.HTTP.Listen
+import Happstack.Server.HTTP.Listen as Listen
 import Happstack.Server.XSLT
 import Happstack.Server.SURI (ToSURI)
 import Happstack.Util.Common
@@ -224,6 +206,9 @@ import Control.Exception (evaluate)
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Error
+import Control.Monad.Trans()
+import Control.Monad.Maybe
+import Control.Monad.Writer as Writer
 import Data.Maybe
 import Data.Monoid
 import qualified Data.ByteString.Char8 as B
@@ -246,97 +231,198 @@ type Web a = WebT IO a
 -- | An alias for using ServerPartT when using the IO monad (again, this is most of the time)
 type ServerPart a = ServerPartT IO a
 
--- | ServerPartT is a container for methods that process Request  and return a WebT
--- The basic request-response object.
-newtype ServerPartT m a = ServerPartT { unServerPartT :: Request -> WebT m a }
 
-instance (Monad m) => Monad (ServerPartT m) where
-    f >>= g = ServerPartT $ \rq ->
-              do a <- unServerPartT f rq
-                 unServerPartT (g a) rq
-    return x = ServerPartT $ \_ -> return x
+-- HERE BEGINS ServerPartT definitions
 
-instance (MonadIO m) => MonadIO (ServerPartT m) where
-    liftIO = ServerPartT . const . liftIO
+-- | ServerPartT is a container for processing requests and returning results
+newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
+    deriving (Monad, MonadIO, MonadPlus, Functor)
 
-newtype WebT m a = WebT { unWebT :: m (Result a) }
+runServerPartT :: ServerPartT m a -> Request -> WebT m a
+runServerPartT = runReaderT . unServerPartT
 
--- | Result is part of the implementation of the WebT do semantics
-data Result a = NoHandle -- ^ NoHandle is essentially "fail"  It aborts the Monad computation.
-                         --  It's a lot like Nothing from Maybe that way.
-              | Ok (Response -> Response) a -- ^ Ok contains a filter and a result
-                                            -- (>>=) ensures that filters in Ok are always composed
-              | Escape Response -- ^ causes the computation in the do block to immediate exit
-                                -- It's used to implement finishWith.  It's called "Escape"
-                                -- and not "Finish" for historical reasons.
-              | SetFilter (Response -> Response) a -- ^ SetFilter is a lot like Ok, except
-                                                   -- it's filter doesn't compose with previous filters
-                deriving Show
+withRequest :: (Request -> WebT m a) -> ServerPartT m a
+withRequest = ServerPartT . ReaderT
 
-instance Functor Result where
-    fmap _ NoHandle = NoHandle
-    fmap fn (Ok out a) = Ok out (fn a)
-    fmap fn (SetFilter out a) = SetFilter out (fn a)
-    fmap _ (Escape r) = Escape r
-
-instance Monad m => Monad (WebT m) where
-    f >>= g = WebT $ do r <- unWebT f
-                        case r of
-                          NoHandle    -> return NoHandle
-                          Escape res -> return $ Escape res
-                          Ok out a    -> do r' <- unWebT (g a)
-                                            case r' of
-                                              NoHandle    -> return NoHandle
-                                              Escape res -> return $ Escape $ out res
-                                              Ok out' a'  -> return $ Ok (out' . out) a'
-                                              SetFilter out' a' -> return $ SetFilter out' a'
-                          SetFilter out a -> do r' <- unWebT (g a)
-                                                case r' of
-                                                  NoHandle -> return NoHandle
-                                                  Escape res -> return $ Escape $ out res
-                                                  Ok out' a' -> return $ SetFilter (out' . out) a'
-                                                  SetFilter out' a' -> return $ SetFilter out' a'
-    return x = WebT $ return (Ok id x)
-
-instance (Monad m) => MonadPlus (ServerPartT m)
- where mzero = ServerPartT $ \_ -> noHandle
-       mplus a b = ServerPartT $ \rq -> (unServerPartT a rq)
-                     `mplus` (unServerPartT b rq)
-
-instance (Monad m) => MonadPlus (WebT m) where
- mzero = noHandle
- mplus a b = WebT $ do a' <- unWebT a
-                       case a' of
-                         NoHandle -> unWebT b
-                         _        -> return a'
+instance MonadTrans (ServerPartT) where
+    lift m = withRequest (\_ -> lift m)
 
 instance (Monad m) => Monoid (ServerPartT m a)
- where mempty = ServerPartT $ \_ -> noHandle
-       mappend a b = ServerPartT $ \rq -> (unServerPartT a rq)
-                     `mappend` (unServerPartT b rq)
-
-instance (Monad m) => Monoid (WebT m a) where
- mempty = noHandle
- mappend a b = WebT $ do a' <- unWebT a
-                         case a' of
-                             NoHandle -> unWebT b
-                             _        -> return a'
-
-instance MonadTrans WebT where
-    lift = WebT . liftM (Ok id)
-
-instance MonadIO m => MonadIO (WebT m) where
-    liftIO = WebT . liftM (Ok id) . liftIO
-
-instance Functor m => Functor (WebT m) where
-    fmap fn (WebT m) = WebT $ fmap (fmap fn) m
-
-instance Functor m => Functor (ServerPartT m) where
-    fmap fn (ServerPartT m) = ServerPartT $ fmap (fmap fn) m
+ where mempty = mzero
+       mappend = mplus
 
 instance (Monad m, Functor m) => Applicative (ServerPartT m) where
     pure = return
     (<*>) = ap
+
+instance (Monad m, MonadWriter w m) => MonadWriter w (ServerPartT m) where
+    tell = lift . tell
+    listen m = withRequest $ \rq ->  Writer.listen (runServerPartT m rq) >>= return
+    pass m = withRequest $ \rq -> pass (runServerPartT m rq) >>= return
+
+instance (Monad m, MonadError e m) => MonadError e (ServerPartT m) where
+    throwError e = lift $ throwError e
+    catchError action handler = withRequest $ \rq -> (runServerPartT action rq) `catchError` ((flip runServerPartT $ rq) . handler)
+
+instance (Monad m, MonadReader r m) => MonadReader r (ServerPartT m) where
+    ask = lift ask
+    local fn m = withRequest $ \rq-> local fn (runServerPartT m rq)
+
+instance Monad m => FilterMonad Response (ServerPartT m) where
+    setFilter = anyRequest . setFilter
+    composeFilter = anyRequest . composeFilter
+    applyFilter f m = withRequest $ \rq -> applyFilter f (runServerPartT m rq)
+    getFilter m = withRequest $ \rq -> getFilter (runServerPartT m rq)
+
+instance Monad m => WebMonad (ServerPartT m) where
+    finishWith r = anyRequest $ finishWith r
+
+-- | yes, this is exactly like 'ReaderT' with new names.
+-- Why you ask? Because ServerT can lift up a ReaderT.
+-- If you did that, it would shadow ServerT's behavior
+-- as a ReaderT, thus meaning if you lifted the ReaderT
+-- you could no longer modify the Request.  This way
+-- you can add a ReaderT to your monad stack without
+-- any trouble.
+class ServerMonad m where
+    askRq :: m Request
+    localRq :: (Request->Request)->m a->m a
+
+instance (Monad m) => ServerMonad (ServerPartT m) where
+    askRq = ServerPartT $ ask
+    localRq f m = ServerPartT $ local f (unServerPartT m)
+
+-- HERE BEGINS WebT definitions
+data SetAppend a = Set a | Append a
+
+instance Monoid a => Monoid (SetAppend a) where
+   mempty = Append mempty
+   Set x    `mappend` Append y = Set (x `mappend` y)
+   Append x `mappend` Append y = Append (x `mappend` y)
+   _        `mappend` Set y    = Set y
+
+value :: SetAppend t -> t
+value (Set x) = x
+value (Append x) = x
+
+instance Functor (SetAppend) where
+    fmap f (Set x) = Set $ f x
+    fmap f (Append x) = Append $ f x
+
+newtype FilterT a m b =
+   FilterT { unFilterT :: WriterT (SetAppend (Endo a)) m b }
+   deriving (Monad, MonadTrans, Functor, MonadIO)
+
+-- | A set of functions for manipulating filters.
+-- A ServerPartT implements FilterMonad Response
+-- so these methods are the fundamental ways
+-- of manipulating the response object.
+class FilterMonad a m | m->a where
+    -- | Ignores all previous
+    -- alterations to your filter
+    --
+    -- As an example:
+    --
+    -- @
+    --   do
+    --     composeFilter f
+    --     setFilter g
+    --     return \"Hello World\"
+    -- @
+    --
+    -- setFilter g will cause the first composeFilter to be
+    -- ignored.
+    setFilter :: (a->a) -> m ()
+    -- |
+    -- composes your filter function with the
+    -- existing filter function.
+    composeFilter :: (a->a) -> m ()
+    -- while applying your filter to your result.
+    applyFilter :: (b->a) -- ^ A function for converting your monad to your filtered type
+                   -> m b -- ^ The monad you to apply the filters of
+                   -> m a -- ^ The result of your filter application.  This monad should have the
+                          -- identity filter.
+    -- | retrives the filter from the environment
+    getFilter :: m b -> m (b,a->a)
+
+
+instance (Monad m) => FilterMonad a (FilterT a m) where
+    setFilter f = FilterT $ Writer.tell $ Set $ Endo f
+    composeFilter f = FilterT $ Writer.tell $ Append $ Endo f
+    applyFilter g fm =  FilterT $ do
+        (b,sa) <- Writer.listen (unFilterT fm)
+        tell $ Set $ Endo id
+        return $ (appEndo $ value sa) (g b)
+    getFilter m = FilterT $ Writer.listens (appEndo . value)  (unFilterT m) 
+
+newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Either Response Response) (MaybeT m)) a }
+    deriving (Monad, MonadIO, Functor)
+    
+instance Error Response where
+    strMsg = toResponse
+
+class WebMonad m where
+    -- | A control structure
+    -- It ends the computation and returns the Response you passed into it
+    -- immediately.
+    finishWith :: Response -> m Response
+
+instance (Monad m) => WebMonad (WebT m) where
+    finishWith r = WebT $ throwError r
+
+instance MonadTrans WebT where
+    lift = WebT . lift . lift . lift
+
+instance (Monad m) => MonadPlus (WebT m) where
+    -- | Aborts a computation.
+    --
+    -- This is primarily useful because msum will take an array
+    -- of MonadPlus and return the first one that isn't mzero,
+    -- which is exactly the semantics expected from objects
+    -- that take arrays of WebT or ServerPartT
+    mzero = WebT $ lift $ lift $ mzero
+    mplus x y =  WebT $ ErrorT $ FilterT $ (lower x) `mplus` (lower y)
+        where lower = (unFilterT . runErrorT . unWebT)
+
+-- | deprecated.  use mzero
+noHandle :: (MonadPlus m) => m a
+noHandle = mzero
+-- rproxy' requires a lifting of the monomorphism restriction
+-- so we can make nohandle a direction alias of mzero
+{-# DEPRECATED noHandle "Use mzero" #-}
+
+instance (Monad m) => FilterMonad Response (WebT m) where
+    setFilter f = WebT $ lift $ setFilter $ either (Left . f) (Right . f)
+    composeFilter f = WebT . lift . composeFilter $ either (Left . f) (Right . f)
+    applyFilter g fm = WebT $ ErrorT $ applyFilter (fmap g) (runErrorT $ unWebT fm)
+    getFilter m = WebT $ ErrorT $ getFilter (runErrorT $ unWebT m) >>= liftWebT
+        where liftWebT (Left r, _) = return $ Left r
+              -- This function looks odd.  Since our filter is applied to left and right exactly the same,
+              -- (see setFilter and composeFilter above), we need to convert our Either Response Response ->
+              -- Either Response Response to a Response->Response method.  Since both branches are the same
+              -- we pick the Right side
+              liftWebT (Right a, f) = return $ Right (a, (either (id) (id)) . (\x -> f (Right x)))
+
+instance (Monad m) => Monoid (WebT m a) where
+    mempty = mzero
+    mappend = mplus
+
+runWebT :: (ToMessage b, Monad m) => WebT m b -> m (Maybe Response)
+runWebT m = runMaybeT $ do
+                (r,_) <- (runWriterT $ unFilterT $ runErrorT $ unWebT $
+                    applyFilter toResponse m)
+                return $ (either id id) r
+
+ununWebT :: WebT m a
+    -> m (Maybe
+            (Either Response a,
+             SetAppend (Endo (Either Response Response))))
+ununWebT = runMaybeT . runWriterT . unFilterT . runErrorT . unWebT
+
+mkWebT :: m (Maybe
+       (Either Response a,
+        SetAppend (Endo (Either Response Response)))) -> WebT m a
+mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
 
 instance (Monad m, Functor m) => Applicative (WebT m) where
     pure = return
@@ -344,70 +430,45 @@ instance (Monad m, Functor m) => Applicative (WebT m) where
 
 instance MonadReader r m => MonadReader r (WebT m) where
     ask = lift ask
-    local fn = WebT . local fn . unWebT
+    local fn m = mkWebT $ local fn (ununWebT m)
 
 instance MonadState st m => MonadState st (WebT m) where
     get = lift get
     put = lift . put
 
 instance MonadError e m => MonadError e (WebT m) where
-	throwError = WebT . throwError 
- 	catchError action handler = WebT $ catchError (unWebT action) (unWebT . handler)
+	throwError err = lift $ throwError err
+ 	catchError action handler = mkWebT $ catchError (ununWebT action) (ununWebT . handler)
 
+instance MonadWriter w m => MonadWriter w (WebT m) where
+    tell = lift . Writer.tell
+    listen m = mkWebT $ Writer.listen (ununWebT m) >>= (return . liftWebT)
+        where liftWebT (Nothing, _) = Nothing
+              liftWebT (Just (Left x,f), _) = Just (Left x,f)
+              liftWebT (Just (Right x,f),w) = Just (Right (x,w),f)
+    pass m = mkWebT $ ununWebT m >>= liftWebT
+        where liftWebT Nothing = return Nothing
+              liftWebT (Just (Left x,f)) = return $ Just (Left x, f)
+              liftWebT (Just (Right x,f)) = pass (return x)>>= (\a -> return $ Just (Right a,f))
 
--- | noHandle is a control structure for use in WebT monads.
--- It aborts a computation.
---
--- This is primarily useful because msum will take an array
--- of WebT or ServerPartT and return the first one that
--- isn't NoHandle, which is what simpleHTTP will do for you.
-noHandle :: Monad m => WebT m a
-noHandle = WebT $ return NoHandle
+-- | An alias for setFilter id
+-- It resets all your filters
+ignoreFilters :: (FilterMonad a m) => m ()
+ignoreFilters = setFilter id
 
--- | finishWith is a contorl structure for use in WebT monads.
--- It ends the computation and returns the result you passed into it
--- immediately.
-finishWith :: (Monad m, ToMessage a1) => a1 -> WebT m a
-finishWith = WebT . return . Escape . toResponse
+-- | Used to ignore all your filters
+-- and immediately end the computation.  A combination of
+-- 'ignoreFilters' and 'finishWith'
+escape :: (WebMonad m, FilterMonad a m, Monad m) => m Response -> m Response
+escape gen = ignoreFilters >> gen >>= finishWith
 
--- | Inside the WebT monad, if you want to ignore all previous
--- alterations to your Response (primarily modifyResponse
--- or previous calls of setResponseFilter) you can use this.
---
--- As an example:
---
--- @
---   do
---     modifyResponse f
---     setResponseFilter id
---     return "Hello World"
--- @
---
--- setResponseFilter id will cause the first modifyResponse to be
--- ignored.  This is particuarly useful for resetting your headers
-setResponseFilter:: Monad m => (Response->Response) -> WebT m ()
-setResponseFilter f = WebT $ return $ SetFilter f ()
+-- | An alternate form of 'escape' that can
+-- be easily used within a do block.
+escape' :: (WebMonad m, FilterMonad a m, Monad m) => Response -> m Response
+escape' a = ignoreFilters >> finishWith a
 
--- | this is an alias for setResponseFilter id
--- It directly sets (as opposed to composing)
--- your response filter.  In particular,
--- it resets all your headers.
-ignoreResponseFilter :: Monad m => WebT m ()
-ignoreResponseFilter = setResponseFilter id
-
--- | escape is used to create a WebT that resets headers
--- and immediately ends the computation.  A combination of
--- 'ignoreResponseFilter' and 'finishWith'
-escape :: (Monad m, ToMessage resp) => WebT m resp -> WebT m a
-escape gen = ignoreResponseFilter >> gen >>= finishWith
-
--- | escape' is an alternate form of escape that can
--- be easily used within a WebT do block.
-escape' :: (Monad m, ToMessage a1) => a1 -> WebT m a
-escape' a = ignoreResponseFilter >> finishWith a
-
--- | ho is an array of OptDescr, useful for processing
--- command line options into an Conf for simpleHTTP
+-- | An array of 'OptDescr', useful for processing
+-- command line options into an 'Conf' for 'simpleHTTP'
 ho :: [OptDescr (Conf -> Conf)]
 ho = [Option [] ["http-port"] (ReqArg (\h c -> c { port = read h }) "port") "port to bind http server"]
 
@@ -422,29 +483,18 @@ parseConfig args
 -- | Use the built-in web-server to serve requests according to list of 'ServerPartT's.
 -- The array of ServerPartT is passed though msum to pick the first handler that didn't 
 -- call noHandle
-simpleHTTP :: ToMessage a => Conf -> [ServerPartT IO a] -> IO ()
-simpleHTTP conf hs
-    = listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< simpleHTTP' hs req)
+simpleHTTP :: (ToMessage a) => Conf -> [ServerPartT IO a] -> IO ()
+simpleHTTP conf hs = 
+    Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< simpleHTTP' hs req)
 
 
 -- | Generate a result from a list of 'ServerParts' and a 'Request'. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
-simpleHTTP' :: (ToMessage a, Monad m) => [ServerPartT m a] -> Request -> m Response
-simpleHTTP' hs req =  executeW standardNotFound $ executeSP (msum hs) req
+simpleHTTP' :: (ToMessage b, Monad m) => [ServerPartT m b] -> Request -> m Response
+simpleHTTP' hs req =  (runWebT $ runServerPartT (msum hs) req) >>= (return . (maybe standardNotFound id))
     where
-        standardNotFound = return $ result 404 "No suitable handler found"
+        standardNotFound = result 404 "No suitable handler found"
 
-executeSP :: ServerPartT m a -> Request -> WebT m a
-executeSP = unServerPartT
-
-executeW :: (Monad m, ToMessage msg) => m Response -> WebT m msg -> m Response
-executeW def web = do r <-unWebT $  web >>= finishWith
-                      case r of
-                        (Escape r') -> return r'
-                        -- Note that because we called "finishWith" Ok isn't possible here
-                        -- this can only be NoHandle
-                        _ -> def 
-                  
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
@@ -540,61 +590,65 @@ instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
 instance MatchMethod (Method -> Bool) where matchMethod f = f 
 instance MatchMethod () where matchMethod () _ = True
 
-webQuery :: (MonadIO m, QueryEvent ev res) => ev -> WebT m res
+webQuery :: (MonadIO m, QueryEvent ev res) => ev -> m res
 webQuery = liftIO . query
 
-webUpdate :: (MonadIO m, UpdateEvent ev res) => ev -> WebT m res
+webUpdate :: (MonadIO m, UpdateEvent ev res) => ev -> m res
 webUpdate = liftIO . update
 
--- | flatten turns your arbitrary ServerPartT m a and converts it too
--- a 'Response' with 'toResponse'
-flatten :: (ToMessage a, Monad m) => ServerPartT m a -> ServerPartT m Response
-flatten = liftM toResponse
+-- | flatten turns your arbitrary @m a@ and converts it too
+-- a @m 'Response'@ with @'toResponse'@
+flatten :: (ToMessage a, Functor f) => f a -> f Response
+flatten = fmap toResponse
 
 -- | TODO
 -- This is for applying a WebT function to the msum of the array argument, then
 -- stuffing it back into a ServerPartT.  Why would you need this?
 localContext :: Monad m => (WebT m a -> WebT m' a) -> [ServerPartT m a] -> ServerPartT m' a
 localContext fn hs
-    = ServerPartT $ \rq -> fn (unServerPartT (multi hs) rq)
+    = withRequest $ \rq -> fn (runServerPartT (msum hs) rq)
 
 
 -- | Pop a path element and run the @[ServerPartT]@ if it matches the given string.
 dir :: Monad m => String -> [ServerPartT m a] -> ServerPartT m a
 dir staticPath handle
-    = ServerPartT $ \rq -> case rqPaths rq of
-                             (p:xs) | p == staticPath -> 
-                                           unServerPartT (multi handle) rq{rqPaths = xs}
-                             _ -> noHandle
+    = withRequest $ \rq -> case rqPaths rq of
+                     (p:xs) | p == staticPath -> 
+                                   runServerPartT (msum handle) rq{rqPaths = xs}
+                     _ -> noHandle
 
+getHeaderM :: (Monad m) => String -> ServerPartT m (Maybe B.ByteString)
+getHeaderM a = withRequest $ \rq -> return $ getHeader a rq
+
+addHeaderM :: (FilterMonad Response m) => String -> String -> m ()
+addHeaderM a v = composeFilter $ \res-> addHeader a v res
 
 -- | Guard against the method. Note, this function also guards against any
 --   remaining path segments. See 'anyRequest'.
 methodSP :: (MatchMethod method, Monad m) => method -> ServerPartT m a -> ServerPartT m a
 methodSP m handle
-    = ServerPartT $ \rq -> if matchMethod m (rqMethod rq) && null (rqPaths rq)
-                           then unServerPartT handle rq
+    = withRequest $ \rq -> if matchMethod m (rqMethod rq) && null (rqPaths rq)
+                           then runServerPartT handle rq
                            else noHandle
 
 -- | Guard against the method. Note, this function also guards against any
 --   remaining path segments. See 'anyRequest'.
 method :: (MatchMethod method, Monad m) => method -> WebT m a -> ServerPartT m a
-method m handle = methodSP m (ServerPartT $ \_ -> handle)
+method m handle = methodSP m (withRequest $ \_ -> handle)
 
 
 -- | Pop a path element and parse it.
 path :: (FromReqURI a, Monad m) => (a -> [ServerPartT m r]) -> ServerPartT m r
 path handle
-    = ServerPartT $ \rq -> 
+    = withRequest $ \rq -> 
       case rqPaths rq of
                (p:xs) | Just a <- fromReqURI p
-                                  -> unServerPartT (multi $ handle a) rq{rqPaths = xs}
+                                  -> runServerPartT (multi $ handle a) rq{rqPaths = xs}
                _ -> noHandle
 
 -- | grabs the rest of the URL (dirs + query) and passes it to your handler
-uriRest :: Monad m => (String -> ServerPartT m a) -> ServerPartT m a
-uriRest handle = withRequest $ \rq ->
-                  unServerPartT (handle (rqURL rq)) rq
+uriRest :: (ServerMonad m, Monad m) => (String -> m a) -> m a
+uriRest handle = askRq >>= handle . rqURL
 
 -- | pops any path element and ignores when chosing a ServerPartT to handle the
 -- request.
@@ -613,19 +667,21 @@ withData = withDataFn fromData
 -- for reading.
 withDataFn :: Monad m => RqData a -> (a -> [ServerPartT m r]) -> ServerPartT m r
 withDataFn fn handle
-    = ServerPartT $ \rq -> case runReaderT fn (rqInputs rq,rqCookies rq) of
+    = withRequest $ \rq -> case runReaderT fn (rqInputs rq,rqCookies rq) of
                              Nothing -> noHandle
-                             Just a  -> unServerPartT (multi $ handle a) rq
+                             Just a  -> runServerPartT (msum $ handle a) rq
 
 -- | proxyServe is for creating ServerPartT's that proxy.
 -- The sole argument [String] is a list of allowed domains for
 -- proxying.  This matches the domain part of the request
 -- and the wildcard * can be used. E.g.
 --
---  - \"*\" to match anything.
---  - \"*.example.com\" to match anything under example.com
---  - \"example.com\" to match just example.com
-proxyServe :: MonadIO m => [String] -> ServerPartT m Response
+--  * \"*\" to match anything.
+--
+--  * \"*.example.com\" to match anything under example.com
+--
+--  * \"example.com\" to match just example.com
+proxyServe :: (MonadIO m, WebMonad m) => [String] -> ServerPartT m Response
 proxyServe allowed = withRequest $ \rq -> 
                         if cond rq then proxyServe' rq else noHandle 
    where
@@ -641,13 +697,13 @@ proxyServe allowed = withRequest $ \rq ->
 
 -- | Takes a proxy Request and creates a Response.  Your basic proxy
 -- building block.  See 'unproxify'
-proxyServe' :: (MonadIO m) => Request -> WebT m Response
+proxyServe' :: (MonadIO m) => Request-> WebT m Response
 proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
                 either (badGateway . toResponse . show) (escape . return)
 
 -- | This is a reverse proxy implementation.
 -- see 'unrproxify'
-rproxyServe :: MonadIO m =>
+rproxyServe :: (MonadIO m, WebMonad m) =>
     String -- ^ defaultHost
     -> [(String, String)] -- ^ map to look up hostname mappings.  For the reverse proxy
     -> ServerPartT m Response -- ^ the result is a ServerPartT that will reverse proxy for you.
@@ -662,10 +718,10 @@ require = requireM . liftIO
 -- | A varient of require that can run in any monad, not just IO
 requireM :: Monad m => m (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
 requireM fn handle
-    = ServerPartT $ \rq -> do mbVal <- lift fn
+    = withRequest $ \rq -> do mbVal <- lift fn
                               case mbVal of
                                 Nothing -> noHandle
-                                Just a  -> unServerPartT (multi $ handle a) rq
+                                Just a  -> runServerPartT (msum $ handle a) rq
 
 -- FIXME: What to do with Escapes?
 -- | Use @cmd@ to transform XML against @xslPath@.
@@ -677,7 +733,7 @@ xslt :: (MonadIO m, ToMessage r) =>
      -> ServerPartT m Response
 xslt cmd xslPath parts =
     withRequest $ \rq -> 
-        do res <- unServerPartT (multi parts) rq
+        do res <- runServerPartT (msum parts) rq
            if toContentType res == B.pack "application/xml"
               then liftM toResponse (doXslt cmd xslPath (toResponse res))
               else return (toResponse res)
@@ -691,104 +747,101 @@ doXslt cmd xslPath res =
               res { rsBody = new }
 
 
+modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
+modifyResponse = composeFilter
 
---io :: IO Result -> ServerPart
---io action = ReaderT $ \_ -> Just action
-
-
-modifyResponse :: Monad m => (Response -> Response) -> WebT m ()
-modifyResponse modFn = WebT $ return $ Ok modFn ()
-
-setResponseCode :: Monad m => Int -> WebT m ()
+setResponseCode :: FilterMonad Response m => Int -> m ()
 setResponseCode code
     = modifyResponse $ \r -> r{rsCode = code}
 
-addCookie :: Monad m => Seconds -> Cookie -> WebT m ()
+addCookie :: (FilterMonad Response m) => Seconds -> Cookie -> m ()
 addCookie sec 
     = modifyResponse . addHeader "Set-Cookie" . mkCookieHeader sec
 
-addCookies :: Monad m => [(Seconds, Cookie)] -> WebT m ()
+
+addCookies :: (FilterMonad Response m, Monad m) => [(Seconds, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
 
-resp :: (Monad m) => Int -> b -> WebT m b
+resp :: (FilterMonad Response m, Monad m) => Int -> b -> m b
 resp status val = setResponseCode status >> return val
 
 -- | Respond with @200 OK@.
-ok :: Monad m => a -> WebT m a
+ok :: (FilterMonad Response m, Monad m) => a -> m a
 ok = resp 200
 
-internalServerError::Monad m => a -> WebT m a
+internalServerError :: (FilterMonad Response m, Monad m) => a -> m a
 internalServerError = resp 500
 
-badGateway::Monad m=> a-> WebT m a
+badGateway :: (FilterMonad Response m, Monad m) => a -> m a
 badGateway = resp 502
 
 -- | Respond with @400 Bad Request@.
-badRequest :: Monad m => a -> WebT m a
+badRequest :: (FilterMonad Response m, Monad m) => a -> m a
 badRequest = resp 400
 
 -- | Respond with @401 Unauthorized@.
-unauthorized :: Monad m => a -> WebT m a
+unauthorized :: (FilterMonad Response m, Monad m) => a -> m a
 unauthorized = resp 401
 
 -- | Respond with @403 Forbidden@.
-forbidden :: Monad m => a -> WebT m a
+forbidden :: (FilterMonad Response m, Monad m) => a -> m a
 forbidden = resp 403
 
 -- | Respond with @404 Not Found@.
-notFound :: Monad m => a -> WebT m a
+notFound :: (FilterMonad Response m, Monad m) => a -> m a
 notFound = resp 404
 
 -- | Respond with @303 See Other@.
-seeOther :: (Monad m, ToSURI uri) => uri -> res -> WebT m res
+seeOther :: (FilterMonad Response m, Monad m, ToSURI uri) => uri -> res -> m res
 seeOther uri res = do modifyResponse $ redirect 303 uri
                       return res
 
 -- | Respond with @302 Found@.
-found :: (Monad m, ToSURI uri) => uri -> res -> WebT m res
+found :: (FilterMonad Response m, Monad m, ToSURI uri) => uri -> res -> m res
 found uri res = do modifyResponse $ redirect 302 uri
                    return res
 
 -- | Respond with @301 Moved Permanently@.
-movedPermanently :: (Monad m, ToSURI a) => a -> res -> WebT m res
+movedPermanently :: (FilterMonad Response m, Monad m, ToSURI a) => a -> res -> m res
 movedPermanently uri res = do modifyResponse $ redirect 301 uri
                               return res
 
 -- | Respond with @307 Temporary Redirect@.
-tempRedirect :: (Monad m, ToSURI a) => a -> res -> WebT m res
+tempRedirect :: (FilterMonad Response m, Monad m, ToSURI a) => a -> res -> m res
 tempRedirect val res = do modifyResponse $ redirect 307 val
                           return res
 
-
+-- | deprecated.  Just use msum
 multi :: Monad m => [ServerPartT m a] -> ServerPartT m a
 multi = msum
+{-# DEPRECATED multi "Use msum instead" #-}
 
-withRequest :: (Request -> WebT m a) -> ServerPartT m a
-withRequest = ServerPartT
-
+-- | what is this for, exactly?  I don't understand why @Show a@ is even in the context
+-- This appears to do nothing at all.
 debugFilter :: (MonadIO m, Show a) => [ServerPartT m a] -> [ServerPartT m a]
 debugFilter handle = [
-    ServerPartT $ \rq -> WebT $ do
-                    r <- unWebT (unServerPartT (multi handle) rq)
+    withRequest $ \rq -> do
+                    r <- (runServerPartT (msum handle) rq)
                     return r]
 
 anyRequest :: Monad m => WebT m a -> ServerPartT m a
 anyRequest x = withRequest $ \_ -> x
 
+-- | again, why is this useful?
 applyRequest :: (ToMessage a, Monad m) =>
                 [ServerPartT m a] -> Request -> Either (m Response) b
 applyRequest hs = simpleHTTP' hs >>= return . Left
 
-basicAuth :: (MonadIO m) => String -> M.Map String String -> [ServerPartT m a] -> ServerPartT m a
-basicAuth realmName authMap xs = multi $ basicAuthImpl:xs
+basicAuth :: (WebMonad m, Monad m) => String -> M.Map String String -> [ServerPartT m Response] -> ServerPartT m Response
+basicAuth realmName authMap xs = msum $ basicAuthImpl:xs
   where
     basicAuthImpl = withRequest $ \rq ->
       case getHeader "authorization" rq of
         Nothing -> err
         Just x  -> case parseHeader x of 
-                     (name, ':':pass) | validLogin name pass -> noHandle
+                     (name, ':':password) | validLogin name password -> noHandle
                      _                                       -> err
-    validLogin name pass = M.lookup name authMap == Just pass
+    validLogin name password = M.lookup name authMap == Just password
     parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
     headerName  = "WWW-Authenticate"
     headerValue = "Basic realm=\"" ++ realmName ++ "\""
@@ -845,10 +898,10 @@ lookPairs = asks fst >>= return . map (\(n,vbs)->(n,L.unpack $ inputValue vbs))
 --
 --   See 'simpleErrorHandler' for an example error handler.
 errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> [ServerPartT (ErrorT e m) a] -> [ServerPartT m a] 
-errorHandlerSP handler sps = [ ServerPartT $ \req -> WebT $ do
-			eer <- runErrorT $ unWebT $ unServerPartT (multi sps) req
+errorHandlerSP handler sps = [ withRequest $ \req -> mkWebT $ do
+			eer <- runErrorT $ ununWebT $ runServerPartT (multi sps) req
 			case eer of
-				Left err -> unWebT (handler req err)
+				Left err -> ununWebT (handler req err)
 				Right res -> return res
 		]
 
