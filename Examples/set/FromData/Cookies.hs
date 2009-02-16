@@ -1,6 +1,6 @@
 module Main where
 
-import HAppS.Server
+import Happstack.Server
 
 {-
   interesting urls:
@@ -25,4 +25,3 @@ main = do simpleHTTP nullConf
                           ]
                     ]
               , anyRequest $ do ok "Try /setcookie/value" ]
-

@@ -1,6 +1,6 @@
 module Main where
 
-import HAppS.Server
+import Happstack.Server
 
 import System.Directory
 

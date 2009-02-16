@@ -1,8 +1,8 @@
 {-# OPTIONS -fglasgow-exts -fth #-}
 module Main (main) where
 
-import HAppS.State
-import HAppS.Server
+import Happstack.State
+import Happstack.Server
 
 import Data.Typeable          ( Typeable )
 import System.Environment     ( getArgs, getProgName )

@@ -1,8 +1,8 @@
 {-# LANGUAGE TemplateHaskell, DeriveDataTypeable, MultiParamTypeClasses, TypeFamilies, FlexibleContexts #-}
 module Main where
 
-import HAppS.Server
-import HAppS.State
+import Happstack.Server
+import Happstack.State
 
 import Data.Typeable
 import Control.Monad.State

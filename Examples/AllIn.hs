@@ -2,16 +2,16 @@
 {-# LANGUAGE TemplateHaskell , FlexibleInstances, UndecidableInstances, OverlappingInstances,
              MultiParamTypeClasses, GeneralizedNewtypeDeriving #-}
 
-import HAppS.Server
+import Happstack.Server
 
-import HAppS.State
+import Happstack.State
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State (modify,put,get,gets)
 import Data.Generics hiding ((:+:))
-import HAppS.Data
-import HAppS.Data.IxSet
+import Happstack.Data
+import Happstack.Data.IxSet
 
 import qualified Data.Map as M
 

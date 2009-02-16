@@ -1,7 +1,7 @@
 > module Validation where
 
 > import Control.Concurrent
-> import HAppS.Server
+> import Happstack.Server
 > import Text.XHtml hiding (dir,method)
 
 HAppS-Server has support for validating output on-the-fly. There are a
