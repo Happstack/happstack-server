@@ -896,8 +896,12 @@ rproxyServe defaultHost list  = withRequest $ \rq ->
                 either (badGateway . toResponse . show) (escape . return)
 
 -- | Run an IO action and, if it returns @Just@, pass it to the second argument.
-require :: (MonadIO m, MonadTrans t, MonadPlus (t m)) => IO (Maybe a) -> (a -> [t m r]) -> t m r
-require = requireM . liftIO
+require :: (MonadIO m, MonadPlus m) => IO (Maybe a) -> (a -> [m r]) -> m r
+require fn handle = do
+    mbVal <- liftIO fn
+    case mbVal of
+        Nothing -> mzero
+        Just a -> msum $ handle a
 
 -- | A varient of require that can run in any monad, not just IO
 requireM :: (MonadTrans t, Monad m, MonadPlus (t m)) => m (Maybe a) -> (a -> [t m r]) -> t m r
