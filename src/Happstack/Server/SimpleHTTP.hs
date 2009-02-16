@@ -93,13 +93,15 @@
 module Happstack.Server.SimpleHTTP
     ( module Happstack.Server.HTTP.Types
     , module Happstack.Server.Cookie
-    , -- * SimpleHTTP
-      simpleHTTP -- , simpleHTTP'
+    -- * SimpleHTTP
+    , simpleHTTP
+    , simpleHTTP'
     , parseConfig
     -- * ServerPartT
     , ServerPartT(..)
     , ServerPart
     , runServerPartT
+    , mapServerPartT
     , withRequest
     , anyRequest
     -- * WebT
@@ -108,6 +110,7 @@ module Happstack.Server.SimpleHTTP
     , mkWebT
     , ununWebT
     , runWebT
+    , mapWebT
     -- * Type Classes
     , FromReqURI(..)
     , ToMessage(..)
@@ -142,9 +145,13 @@ module Happstack.Server.SimpleHTTP
     , addHeaderM
 
      -- * guards and building blocks
+    , guardRq
     , dir
     , method
     , methodSP
+    , methodM
+    , methodOnly
+    , nullDir
     , path
     , anyPath
     , anyPath'
@@ -226,12 +233,12 @@ import System.Process (runInteractiveProcess, waitForProcess)
 import System.Exit
 import Text.Show.Functions ()
 
--- | An alias for WebT when using the IO monad (which is most of the time)
+-- | An alias for WebT when using the IO monad
 type Web a = WebT IO a
--- | An alias for using ServerPartT when using the IO monad (again, this is most of the time)
+-- | An alias for using ServerPartT when using the IO monad
 type ServerPart a = ServerPartT IO a
 
-
+--------------------------------------
 -- HERE BEGINS ServerPartT definitions
 
 -- | ServerPartT is a container for processing requests and returning results
@@ -243,6 +250,41 @@ runServerPartT = runReaderT . unServerPartT
 
 withRequest :: (Request -> WebT m a) -> ServerPartT m a
 withRequest = ServerPartT . ReaderT
+
+-- | Used to manipulate the containing monad.  Very useful when embedding a
+-- monad into a ServerPartT, since simpleHTTP requires a @ServerPartT IO a@.
+-- Refer to 'WebT' for an explanation of the structure of the first argument
+--
+-- Here is an example.  Suppose you want to embed an ErrorT into your
+-- ServerPartT to enable throwError and catchError in your Monad.
+--
+-- @
+--   type MyServerPartT e m a = ServerPartT (ErrorT e m) a
+-- @
+--
+-- Now suppose you want to pass MyServerPartT into a function
+-- that demands a @ServerPartT IO a@ (e.g. simpleHTTP).  You
+-- can provide the function:
+--
+-- @
+--   unpackErrorT:: (Monad m) => (e->m Response)
+--       -> (ErrorT e m) (Maybe ((Either Response a), SetAppend (Endo Response)))
+--       -> m (Maybe ((Either Response a), SetAppend (Endo Response)))
+--   unpackErrorT handler et = do
+--      eitherV <- runErrorT et
+--      case eitherV of
+--          Left err -> handler e >>= \r -> return $ Just (Left r, Set $ Endo id)
+--          Right x -> return x
+-- @
+-- 
+-- With @unpackErrorT@ you can now call simpleHTTP.  Just wrap your @ServerPartT@ list.
+--
+-- @
+--   simpleHTTP nullConf [mapServerPartT unpackErrorT myPart]
+-- @
+--
+mapServerPartT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> ServerPartT m a -> ServerPartT n b
+mapServerPartT f ma = withRequest $ \rq -> mapWebT f (runServerPartT ma rq)
 
 instance MonadTrans (ServerPartT) where
     lift m = withRequest (\_ -> lift m)
@@ -291,8 +333,21 @@ class ServerMonad m where
 instance (Monad m) => ServerMonad (ServerPartT m) where
     askRq = ServerPartT $ ask
     localRq f m = ServerPartT $ local f (unServerPartT m)
-
+-------------------------------
 -- HERE BEGINS WebT definitions
+
+-- | A monoid operation container.
+-- If a is a monoid, then SetAppend is a monoid with the following behaviors:
+-- 
+-- @
+--   Set x `mappend` Append y = Set (x `mappend` y)
+--   Set x `mappend` Append y = Append (x `mappend` y)
+--   \_     `mappend` Set y = Set y
+-- @
+--
+-- A simple way of sumerizing this is, if the left side is Append,
+-- then the right is appended to the left.
+-- If the left side is Set, then the right side is ignored.
 data SetAppend a = Set a | Append a
 
 instance Monoid a => Monoid (SetAppend a) where
@@ -355,7 +410,41 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
         return $ (appEndo $ value sa) (g b)
     getFilter m = FilterT $ Writer.listens (appEndo . value)  (unFilterT m) 
 
-newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Either Response Response) (MaybeT m)) a }
+-- | The basic response building object.
+--  It is worth discussing the unpacked structure of WebT a bit as it's exposed
+--  in 'mapServerPartT' and 'mapWebT'.
+--
+--  A fully unpacked WebT has a structure that looks like:
+--  
+--  @
+--    ununWebT $ WebT m a :: m (Maybe (Either Response a, SetAppend (Endo Response)))
+--  @
+--  
+--  So, ignoring m, as it is just the containing Monad, the outermost layer is a Maybe.
+--  This is 'Nothing' if 'mzero' was called or @Just (Either Response a, SetAppend (Endo Response))@
+--  if 'mzero' wasn't called.  Inside the Maybe, there is a pair.  The second element of the pair
+--  is our filter function (@Endo Response@) wrapped by a monoid called 'SetAppend'.  The value
+--
+--  @
+--      Append (Endo f)
+--  @
+--
+--  Causes f to be composed with the previous filter.
+--
+--  @
+--      Set (Endo f)
+--  @
+--
+--  Causes f to not be composed with the previous filter.
+--
+--  Finally, the first element of the pair is either @Left Response@ or @Right a@.
+--
+--  Another way of looking at all these pieces is from the behaviors they control.  The Maybe
+--  controls the mzero behavior.  @Set (Endo f)@ comes from the setFilter behavior.
+--  Likewise, @Append (Endo f)@ is from composeFilter.  @Left Response@ is what you
+--  get when you call "finishWith" and @Right a@ is the normal exit.
+--  
+newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
     deriving (Monad, MonadIO, Functor)
     
 instance Error Response where
@@ -392,16 +481,14 @@ noHandle = mzero
 {-# DEPRECATED noHandle "Use mzero" #-}
 
 instance (Monad m) => FilterMonad Response (WebT m) where
-    setFilter f = WebT $ lift $ setFilter $ either (Left . f) (Right . f)
-    composeFilter f = WebT . lift . composeFilter $ either (Left . f) (Right . f)
-    applyFilter g fm = WebT $ ErrorT $ applyFilter (fmap g) (runErrorT $ unWebT fm)
+    setFilter f = WebT $ lift $ setFilter $ f
+    composeFilter f = WebT . lift . composeFilter $ f
+    applyFilter g fm = WebT $ ErrorT $ (runErrorT $ unWebT fm) >>= liftWebT
+        where liftWebT (Left response) = applyFilter id (return response) >>= return . Left
+              liftWebT (Right a) = applyFilter g (return a) >>= return . Right
     getFilter m = WebT $ ErrorT $ getFilter (runErrorT $ unWebT m) >>= liftWebT
         where liftWebT (Left r, _) = return $ Left r
-              -- This function looks odd.  Since our filter is applied to left and right exactly the same,
-              -- (see setFilter and composeFilter above), we need to convert our Either Response Response ->
-              -- Either Response Response to a Response->Response method.  Since both branches are the same
-              -- we pick the Right side
-              liftWebT (Right a, f) = return $ Right (a, (either (id) (id)) . (\x -> f (Right x)))
+              liftWebT (Right a, f) = return $ Right (a, f)
 
 instance (Monad m) => Monoid (WebT m a) where
     mempty = mzero
@@ -416,13 +503,17 @@ runWebT m = runMaybeT $ do
 ununWebT :: WebT m a
     -> m (Maybe
             (Either Response a,
-             SetAppend (Endo (Either Response Response))))
+             SetAppend (Endo Response)))
 ununWebT = runMaybeT . runWriterT . unFilterT . runErrorT . unWebT
 
 mkWebT :: m (Maybe
        (Either Response a,
-        SetAppend (Endo (Either Response Response)))) -> WebT m a
+        SetAppend (Endo Response))) -> WebT m a
 mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
+
+mapWebT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> WebT m a -> WebT n b
+mapWebT f ma = mkWebT $  f (ununWebT ma)
+
 
 instance (Monad m, Functor m) => Applicative (WebT m) where
     pure = return
@@ -467,6 +558,10 @@ escape gen = ignoreFilters >> gen >>= finishWith
 escape' :: (WebMonad m, FilterMonad a m, Monad m) => Response -> m Response
 escape' a = ignoreFilters >> finishWith a
 
+----------------------------------------------
+-- additional types
+
+
 -- | An array of 'OptDescr', useful for processing
 -- command line options into an 'Conf' for 'simpleHTTP'
 ho :: [OptDescr (Conf -> Conf)]
@@ -484,14 +579,24 @@ parseConfig args
 -- The array of ServerPartT is passed though msum to pick the first handler that didn't 
 -- call noHandle
 simpleHTTP :: (ToMessage a) => Conf -> [ServerPartT IO a] -> IO ()
-simpleHTTP conf hs = 
-    Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< simpleHTTP' hs req)
+simpleHTTP = simpleHTTP' id
+--simpleHTTP conf hs = 
+--    Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< simpleHTTP'' hs req)
 
+simpleHTTP' :: (Monad m, ToMessage b) =>
+   (m (Maybe (Either Response a, SetAppend (Endo Response)))
+   -> IO (Maybe (Either Response b, SetAppend (Endo Response))))
+   -> Conf
+   -> [ServerPartT m a]
+   -> IO ()
+simpleHTTP' toIO conf hs = do
+    Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' [(mapServerPartT toIO (msum hs))] req))
+    
 
 -- | Generate a result from a list of 'ServerParts' and a 'Request'. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
-simpleHTTP' :: (ToMessage b, Monad m) => [ServerPartT m b] -> Request -> m Response
-simpleHTTP' hs req =  (runWebT $ runServerPartT (msum hs) req) >>= (return . (maybe standardNotFound id))
+simpleHTTP'' :: (ToMessage b, Monad m) => [ServerPartT m b] -> Request -> m Response
+simpleHTTP'' hs req =  (runWebT $ runServerPartT (msum hs) req) >>= (return . (maybe standardNotFound id))
     where
         standardNotFound = result 404 "No suitable handler found"
 
@@ -601,50 +706,75 @@ webUpdate = liftIO . update
 flatten :: (ToMessage a, Functor f) => f a -> f Response
 flatten = fmap toResponse
 
--- | TODO
--- This is for applying a WebT function to the msum of the array argument, then
--- stuffing it back into a ServerPartT.  Why would you need this?
+-- | This is kinda like a very oddly shaped mapServerPartT or mapWebT
+-- You probably want one or the other of those.
 localContext :: Monad m => (WebT m a -> WebT m' a) -> [ServerPartT m a] -> ServerPartT m' a
 localContext fn hs
     = withRequest $ \rq -> fn (runServerPartT (msum hs) rq)
 
 
--- | Pop a path element and run the @[ServerPartT]@ if it matches the given string.
-dir :: Monad m => String -> [ServerPartT m a] -> ServerPartT m a
-dir staticPath handle
-    = withRequest $ \rq -> case rqPaths rq of
-                     (p:xs) | p == staticPath -> 
-                                   runServerPartT (msum handle) rq{rqPaths = xs}
-                     _ -> noHandle
-
+-- | Get a header out of the request
 getHeaderM :: (Monad m) => String -> ServerPartT m (Maybe B.ByteString)
-getHeaderM a = withRequest $ \rq -> return $ getHeader a rq
+getHeaderM a = askRq >>= return . (getHeader a)
 
+-- | Set a header into the response
 addHeaderM :: (FilterMonad Response m) => String -> String -> m ()
 addHeaderM a v = composeFilter $ \res-> addHeader a v res
 
+-------------------------------------
+-- guards
+
+-- | guard using an arbitrary function on the request
+guardRq :: (ServerMonad m, MonadPlus m) => (Request -> Bool) -> m ()
+guardRq f = do
+    rq <- askRq
+    when ( f rq /= True ) mzero 
+
+-- | Guard against the method.  This function also guards against
+-- any remaining path segments.  See methodOnly for the version
+-- that guards only by method
+methodM :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
+methodM meth = methodOnly meth >> nullDir
+
+-- | guard against the method only. (as opposed to 'methodM')
+methodOnly :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
+methodOnly meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
+
 -- | Guard against the method. Note, this function also guards against any
---   remaining path segments. See 'anyRequest'.
-methodSP :: (MatchMethod method, Monad m) => method -> ServerPartT m a -> ServerPartT m a
-methodSP m handle
-    = withRequest $ \rq -> if matchMethod m (rqMethod rq) && null (rqPaths rq)
-                           then runServerPartT handle rq
-                           else noHandle
+--   remaining path segments.
+methodSP :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m b-> m b
+methodSP m handle = methodM m >> handle
 
 -- | Guard against the method. Note, this function also guards against any
 --   remaining path segments. See 'anyRequest'.
 method :: (MatchMethod method, Monad m) => method -> WebT m a -> ServerPartT m a
-method m handle = methodSP m (withRequest $ \_ -> handle)
+method m handle = methodSP m (anyRequest handle)
+{-# DEPRECATED method "you should be able to use methodSP" #-}
 
+-- | Guard against non-empty remaining path segments
+nullDir :: (ServerMonad m, MonadPlus m) => m ()
+nullDir = guardRq $ \rq -> null (rqPaths rq)
+
+-- | Pop a path element and run the @[ServerPartT]@ if it matches the given string.
+
+dir :: (ServerMonad m, MonadPlus m, Monad m) => String -> [m a] -> m a
+dir staticPath handle =
+    do
+        rq <- askRq
+        case rqPaths rq of
+            (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) (msum handle)
+                   | otherwise -> mzero
+            _ -> mzero
 
 -- | Pop a path element and parse it.
-path :: (FromReqURI a, Monad m) => (a -> [ServerPartT m r]) -> ServerPartT m r
-path handle
-    = withRequest $ \rq -> 
-      case rqPaths rq of
-               (p:xs) | Just a <- fromReqURI p
-                                  -> runServerPartT (multi $ handle a) rq{rqPaths = xs}
-               _ -> noHandle
+path :: (FromReqURI a, MonadPlus m, Monad m, ServerMonad m) => (a -> [m b]) -> m b
+path handle = do
+    rq <- askRq
+    case rqPaths rq of
+        (p:xs) | Just a <- fromReqURI p
+                            -> localRq (\newRq -> newRq{rqPaths = xs}) (msum (handle a))
+               | otherwise -> mzero
+        _ -> mzero
 
 -- | grabs the rest of the URL (dirs + query) and passes it to your handler
 uriRest :: (ServerMonad m, Monad m) => (String -> m a) -> m a
@@ -652,24 +782,25 @@ uriRest handle = askRq >>= handle . rqURL
 
 -- | pops any path element and ignores when chosing a ServerPartT to handle the
 -- request.
-anyPath :: (Monad m) => [ServerPartT m r] -> ServerPartT m r
+anyPath :: (ServerMonad m, MonadPlus m, Monad m) => [m r] -> m r
 anyPath x = path $ (\(_::String) -> x)
 
 -- | pops any path element and uses a single ServerPartT to handle the request
-anyPath' :: (Monad m) => ServerPartT m r -> ServerPartT m r
+anyPath' :: (ServerMonad m, MonadPlus m, Monad m) => m r -> m r
 anyPath' x = path $ (\(_::String) -> [x])
 
 -- | Retrieve data from the input query or the cookies.
-withData :: (FromData a, Monad m) => (a -> [ServerPartT m r]) -> ServerPartT m r
+withData :: (FromData a, MonadPlus m, ServerMonad m) => (a -> [m r]) -> m r
 withData = withDataFn fromData
 
 -- | withDataFn is like with data, but you pass in a RqData monad
 -- for reading.
-withDataFn :: Monad m => RqData a -> (a -> [ServerPartT m r]) -> ServerPartT m r
-withDataFn fn handle
-    = withRequest $ \rq -> case runReaderT fn (rqInputs rq,rqCookies rq) of
-                             Nothing -> noHandle
-                             Just a  -> runServerPartT (msum $ handle a) rq
+withDataFn :: (MonadPlus m, ServerMonad m, Monad m) => RqData a -> (a -> [m r]) -> m r
+withDataFn fn handle = do
+    rq <- askRq
+    case runReaderT fn (rqInputs rq, rqCookies rq) of
+        Nothing -> mzero
+        Just a -> msum $ handle a
 
 -- | proxyServe is for creating ServerPartT's that proxy.
 -- The sole argument [String] is a list of allowed domains for
@@ -681,9 +812,12 @@ withDataFn fn handle
 --  * \"*.example.com\" to match anything under example.com
 --
 --  * \"example.com\" to match just example.com
-proxyServe :: (MonadIO m, WebMonad m) => [String] -> ServerPartT m Response
-proxyServe allowed = withRequest $ \rq -> 
-                        if cond rq then proxyServe' rq else noHandle 
+--  TODO: annoyingly enough, this method eventually calls escape, so
+--  any headers you set won't be used, and the computation immediatly ends.
+proxyServe :: (MonadIO m, WebMonad m, ServerMonad m, MonadPlus m, FilterMonad Response m) => [String] -> m Response
+proxyServe allowed = do
+   rq <- askRq
+   if cond rq then proxyServe' rq else mzero
    where
    cond rq
      | "*" `elem` allowed = True
@@ -697,12 +831,16 @@ proxyServe allowed = withRequest $ \rq ->
 
 -- | Takes a proxy Request and creates a Response.  Your basic proxy
 -- building block.  See 'unproxify'
-proxyServe' :: (MonadIO m) => Request-> WebT m Response
+-- TODO: this would be more useful if it didn\'t call "escape" (e.g. it let you
+-- modify the response afterwards, or set additional headers)
+proxyServe' :: (MonadIO m, FilterMonad Response m, WebMonad m) => Request-> m Response
 proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
                 either (badGateway . toResponse . show) (escape . return)
 
 -- | This is a reverse proxy implementation.
 -- see 'unrproxify'
+-- TODO: this would be more useful if it didn\'t call "escape", just like
+-- proxyServe'
 rproxyServe :: (MonadIO m, WebMonad m) =>
     String -- ^ defaultHost
     -> [(String, String)] -- ^ map to look up hostname mappings.  For the reverse proxy
@@ -712,31 +850,29 @@ rproxyServe defaultHost list  = withRequest $ \rq ->
                 either (badGateway . toResponse . show) (escape . return)
 
 -- | Run an IO action and, if it returns @Just@, pass it to the second argument.
-require :: MonadIO m => IO (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
+require :: (MonadIO m, MonadTrans t, MonadPlus (t m)) => IO (Maybe a) -> (a -> [t m r]) -> t m r
 require = requireM . liftIO
 
 -- | A varient of require that can run in any monad, not just IO
-requireM :: Monad m => m (Maybe a) -> (a -> [ServerPartT m r]) -> ServerPartT m r
-requireM fn handle
-    = withRequest $ \rq -> do mbVal <- lift fn
-                              case mbVal of
-                                Nothing -> noHandle
-                                Just a  -> runServerPartT (msum $ handle a) rq
+requireM :: (MonadTrans t, Monad m, MonadPlus (t m)) => m (Maybe a) -> (a -> [t m r]) -> t m r
+requireM fn handle = do
+    mbVal <- lift fn
+    case mbVal of
+        Nothing -> mzero
+        Just a -> msum $ handle a
 
--- FIXME: What to do with Escapes?
 -- | Use @cmd@ to transform XML against @xslPath@.
 --   This function only acts if the content-type is @application\/xml@.
-xslt :: (MonadIO m, ToMessage r) =>
+xslt :: (MonadIO m, MonadPlus m, ToMessage r) =>
         XSLTCmd  -- ^ XSLT preprocessor. Usually 'xsltproc' or 'saxon'.
      -> XSLPath      -- ^ Path to xslt stylesheet.
-     -> [ServerPartT m r] -- ^ Affected @ServerParts@.
-     -> ServerPartT m Response
-xslt cmd xslPath parts =
-    withRequest $ \rq -> 
-        do res <- runServerPartT (msum parts) rq
-           if toContentType res == B.pack "application/xml"
-              then liftM toResponse (doXslt cmd xslPath (toResponse res))
-              else return (toResponse res)
+     -> [m r] -- ^ Affected @ServerParts@.
+     -> m Response
+xslt cmd xslPath parts = do
+    res <- msum parts
+    if toContentType res == B.pack "application/xml"
+        then liftM toResponse (doXslt cmd xslPath (toResponse res))
+        else return (toResponse res)
 
 doXslt :: (MonadIO m) =>
           XSLTCmd -> XSLPath -> Response -> m Response
@@ -749,14 +885,14 @@ doXslt cmd xslPath res =
 
 modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
 modifyResponse = composeFilter
+{-# DEPRECATED modifyResponse "Use composeFilter" #-}
 
 setResponseCode :: FilterMonad Response m => Int -> m ()
 setResponseCode code
-    = modifyResponse $ \r -> r{rsCode = code}
+    = composeFilter $ \r -> r{rsCode = code}
 
 addCookie :: (FilterMonad Response m) => Seconds -> Cookie -> m ()
-addCookie sec 
-    = modifyResponse . addHeader "Set-Cookie" . mkCookieHeader sec
+addCookie sec = (addHeaderM "Set-Cookie") . mkCookieHeader sec
 
 
 addCookies :: (FilterMonad Response m, Monad m) => [(Seconds, Cookie)] -> m ()
@@ -830,7 +966,7 @@ anyRequest x = withRequest $ \_ -> x
 -- | again, why is this useful?
 applyRequest :: (ToMessage a, Monad m) =>
                 [ServerPartT m a] -> Request -> Either (m Response) b
-applyRequest hs = simpleHTTP' hs >>= return . Left
+applyRequest hs = simpleHTTP'' hs >>= return . Left
 
 basicAuth :: (WebMonad m, Monad m) => String -> M.Map String String -> [ServerPartT m Response] -> ServerPartT m Response
 basicAuth realmName authMap xs = msum $ basicAuthImpl:xs
