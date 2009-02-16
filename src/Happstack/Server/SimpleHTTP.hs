@@ -159,6 +159,8 @@ module Happstack.Server.SimpleHTTP
     , anyPath'
     , withData
     , withDataFn
+    , getData
+    , getData'
     , require
     , requireM
     , basicAuth
@@ -792,6 +794,47 @@ anyPath x = path $ (\(_::String) -> x)
 anyPath' :: (ServerMonad m, MonadPlus m, Monad m) => m r -> m r
 anyPath' x = path $ (\(_::String) -> [x])
 
+-- | used to read parse your request with a RqData (a ReaderT, basically)
+-- For example here is a simple GET or POST variable based authentication
+-- guard.  It handles the request with errorHandler if authentication fails.
+--
+-- @
+--   myRqData = do
+--      username <- lookInput \"username\"
+--      password <- lookInput \"password\"
+--      return (username, password)
+--  checkAuth errorHandler = do
+--      d <- getData myRqDataA
+--      case d of
+--          Nothing -> errorHandler
+--          Just a | isValid a -> mzero
+--          Just a | otherwise -> errorHandler
+--  @
+getData :: (ServerMonad m, Monad m) => RqData a -> m (Maybe a)
+getData rqData = do
+    rq <- askRq
+    return $ runReaderT rqData (rqInputs rq, rqCookies rq)
+
+-- | An varient of getData that uses FromData to chose your
+-- RqData for you.  The example from 'getData' becomes:
+--
+-- @
+--   myRqData = do
+--      username <- lookInput \"username\"
+--      password <- lookInput \"password\"
+--      return (username, password)
+--   instance FromData (String,String) where
+--      fromData = myRqData
+--   checkAuth errorHandler = do
+--      d <- getData\'
+--      case d of
+--          Nothing -> errorHandler
+--          Just a | isValid a -> mzero
+--          Just a | otherwise -> errorHandler
+-- @
+getData' :: (ServerMonad m, Monad m, FromData a) => m (Maybe a)
+getData' = getData fromData
+
 -- | Retrieve data from the input query or the cookies.
 withData :: (FromData a, MonadPlus m, ServerMonad m) => (a -> [m r]) -> m r
 withData = withDataFn fromData
@@ -800,10 +843,10 @@ withData = withDataFn fromData
 -- for reading.
 withDataFn :: (MonadPlus m, ServerMonad m, Monad m) => RqData a -> (a -> [m r]) -> m r
 withDataFn fn handle = do
-    rq <- askRq
-    case runReaderT fn (rqInputs rq, rqCookies rq) of
+    d <- getData fn
+    case d of
         Nothing -> mzero
-        Just a -> msum $ handle a
+        Just a -> msum (handle a)
 
 -- | proxyServe is for creating ServerPartT's that proxy.
 -- The sole argument [String] is a list of allowed domains for
