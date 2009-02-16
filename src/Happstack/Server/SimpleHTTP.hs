@@ -321,7 +321,7 @@ instance Monad m => FilterMonad Response (ServerPartT m) where
     applyFilter f m = withRequest $ \rq -> applyFilter f (runServerPartT m rq)
     getFilter m = withRequest $ \rq -> getFilter (runServerPartT m rq)
 
-instance Monad m => WebMonad (ServerPartT m) where
+instance Monad m => WebMonad Response (ServerPartT m) where
     finishWith r = anyRequest $ finishWith r
 
 -- | yes, this is exactly like 'ReaderT' with new names.
@@ -455,13 +455,20 @@ newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT 
 instance Error Response where
     strMsg = toResponse
 
-class WebMonad m where
+class WebMonad a m | m->a where
     -- | A control structure
     -- It ends the computation and returns the Response you passed into it
-    -- immediately.
-    finishWith :: Response -> m Response
+    -- immediately.  This provides an "Alternate escape route."  In particular
+    -- it has a monadic value of any type.  And unless you call "setFilter id"
+    -- first your response filters will be applied normally.
+    --
+    -- Extremely useful when you're deep inside a monad and decide that you
+    -- want to return a completely different content type, since it
+    -- doesn't force you to convert your return types to Response early just
+    -- to accomodate this.
+    finishWith :: a -> m b
 
-instance (Monad m) => WebMonad (WebT m) where
+instance (Monad m) => WebMonad Response (WebT m) where
     finishWith r = WebT $ throwError r
 
 instance MonadTrans WebT where
@@ -555,12 +562,12 @@ ignoreFilters = setFilter id
 -- | Used to ignore all your filters
 -- and immediately end the computation.  A combination of
 -- 'ignoreFilters' and 'finishWith'
-escape :: (WebMonad m, FilterMonad a m, Monad m) => m Response -> m Response
+escape :: (WebMonad a m, FilterMonad a m, Monad m) => m a -> m b
 escape gen = ignoreFilters >> gen >>= finishWith
 
 -- | An alternate form of 'escape' that can
 -- be easily used within a do block.
-escape' :: (WebMonad m, FilterMonad a m, Monad m) => Response -> m Response
+escape' :: (WebMonad a m, FilterMonad a m, Monad m) => a -> m b
 escape' a = ignoreFilters >> finishWith a
 
 ----------------------------------------------
@@ -719,7 +726,7 @@ localContext fn hs
 
 
 -- | Get a header out of the request
-getHeaderM :: (Monad m) => String -> ServerPartT m (Maybe B.ByteString)
+getHeaderM :: (ServerMonad m, Monad m) => String -> m (Maybe B.ByteString)
 getHeaderM a = askRq >>= return . (getHeader a)
 
 -- | Set a header into the response
@@ -860,7 +867,7 @@ withDataFn fn handle = do
 --  * \"example.com\" to match just example.com
 --  TODO: annoyingly enough, this method eventually calls escape, so
 --  any headers you set won't be used, and the computation immediatly ends.
-proxyServe :: (MonadIO m, WebMonad m, ServerMonad m, MonadPlus m, FilterMonad Response m) => [String] -> m Response
+proxyServe :: (MonadIO m, WebMonad Response m, ServerMonad m, MonadPlus m, FilterMonad Response m) => [String] -> m Response
 proxyServe allowed = do
    rq <- askRq
    if cond rq then proxyServe' rq else mzero
@@ -879,7 +886,7 @@ proxyServe allowed = do
 -- building block.  See 'unproxify'
 -- TODO: this would be more useful if it didn\'t call "escape" (e.g. it let you
 -- modify the response afterwards, or set additional headers)
-proxyServe' :: (MonadIO m, FilterMonad Response m, WebMonad m) => Request-> m Response
+proxyServe' :: (MonadIO m, FilterMonad Response m, WebMonad Response m) => Request-> m Response
 proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
                 either (badGateway . toResponse . show) (escape . return)
 
@@ -887,7 +894,7 @@ proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
 -- see 'unrproxify'
 -- TODO: this would be more useful if it didn\'t call "escape", just like
 -- proxyServe'
-rproxyServe :: (MonadIO m, WebMonad m) =>
+rproxyServe :: (MonadIO m, WebMonad Response m) =>
     String -- ^ defaultHost
     -> [(String, String)] -- ^ map to look up hostname mappings.  For the reverse proxy
     -> ServerPartT m Response -- ^ the result is a ServerPartT that will reverse proxy for you.
@@ -1018,22 +1025,30 @@ applyRequest :: (ToMessage a, Monad m) =>
                 [ServerPartT m a] -> Request -> Either (m Response) b
 applyRequest hs = simpleHTTP'' hs >>= return . Left
 
-basicAuth :: (WebMonad m, Monad m) => String -> M.Map String String -> [ServerPartT m Response] -> ServerPartT m Response
+-- | a simple HTTP basic authentication guard
+basicAuth :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, Monad m, MonadPlus m) =>
+   String -- ^ the realm name
+   -> M.Map String String -- ^ the username password map
+   -> [m a] -- ^ the list of parts to guard
+   -> m a
 basicAuth realmName authMap xs = msum $ basicAuthImpl:xs
   where
-    basicAuthImpl = withRequest $ \rq ->
-      case getHeader "authorization" rq of
-        Nothing -> err
-        Just x  -> case parseHeader x of 
-                     (name, ':':password) | validLogin name password -> noHandle
-                     _                                       -> err
+    basicAuthImpl = do
+        aHeader <- getHeaderM "authorization"
+        case aHeader of
+            Nothing -> err
+            Just x -> case parseHeader x of
+                (name, ':':password) | validLogin name password -> mzero
+                                     | otherwise -> err
+                _  -> err
     validLogin name password = M.lookup name authMap == Just password
     parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
     headerName  = "WWW-Authenticate"
     headerValue = "Basic realm=\"" ++ realmName ++ "\""
-    err = escape $
-          do unauthorized $ addHeader headerName headerValue $ toResponse "Not authorized"
-
+    err = do
+        unauthorized ()
+        addHeaderM headerName headerValue
+        escape' $ toResponse "Not authorized"
 
 --------------------------------------------------------------
 -- Query/Post data validating
