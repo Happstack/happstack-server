@@ -126,6 +126,8 @@ module Happstack.Server.SimpleHTTP
     , multi
       -- * Manipulating responses
     , FilterMonad(..)
+    , SetAppend(..)
+    , FilterT(..)
     , WebMonad(..)
     , ok
     , modifyResponse
@@ -158,6 +160,7 @@ module Happstack.Server.SimpleHTTP
     , withData
     , withDataFn
     , require
+    , requireM
     , basicAuth
     , uriRest
       -- * Processing requests
