@@ -126,6 +126,7 @@ module Happstack.Server.SimpleHTTP
     , multi
       -- * Manipulating responses
     , FilterMonad(..)
+    , ignoreFilters
     , SetAppend(..)
     , FilterT(..)
     , WebMonad(..)
@@ -888,7 +889,7 @@ proxyServe allowed = do
 -- modify the response afterwards, or set additional headers)
 proxyServe' :: (MonadIO m, FilterMonad Response m, WebMonad Response m) => Request-> m Response
 proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
-                either (badGateway . toResponse . show) (escape . return)
+                either (badGateway . toResponse . show) escape'
 
 -- | This is a reverse proxy implementation.
 -- see 'unrproxify'
@@ -900,7 +901,7 @@ rproxyServe :: (MonadIO m, WebMonad Response m) =>
     -> ServerPartT m Response -- ^ the result is a ServerPartT that will reverse proxy for you.
 rproxyServe defaultHost list  = withRequest $ \rq ->
                 liftIO (getResponse (unrproxify defaultHost list rq)) >>=
-                either (badGateway . toResponse . show) (escape . return)
+                either (badGateway . toResponse . show) (escape')
 
 -- | Run an IO action and, if it returns @Just@, pass it to the second argument.
 require :: (MonadIO m, MonadPlus m) => IO (Maybe a) -> (a -> [m r]) -> m r
