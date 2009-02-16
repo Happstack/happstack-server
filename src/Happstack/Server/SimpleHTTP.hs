@@ -346,7 +346,7 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
 -- 
 -- @
 --   Set x `mappend` Append y = Set (x `mappend` y)
---   Set x `mappend` Append y = Append (x `mappend` y)
+--   Append x `mappend` Append y = Append (x `mappend` y)
 --   \_     `mappend` Set y = Set y
 -- @
 --
