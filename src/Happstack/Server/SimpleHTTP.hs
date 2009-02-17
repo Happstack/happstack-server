@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances, OverlappingInstances, ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances,
-    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving, NoMonomorphismRestriction #-}
+    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -494,8 +494,6 @@ instance (Monad m) => MonadPlus (WebT m) where
 -- | deprecated.  use mzero
 noHandle :: (MonadPlus m) => m a
 noHandle = mzero
--- rproxy' requires a lifting of the monomorphism restriction
--- so we can make nohandle a direction alias of mzero
 {-# DEPRECATED noHandle "Use mzero" #-}
 
 instance (Monad m) => FilterMonad Response (WebT m) where
