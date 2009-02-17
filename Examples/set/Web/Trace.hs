@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Main where
 
 import Happstack.Server
@@ -11,23 +13,27 @@ import Control.Monad.Writer
    /special/
    /special/?query
 -}
+trace :: (Monad m, MonadWriter (Endo [String]) m) => String -> String -> m String
+trace name result = (tell $ Endo (name:)) >> return result
 
-trace name local = do val <- local
-                      anyRequest $ lift $ tell $ Endo (name:) -- Only append 'name' when 'local' was successful.
-                      return val
-
-transform :: WebT (Writer (Endo [String])) String -> WebT IO String
-transform (WebT fn)
-    = let (res,t) = runWriter fn
-      in WebT $ return $ Ok id $ "Context:\n\n" ++ unlines (reverse $ appEndo t []) ++ "\n\n" ++ show res
+transform :: (Monad m) => (WriterT (Endo [String]) m) (Maybe (Either Response String, SetAppend (Endo Response)))
+             -> m (Maybe (Either Response String, SetAppend (Endo Response)))
+transform wt = do
+    (res, t) <- runWriterT wt
+    case res of
+        Just (Right r, f) -> return $ Just $ (Right $ context t r,f)
+        _ -> return res
+    where context t r = "Context:\n\n" ++ unlines (reverse $ appEndo t []) ++ "\n\n" ++ show r
 
 main :: IO ()
-main = do simpleHTTP nullConf
-             [ localContext transform
-               [ trace "special dir" $ dir "special" [ trace "query" $
-                                                       withDataFn (look "query") $ \str -> [ anyRequest $ return str ]
-                                                     , trace "otherwise" $
-                                                       anyRequest $ return "special" ]
-               , trace "default" $ anyRequest $ return "default"
+main = do simpleHTTP' transform nullConf
+               [ trace "special dir" =<< dir "special"
+                    [   
+                        do mbStr <- getDataFn (look "query")
+                           str <- maybe mzero return mbStr
+                           trace "query" str
+                       ,trace "otherwise" =<< return "special"
+                    ]
+                    
+                ,trace "default" "default"
                ]
-             ]
