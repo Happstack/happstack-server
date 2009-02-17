@@ -167,9 +167,6 @@ module Happstack.Server.SimpleHTTP
     , requireM
     , basicAuth
     , uriRest
-      -- * Processing requests
-    , webQuery
-    , webUpdate
     , flatten
     , localContext
       -- * proxying
@@ -212,7 +209,6 @@ import Happstack.Server.XSLT
 import Happstack.Server.SURI (ToSURI)
 import Happstack.Util.Common
 import Happstack.Server.Cookie
-import Happstack.State (QueryEvent, UpdateEvent, query, update)
 import Happstack.Data -- used by default implementation of fromData
 import Control.Applicative
 import Control.Concurrent (forkIO)
@@ -725,14 +721,6 @@ instance MatchMethod Method where matchMethod m = (== m)
 instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
 instance MatchMethod (Method -> Bool) where matchMethod f = f 
 instance MatchMethod () where matchMethod () _ = True
-
--- | lifts 'query' into your monad.
-webQuery :: (MonadIO m, QueryEvent ev res) => ev -> m res
-webQuery = liftIO . query
-
--- | lifts 'update' into your monad.
-webUpdate :: (MonadIO m, UpdateEvent ev res) => ev -> m res
-webUpdate = liftIO . update
 
 -- | flatten turns your arbitrary @m a@ and converts it too
 -- a @m 'Response'@ with @'toResponse'@
