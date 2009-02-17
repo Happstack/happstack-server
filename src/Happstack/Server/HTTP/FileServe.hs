@@ -28,7 +28,7 @@ errorwrapper :: MonadIO m => String -> String -> ServerPartT m Response
 errorwrapper binarylocation loglocation
     = require getErrorLog $ \errorLog ->
       --[method () $ SH.ok errorLog]
-      [anyRequest $ liftIO $ return $ toResponse errorLog]
+      anyRequest $ liftIO $ return $ toResponse errorLog
     where getErrorLog
               = liftIO $
                 handleJust ioErrors (const (return Nothing)) $

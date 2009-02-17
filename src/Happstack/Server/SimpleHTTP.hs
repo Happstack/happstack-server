@@ -20,14 +20,14 @@
 -- from a web application container.  First you figure out when function is
 -- going to process your request, process the request to generate a response,
 -- then return that response to the client. The web application container is
--- started with 'simpleHTTP', which takes a configuration and a list of
--- possible response-building structures ('ServerPartT' which I'll return too
--- in a moment), and picks the first response builder that is willing to accept
--- the request, passes the request into the response builder.  A simple "hello world" style
--- HAppS simpleHTTP server looks like:
+-- started with 'simpleHTTP', which takes a configuration and a
+-- response-building structure ('ServerPartT' which I'll return too in a
+-- moment), and picks the first handler that is willing to accept the request,
+-- passes the request into the handler.  A simple "hello world" style HAppS
+-- simpleHTTP server looks like:
 --
 -- @
---   main = simpleHTTP nullConf [ return \"Hello World!\" ]
+--   main = simpleHTTP nullConf $ return \"Hello World!\"
 -- @
 --
 -- @simpleHTTP nullConf@ creates a HTTP server on port 8000.
@@ -45,12 +45,12 @@
 -- password and a server part to run if authentication fails.
 -- 
 -- @basicAuth'@ acts like a guard, and only produces a response when
--- authentication fails.  So put it before any ServerPartTs you want
--- to demand authentication for in any list of ServerPartTs.
+-- authentication fails.  So put it before any ServerPartT you want to demand
+-- authentication for in any collection of ServerPartTs.
 --
 -- @
 --
--- main = simpleHTTP nullConf [ myAuth, return \"Hello World!\" ]
+-- main = simpleHTTP nullConf $ myAuth, return \"Hello World!\"
 --     where
 --         myAuth = basicAuth\' \"Test\"
 --             (M.fromList [(\"hello\", \"world\")]) (return \"Login Failed\")
@@ -78,7 +78,7 @@
 -- Here is another example that uses liftIO to embed IO in a request process
 --
 -- @
---   main = simpleHTTP nullConf [ myPart ]
+--   main = simpleHTTP nullConf $ myPart
 --   myPart = do
 --     line <- liftIO $ do -- IO
 --         putStr \"return? \"
@@ -285,13 +285,13 @@ withRequest = ServerPartT . ReaderT
 -- With @unpackErrorT@ you can now call simpleHTTP.  Just wrap your @ServerPartT@ list.
 --
 -- @
---   simpleHTTP nullConf [mapServerPartT unpackErrorT (myPart \`catchError\` myHandler)]
+--   simpleHTTP nullConf $ mapServerPartT unpackErrorT (myPart \`catchError\` myHandler)
 -- @
 -- 
 -- Or alternatively:
 --
 -- @
---   simpleHTTP' unpackErrorT nullConf [(myPart \`catchError\` myHandler)]
+--   simpleHTTP' unpackErrorT nullConf (myPart \`catchError\` myHandler)
 -- @
 --
 mapServerPartT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> ServerPartT m a -> ServerPartT n b
@@ -598,10 +598,10 @@ parseConfig args
         (flags,_,[]) -> Right $ foldr ($) nullConf flags
         (_,_,errs)   -> Left errs
 
--- | Use the built-in web-server to serve requests according to list of 'ServerPartT's.
--- The array of ServerPartT is passed though msum to pick the first handler that didn't 
--- call noHandle
-simpleHTTP :: (ToMessage a) => Conf -> [ServerPartT IO a] -> IO ()
+-- | Use the built-in web-server to serve requests according to a 'ServerPartT'.
+-- Use msum to pick the first handler from a list of handlers that doesn't call
+-- noHandle.
+simpleHTTP :: (ToMessage a) => Conf -> ServerPartT IO a -> IO ()
 simpleHTTP = simpleHTTP' id
 
 -- | a combination of simpleHTTP and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
@@ -610,16 +610,16 @@ simpleHTTP' :: (Monad m, ToMessage b) =>
    (m (Maybe (Either Response a, SetAppend (Endo Response)))
    -> IO (Maybe (Either Response b, SetAppend (Endo Response))))
    -> Conf
-   -> [ServerPartT m a]
+   -> ServerPartT m a
    -> IO ()
 simpleHTTP' toIO conf hs = do
-    Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' [(mapServerPartT toIO (msum hs))] req))
+    Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
     
 
--- | Generate a result from a list of 'ServerParts' and a 'Request'. This is mainly used
+-- | Generate a result from a 'ServerPart' and a 'Request'. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
-simpleHTTP'' :: (ToMessage b, Monad m) => [ServerPartT m b] -> Request -> m Response
-simpleHTTP'' hs req =  (runWebT $ runServerPartT (msum hs) req) >>= (return . (maybe standardNotFound id))
+simpleHTTP'' :: (ToMessage b, Monad m) => ServerPartT m b -> Request -> m Response
+simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe standardNotFound id))
     where
         standardNotFound = result 404 "No suitable handler found"
 
@@ -729,9 +729,9 @@ flatten = fmap toResponse
 
 -- | This is kinda like a very oddly shaped mapServerPartT or mapWebT
 -- You probably want one or the other of those.
-localContext :: Monad m => (WebT m a -> WebT m' a) -> [ServerPartT m a] -> ServerPartT m' a
+localContext :: Monad m => (WebT m a -> WebT m' a) -> ServerPartT m a -> ServerPartT m' a
 localContext fn hs
-    = withRequest $ \rq -> fn (runServerPartT (msum hs) rq)
+    = withRequest $ \rq -> fn (runServerPartT hs rq)
 
 
 -- | Get a header out of the request
@@ -777,25 +777,25 @@ method m handle = methodSP m (anyRequest handle)
 nullDir :: (ServerMonad m, MonadPlus m) => m ()
 nullDir = guardRq $ \rq -> null (rqPaths rq)
 
--- | Pop a path element and run the @[ServerPartT]@ if it matches the given string.
-dir :: (ServerMonad m, MonadPlus m) => String -> [m a] -> m a
+-- | Pop a path element and run the @ServerPartT@ if it matches the given string.
+dir :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
 dir staticPath handle =
     do
         rq <- askRq
         case rqPaths rq of
-            (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) (msum handle)
+            (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
                    | otherwise -> mzero
             _ -> mzero
 
 -- | Pop a path element and parse it.  Annoyingly enough, rather than just using Read
 -- (or providing a parser argument), this method uses 'FromReqURI' which is just a wrapper
 -- for Read.
-path :: (FromReqURI a, MonadPlus m, ServerMonad m) => (a -> [m b]) -> m b
+path :: (FromReqURI a, MonadPlus m, ServerMonad m) => (a -> m b) -> m b
 path handle = do
     rq <- askRq
     case rqPaths rq of
         (p:xs) | Just a <- fromReqURI p
-                            -> localRq (\newRq -> newRq{rqPaths = xs}) (msum (handle a))
+                            -> localRq (\newRq -> newRq{rqPaths = xs}) (handle a)
                | otherwise -> mzero
         _ -> mzero
 
@@ -806,12 +806,13 @@ uriRest handle = askRq >>= handle . rqURL
 -- | pops any path element and ignores when chosing a ServerPartT to handle the
 --
 -- request.
-anyPath :: (ServerMonad m, MonadPlus m) => [m r] -> m r
+anyPath :: (ServerMonad m, MonadPlus m) => m r -> m r
 anyPath x = path $ (\(_::String) -> x)
 
--- | pops any path element and uses a single ServerPartT to handle the request
+-- | Deprecated. Use 'anyPath'.
 anyPath' :: (ServerMonad m, MonadPlus m) => m r -> m r
-anyPath' x = path $ (\(_::String) -> [x])
+anyPath' = anyPath
+{-# DEPRECATED anyPath' "Use anyPath" #-}
 
 -- | used to read parse your request with a RqData (a ReaderT, basically)
 -- For example here is a simple GET or POST variable based authentication
@@ -855,17 +856,17 @@ getData :: (ServerMonad m, FromData a) => m (Maybe a)
 getData = getDataFn fromData
 
 -- | Retrieve data from the input query or the cookies.
-withData :: (FromData a, MonadPlus m, ServerMonad m) => (a -> [m r]) -> m r
+withData :: (FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
 withData = withDataFn fromData
 
 -- | withDataFn is like with data, but you pass in a RqData monad
 -- for reading.
-withDataFn :: (MonadPlus m, ServerMonad m) => RqData a -> (a -> [m r]) -> m r
+withDataFn :: (MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
 withDataFn fn handle = do
     d <- getDataFn fn
     case d of
         Nothing -> mzero
-        Just a -> msum (handle a)
+        Just a -> handle a
 
 -- | proxyServe is for creating ServerPartT's that proxy.
 -- The sole argument [String] is a list of allowed domains for
@@ -919,30 +920,30 @@ rproxyServe defaultHost list  = withRequest $ \rq ->
                 either (badGateway . toResponse . show) (escape')
 
 -- | Run an IO action and, if it returns @Just@, pass it to the second argument.
-require :: (MonadIO m, MonadPlus m) => IO (Maybe a) -> (a -> [m r]) -> m r
+require :: (MonadIO m, MonadPlus m) => IO (Maybe a) -> (a -> m r) -> m r
 require fn handle = do
     mbVal <- liftIO fn
     case mbVal of
         Nothing -> mzero
-        Just a -> msum $ handle a
+        Just a -> handle a
 
 -- | A varient of require that can run in any monad, not just IO
-requireM :: (MonadTrans t, Monad m, MonadPlus (t m)) => m (Maybe a) -> (a -> [t m r]) -> t m r
+requireM :: (MonadTrans t, Monad m, MonadPlus (t m)) => m (Maybe a) -> (a -> t m r) -> t m r
 requireM fn handle = do
     mbVal <- lift fn
     case mbVal of
         Nothing -> mzero
-        Just a -> msum $ handle a
+        Just a -> handle a
 
 -- | Use @cmd@ to transform XML against @xslPath@.
 --   This function only acts if the content-type is @application\/xml@.
 xslt :: (MonadIO m, MonadPlus m, ToMessage r) =>
         XSLTCmd  -- ^ XSLT preprocessor. Usually 'xsltproc' or 'saxon'.
      -> XSLPath      -- ^ Path to xslt stylesheet.
-     -> [m r] -- ^ Affected @ServerParts@.
+     -> m r -- ^ Affected @ServerParts@.
      -> m Response
 xslt cmd xslPath parts = do
-    res <- msum parts
+    res <- parts
     if toContentType res == B.pack "application/xml"
         then liftM toResponse (doXslt cmd xslPath (toResponse res))
         else return (toResponse res)
@@ -1030,11 +1031,11 @@ multi = msum
 
 -- | what is this for, exactly?  I don't understand why @Show a@ is even in the context
 -- This appears to do nothing at all.
-debugFilter :: (MonadIO m, Show a) => [ServerPartT m a] -> [ServerPartT m a]
-debugFilter handle = [
+debugFilter :: (MonadIO m, Show a) => ServerPartT m a -> ServerPartT m a
+debugFilter handle =
     withRequest $ \rq -> do
-                    r <- (runServerPartT (msum handle) rq)
-                    return r]
+                    r <- runServerPartT handle rq
+                    return r
 
 -- | a constructor for a ServerPartT when you don't care about the request
 anyRequest :: Monad m => WebT m a -> ServerPartT m a
@@ -1042,16 +1043,16 @@ anyRequest x = withRequest $ \_ -> x
 
 -- | again, why is this useful?
 applyRequest :: (ToMessage a, Monad m) =>
-                [ServerPartT m a] -> Request -> Either (m Response) b
+                ServerPartT m a -> Request -> Either (m Response) b
 applyRequest hs = simpleHTTP'' hs >>= return . Left
 
 -- | a simple HTTP basic authentication guard
 basicAuth :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadPlus m) =>
    String -- ^ the realm name
    -> M.Map String String -- ^ the username password map
-   -> [m a] -- ^ the list of parts to guard
+   -> m a -- ^ the part to guard
    -> m a
-basicAuth realmName authMap xs = msum $ basicAuthImpl:xs
+basicAuth realmName authMap xs = basicAuthImpl `mplus` xs
   where
     basicAuthImpl = do
         aHeader <- getHeaderM "authorization"
@@ -1130,13 +1131,12 @@ lookPairs = asks fst >>= return . map (\(n,vbs)->(n,L.unpack $ inputValue vbs))
 --   
 --   For a more general version of this, see 'simpleHTTP\'' and 'mapServerPartT' most of the
 --   time those are what you want.
-errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> [ServerPartT (ErrorT e m) a] -> [ServerPartT m a] 
-errorHandlerSP handler sps = [ withRequest $ \req -> mkWebT $ do
-			eer <- runErrorT $ ununWebT $ runServerPartT (multi sps) req
+errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> ServerPartT (ErrorT e m) a -> ServerPartT m a 
+errorHandlerSP handler sps = withRequest $ \req -> mkWebT $ do
+			eer <- runErrorT $ ununWebT $ runServerPartT sps req
 			case eer of
 				Left err -> ununWebT (handler req err)
 				Right res -> return res
-		]
 
 -- | An example error Handler to be used with 'errorHandlerSP', which returns the
 --   error message as a plain text message to the browser.
@@ -1163,7 +1163,7 @@ simpleErrorHandler _ err = ok $ toResponse $ ("An error occured: " ++ err)
 -- Example: (use 'noopValidator' instead of the default supplied by 'validateConf')
 --
 -- @
---  simpleHTTP validateConf [ anyRequest $ ok . setValidator noopValidator =<< htmlPage ]
+--  simpleHTTP validateConf . anyRequest $ ok . setValidator noopValidator =<< htmlPage
 -- @
 --
 -- See also: 'validateConf', 'wdgHTMLValidator', 'noopValidator', 'lazyProcValidator'
@@ -1175,7 +1175,7 @@ setValidator v r = r { rsValidator = Just v }
 -- Example: (Set validator to 'noopValidator')
 --
 -- @
---   simpleHTTP validateConf $ [ setValidatorSP noopValidator (dir "ajax" [ ... ])]
+--   simpleHTTP validateConf $ setValidatorSP noopValidator (dir "ajax" ... )
 -- @
 --
 -- See also: 'setValidator'
@@ -1188,7 +1188,7 @@ setValidatorSP v sp = return . setValidator v . toResponse =<< sp
 -- Example:
 --
 -- @
---  simpleHTTP validateConf [ anyRequest $ ok htmlPage ]
+--  simpleHTTP validateConf . anyRequest $ ok htmlPage
 -- @
 validateConf :: Conf
 validateConf = nullConf { validator = Just wdgHTMLValidator }
