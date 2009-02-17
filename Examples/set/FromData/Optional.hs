@@ -15,7 +15,6 @@ instance FromData MyStructure where
     fromData = do str <- look "string"
                   return $ MyStructure str
 main :: IO ()
-main = do simpleHTTP nullConf
-             [ withData $ \mbStructure ->
-                   [ anyRequest $ ok $ "Input: " ++ maybe "default value" unpack mbStructure ]
-             ]
+main = simpleHTTP nullConf $ do
+             mbStructure <- getData
+             ok $ "Input: " ++ maybe "default value" unpack mbStructure

@@ -1,6 +1,7 @@
 module Main where
 
 import Happstack.Server
+import Control.Monad
 
 {-
   interesting urls:
@@ -8,7 +9,9 @@ import Happstack.Server
 -}
 
 main :: IO ()
-main = do simpleHTTP nullConf
-            [ withDataFn (look "string") $ \str ->
-                  [ anyRequest $ ok $ "You entered: " ++ str ]
-            , anyRequest $ ok "Sorry, I don't understand." ]
+main = simpleHTTP nullConf $ msum
+           [
+              do str <- getDataFn (look "string") >>= maybe mzero return
+                 ok $ "You entered: " ++ str
+            , ok "Sorry, I don't understand."
+           ]

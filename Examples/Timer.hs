@@ -1,8 +1,8 @@
 {-# OPTIONS -fth -fglasgow-exts -fallow-undecidable-instances #-}
 module Timer where
 
-import HAppS.State
-import HAppS.Data
+import Happstack.State
+import Happstack.Data
 import Data.Typeable
 import Data.Generics
 import Control.Monad.State (modify)

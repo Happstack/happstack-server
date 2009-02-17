@@ -7,5 +7,5 @@ import Happstack.Server
    /
 -}
 main :: IO ()
-main = do simpleHTTP nullConf [ anyRequest $ ok "Hello World" ]
+main = simpleHTTP nullConf $ ok "Hello World"
 

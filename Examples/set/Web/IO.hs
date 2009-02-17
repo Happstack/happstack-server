@@ -9,7 +9,6 @@ import Control.Monad.Trans
    /
 -}
 main :: IO ()
-main = do simpleHTTP nullConf
-             [ anyRequest $ do contents <- liftIO $ getDirectoryContents "."
-                               ok $ unlines contents
-             ]
+main = simpleHTTP nullConf $
+             do contents <- liftIO $ getDirectoryContents "."
+                ok $ unlines contents

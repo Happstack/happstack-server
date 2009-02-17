@@ -210,24 +210,27 @@ instance Component State where
 ----------------------------------------------------
 --  Now we define the HTTP interface to test stuff
 ----------------------------------------
-impl = [dir "setGet" 
+impl = dir "setGet" $ msum
         [--return text/plain of the string inside component
          --you can return a type and have it convert automatically to XML (see below)
          --you can return Text.HTML and Text.XHTML and they will be handled properly too
-         method GET $ ok =<< (webQuery (GetComponent ()) :: Web Int)
+         do
+            methodM GET
+            ok ()
+            liftIO $ query $ GetComponent ()
+         --method GET $ ok =<< (webQuery (GetComponent ()) :: Web Int)
 
          -- receive  urlencoded or mimemultipart of ?component=blah
          -- handle other encodings by defining your own FromData
-        ,withData $ \comp -> 
-            [
-             method POST $
-             do
-             webUpdate $ SetComponent (comp :: Int)
+        , do
+             methodM POST
+             mbComp <- getData
+             comp <- maybe mzero return mbComp
+             liftIO $ update $ SetComponent (comp :: Int)
              ok comp -- returned as <?xml v=1.0?><component>blah</component>. 
              -- add the xslt wrapper to style the xml
              -- or write your own ToMessage instance for your return types
-            ]
-        ]]
+        ]
 
 -- and a test we can run from anywhere
 ioTest = do print =<< query (GetPrivateData ())

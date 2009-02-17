@@ -34,11 +34,11 @@ rootState = Proxy
 
 main :: IO ()
 main = do ctl <- startSystemStateMultimaster rootState
-          simpleHTTP nullConf{port=8001}
-              [ dir "succ" [ anyRequest $ do update SuccVal
-                                             seeOther "/" "" ]
-              , dir "pred" [ anyRequest $ do update PredVal
-                                             seeOther "/" "" ]
-              , anyRequest $ do val <- query GetVal
-                                ok $ "Value is: " ++ show val ]
+          simpleHTTP nullConf{port=8001} $ msum
+              [ dir "succ" $ do update SuccVal
+                                seeOther "/" ""
+              , dir "pred" $ do update PredVal
+                                seeOther "/" ""
+              , do val <- query GetVal
+                   ok $ "Value is: " ++ show val ]
 

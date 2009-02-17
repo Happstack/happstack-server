@@ -1,7 +1,7 @@
 module Main where
 
 import Happstack.Server
-
+import Control.Monad
 import System.Directory
 
 {-
@@ -12,7 +12,7 @@ import System.Directory
 prog = "ghc"
 
 main :: IO ()
-main = do simpleHTTP nullConf
-             [ require (findExecutable prog) $ \ghcPath ->
-                   [ anyRequest $ ok $ prog ++ " path: " ++ ghcPath ]
-             , anyRequest $ ok $ "Sorry, couldn't find " ++ prog ]
+main =  simpleHTTP nullConf $ msum
+           [ requireM (findExecutable prog) $ \ghcPath ->
+                   ok $ prog ++ " path: " ++ ghcPath
+           , ok $ "Sorry, couldn't find " ++ prog ]

@@ -8,7 +8,8 @@ import Control.Monad
    /escape
 -}
 main :: IO ()
-main = do simpleHTTP nullConf
-             [ withRequest $ \rq -> do unless (null $ rqPaths rq) $ escape $ seeOther "http://escape.com/" ()
-                                       ok "Hello World"
-             ]
+main = simpleHTTP nullConf $
+             do rq <- askRq
+                unless (null $ rqPaths rq) $ escape $ seeOther "http://escape.com/" $ toResponse ()
+                ok "Hello World"
+

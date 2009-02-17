@@ -8,6 +8,7 @@ import Data.Typeable          ( Typeable )
 import System.Environment     ( getArgs, getProgName )
 import System.Exit            ( exitWith, ExitCode(ExitFailure) )
 import Control.Monad.State    ( put, get)
+import Control.Monad          ( msum, mzero)
 import Control.Monad.Reader   ( ask, liftM2, liftIO )
 import Control.Exception      ( bracket )
 import Data.List              ( intercalate )
@@ -57,6 +58,7 @@ rootState = Proxy
 
 getUserFromCookie = liftM2 User (lookCookieValue "nick") (readCookieValue "last")
 
+getPort :: IO Int
 getPort = do args <- getArgs
              case args of
                [portStr] | [(port,"")] <- reads portStr -> return port
@@ -67,33 +69,32 @@ getPort = do args <- getArgs
 main :: IO ()
 main = bracket (startSystemStateMultimaster rootState) closeTxControl $ \ctl ->
        do port <- getPort
-          simpleHTTP nullConf{port=port}
-                         [ withDataFn getUserFromCookie $ \user ->
-                            [ dir "send"
-                              [ withDataFn (look "msg") $ \msg ->
-                                [ anyRequest $ do update $ AddMessage (userNick user) msg
-                                                  ok (toResponse "OK")]
-                              ]
-                            , dir "get"
-                              [ anyRequest $ do (newLast, msgs) <- liftIO $ getMessages (userLastSeen user)
-                                                addCookie (-1) (mkCookie "last" (show newLast))
-                                                ok (toResponse (format msgs))
-                              ]
-                            , dir "clear"
-                              [ anyRequest $ do addCookie (-1) (mkCookie "last" (show 0))
-                                                ok (toResponse "")
-                              ]
+          simpleHTTP nullConf{port=port} $ msum
+                     [ do
+                          mbUser <- getDataFn getUserFromCookie
+                          user <- maybe mzero return mbUser
+                          msum $
+                            [ dir "send" $ do
+                                  msg <- getDataFn (look "msg") >>= maybe mzero return
+                                  update $ AddMessage (userNick user) msg
+                                  ok (toResponse "OK")
+                            , dir "get" $ do
+                                  (newLast, msgs) <- liftIO $ getMessages (userLastSeen user)
+                                  addCookie (-1) (mkCookie "last" (show newLast))
+                                  ok (toResponse (format msgs))
+                              
+                            , dir "clear" $ do
+                                  addCookie (-1) (mkCookie "last" (show 0))
+                                  ok (toResponse "")
                             , fileServe [] "ChatRun.html"
                             ]
-                         , dir "login"
-                           [ withDataFn (look "nick") $ \nick ->
-                             [ anyRequest $ do addCookie (-1) (mkCookie "nick" nick)
-                                               addCookie (-1) (mkCookie "last" (show 0))
-                                               seeOther "/" (toResponse "")
-                             ]
-                           ]
-                         , fileServe [] "ChatLogin.html"
-                         ]
+                      , dir "login" $ do
+                           nick <- getDataFn (look "nick") >>= maybe mzero return 
+                           addCookie (-1) (mkCookie "nick" nick)
+                           addCookie (-1) (mkCookie "last" (show 0))
+                           seeOther "/" (toResponse "")
+                      , fileServe [] "ChatLogin.html"
+                    ]
           return ()
 
 format = intercalate "<br/>" . map fn

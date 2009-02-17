@@ -1,6 +1,7 @@
 > module Validation where
 
 > import Control.Concurrent
+> import Control.Monad(msum)
 > import Happstack.Server
 > import Text.XHtml hiding (dir,method)
 
@@ -13,10 +14,10 @@ QuickStart
 
 The easiest option is to just use validateConf instead of nullConf:
 
-> ex1 = simpleHTTP validateConf [ dir "valid"   [method GET $ ok (toResponse validPage)]
->                               , dir "invalid" [method GET $ ok (toResponse invalidPage)]
->                               , anyRequest $ seeOther "/valid" (toResponse ())
->                               ]
+> ex1 = simpleHTTP validateConf $ msum [ dir "valid"   $ methodM GET >> ok (toResponse validPage)
+>                                      , dir "invalid" $ methodM GET >> ok (toResponse invalidPage)
+>                                      , seeOther "/valid" (toResponse ())
+>                                      ]
 
 You will need WDG HTML Validator installed. It must be named
 'validate' and it must be in the default PATH. On Debian systems you
@@ -103,21 +104,21 @@ How The System Works
  but then we turn it off for the invalidPage. (Do not forget to
  restart GHCi before running this example):
 
-> ex2 = simpleHTTP validateConf [ dir "valid"   [method GET $ ok (toResponse validPage)]
->                               , dir "invalid" [method GET $ ok (setValidator noopValidator (toResponse invalidPage))]
->                               , anyRequest $ seeOther "/valid" (toResponse ())
->                               ]
+> ex2 = simpleHTTP validateConf $ msum [ dir "valid" $ methodM GET >> ok (toResponse validPage)
+>                                      , dir "invalid" $ methodM GET >> ok (setValidator noopValidator (toResponse invalidPage))
+>                                      , seeOther "/valid" (toResponse ())
+>                                      ]
 
 
  We can use setValidateSP to set the validator at the ServerPart
  level. This is useful if you have a whole subdirectory you wish to
  change the validator for.
 
-> ex3 = simpleHTTP validateConf [setValidatorSP noopValidator $ multi
->                                  [ dir "valid"   [method GET $ ok (toResponse validPage)]
->                                  , dir "invalid" [method GET $ ok (toResponse invalidPage)]
->                                  , anyRequest $ seeOther "/valid" (toResponse ())
->                                  ]]
+> ex3 = simpleHTTP validateConf $ setValidatorSP noopValidator $ msum
+>                                  [ dir "valid"   $ methodM GET >> ok (toResponse validPage)
+>                                  , dir "invalid" $ methodM GET >> ok (toResponse invalidPage)
+>                                  , seeOther "/valid" (toResponse ())
+>                                  ]
 
  Instead of validating all pages by default, and selectively disabling
  validation on some, we could enable validation, but only validate a
@@ -127,11 +128,11 @@ How The System Works
  mark the pages we do want validated. In this example, /invalid will
  fail, but /invalid2 pass.
 
-> ex4 = simpleHTTP (nullConf { validator = Just noopValidator})
->          [ dir "valid"    [method GET $ ok (toResponse validPage)]
->          , dir "invalid"  [method GET $ ok (setValidator wdgHTMLValidator (toResponse invalidPage))]
->          , dir "invalid2" [method GET $ ok (toResponse invalidPage)]
->          , anyRequest $ seeOther "/valid" (toResponse ())
+> ex4 = simpleHTTP (nullConf { validator = Just noopValidator}) $ msum
+>          [ dir "valid"    $ methodM GET >> ok (toResponse validPage)
+>          , dir "invalid"  $ methodM GET >> ok (setValidator wdgHTMLValidator (toResponse invalidPage))
+>          , dir "invalid2" $ methodM GET >> ok (toResponse invalidPage)
+>          , seeOther "/valid" (toResponse ())
 >          ]
 
  Per content-type validation
@@ -145,10 +146,10 @@ How The System Works
 
  This means we can simply chain validators together using >>=. 
 
-> ex5 = simpleHTTP (nullConf { validator = Just $ \r -> noopValidator r >>= wdgHTMLValidator })
->       [ dir "valid"   [method GET $ ok (toResponse validPage)   ]
->       , dir "invalid" [method GET $ ok (toResponse invalidPage) ]
->       , anyRequest $ seeOther "/valid" (toResponse ())
+> ex5 = simpleHTTP (nullConf { validator = Just $ \r -> noopValidator r >>= wdgHTMLValidator }) $ msum
+>       [ dir "valid"   $ methodM GET >> ok (toResponse validPage)
+>       , dir "invalid" $ methodM GET >> ok (toResponse invalidPage)
+>       , seeOther "/valid" (toResponse ())
 >       ]
 
  There is one caveat. Because we use >>= to chain the validators

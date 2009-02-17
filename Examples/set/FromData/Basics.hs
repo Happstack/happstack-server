@@ -1,6 +1,7 @@
 module Main where
 
 import Happstack.Server
+import Control.Monad
 
 {-
   interesting urls:
@@ -13,8 +14,11 @@ instance FromData MyStructure where
                   return $ MyStructure str
 
 main :: IO ()
-main = do simpleHTTP nullConf
-              [ withData $ \(MyStructure str) ->
-                    [ anyRequest $ ok $ "You entered: " ++ str ]
-              , anyRequest $ ok "Sorry, I don't understand." ]
+main = do simpleHTTP nullConf $ msum
+              [
+                do
+                  (MyStructure str) <- getData >>= maybe mzero return
+                  ok $ "You entered: " ++ str
+              , ok "Sorry, I don't understand."
+              ]
 

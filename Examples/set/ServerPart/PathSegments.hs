@@ -1,6 +1,7 @@
 module Main where
 
 import Happstack.Server
+import Control.Monad
 
 {-
   interesting urls:
@@ -11,15 +12,12 @@ import Happstack.Server
    /int/no-parse
 -}
 main :: IO ()
-main = do simpleHTTP nullConf
-             [ dir "directory"
-                       [ anyRequest $ ok "Inside directory" ]
-             , dir "any"
-                       [ path $ \pathSegment ->
-                         [ anyRequest $ ok $ "Path segment: " ++ pathSegment ]
-                       ]
-             , dir "int"
-                       [ path $ \int ->
-                         [ anyRequest $ ok $ "Integer segment: " ++ show (int::Int) ]
-                       ]
-             , anyRequest $ ok "Sorry, couldn't find a matching handler" ]
+main = simpleHTTP nullConf $ msum
+             [ dir "directory" $ ok "Inside directory"
+             , dir "any" $
+                       path $ \pathSegment ->
+                           ok $ "Path segment: " ++ pathSegment
+             , dir "int" $
+                       path $ \int ->
+                           ok $ "Integer segment: " ++ show (int::Int)
+             , ok "Sorry, couldn't find a matching handler" ]

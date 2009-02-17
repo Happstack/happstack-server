@@ -9,4 +9,4 @@ import Happstack.Server
    /FileServe.hs
 -}
 main :: IO ()
-main = do simpleHTTP nullConf [ fileServe ["FileServe.hs"] "." ]
+main = simpleHTTP nullConf $ fileServe ["FileServe.hs"] "."
