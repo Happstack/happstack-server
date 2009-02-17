@@ -17,8 +17,8 @@ import Control.Monad(msum)
 trace :: (Monad m, MonadWriter (Endo [String]) m) => String -> String -> m String
 trace name result = (tell $ Endo (name:)) >> return result
 
-transform :: (Monad m) => (WriterT (Endo [String]) m) (Maybe (Either Response String, SetAppend (Endo Response)))
-             -> m (Maybe (Either Response String, SetAppend (Endo Response)))
+transform :: (Monad m) => (WriterT (Endo [String]) m) (Maybe (Either Response String, SetAppend (Dual (Endo Response))))
+             -> m (Maybe (Either Response String, SetAppend (Dual (Endo Response))))
 transform wt = do
     (res, t) <- runWriterT wt
     case res of

@@ -273,8 +273,8 @@ withRequest = ServerPartT . ReaderT
 --
 -- @
 --   unpackErrorT:: (Monad m, Show e) =>
---       -> (ErrorT e m) (Maybe ((Either Response a), SetAppend (Endo Response)))
---       -> m (Maybe ((Either Response a), SetAppend (Endo Response)))
+--       -> (ErrorT e m) (Maybe ((Either Response a), SetAppend (Dual (Endo Response))))
+--       -> m (Maybe ((Either Response a), SetAppend (Dual (Endo Response))))
 --   unpackErrorT handler et = do
 --      eitherV <- runErrorT et
 --      case eitherV of
@@ -294,7 +294,7 @@ withRequest = ServerPartT . ReaderT
 --   simpleHTTP' unpackErrorT nullConf (myPart \`catchError\` myHandler)
 -- @
 --
-mapServerPartT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> ServerPartT m a -> ServerPartT n b
+mapServerPartT :: (m (Maybe ((Either Response a), SetAppend (Dual (Endo Response)))) -> n (Maybe ((Either Response b), SetAppend (Dual (Endo Response))))) -> ServerPartT m a -> ServerPartT n b
 mapServerPartT f ma = withRequest $ \rq -> mapWebT f (runServerPartT ma rq)
 
 instance MonadTrans (ServerPartT) where
@@ -376,7 +376,7 @@ instance Functor (SetAppend) where
     fmap f (Append x) = Append $ f x
 
 newtype FilterT a m b =
-   FilterT { unFilterT :: WriterT (SetAppend (Endo a)) m b }
+   FilterT { unFilterT :: WriterT (SetAppend (Dual (Endo a))) m b }
    deriving (Monad, MonadTrans, Functor, MonadIO)
 
 -- | A set of functions for manipulating filters.  A ServerPartT implements
@@ -413,13 +413,13 @@ class Monad m => FilterMonad a m | m->a where
 
 
 instance (Monad m) => FilterMonad a (FilterT a m) where
-    setFilter f = FilterT $ Writer.tell $ Set $ Endo f
-    composeFilter f = FilterT $ Writer.tell $ Append $ Endo f
+    setFilter f = FilterT $ Writer.tell $ Set $ Dual $ Endo f
+    composeFilter f = FilterT $ Writer.tell $ Append $ Dual $ Endo f
     applyFilter g fm =  FilterT $ do
         (b,sa) <- Writer.listen (unFilterT fm)
-        tell $ Set $ Endo id
-        return $ (appEndo $ value sa) (g b)
-    getFilter m = FilterT $ Writer.listens (appEndo . value)  (unFilterT m) 
+        tell $ Set $ Dual $ Endo id
+        return $ (appEndo . getDual $ value sa) (g b)
+    getFilter m = FilterT $ Writer.listens (appEndo . getDual . value)  (unFilterT m) 
 
 -- | The basic response building object.
 --  It is worth discussing the unpacked structure of WebT a bit as it's exposed
@@ -428,22 +428,22 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 --  A fully unpacked WebT has a structure that looks like:
 --  
 --  @
---    ununWebT $ WebT m a :: m (Maybe (Either Response a, SetAppend (Endo Response)))
+--    ununWebT $ WebT m a :: m (Maybe (Either Response a, SetAppend (Dual (Endo Response))))
 --  @
 --  
 --  So, ignoring m, as it is just the containing Monad, the outermost layer is a Maybe.
 --  This is 'Nothing' if 'mzero' was called or @Just (Either Response a, SetAppend (Endo Response))@
 --  if 'mzero' wasn't called.  Inside the Maybe, there is a pair.  The second element of the pair
---  is our filter function (@Endo Response@) wrapped by a monoid called 'SetAppend'.  The value
+--  is our filter function (@Dual (Endo Response)@), wrapped by a monoid called 'SetAppend'.  The value
 --
 --  @
---      Append (Endo f)
+--      Append (Dual (Endo f))
 --  @
 --
 --  Causes f to be composed with the previous filter.
 --
 --  @
---      Set (Endo f)
+--      Set (Dual (Endo f))
 --  @
 --
 --  Causes f to not be composed with the previous filter.
@@ -522,17 +522,17 @@ runWebT m = runMaybeT $ do
 ununWebT :: WebT m a
     -> m (Maybe
             (Either Response a,
-             SetAppend (Endo Response)))
+             SetAppend (Dual (Endo Response))))
 ununWebT = runMaybeT . runWriterT . unFilterT . runErrorT . unWebT
 
 -- | for wrapping a WebT back up.  @mkWebT . ununWebT = id@
 mkWebT :: m (Maybe
        (Either Response a,
-        SetAppend (Endo Response))) -> WebT m a
+        SetAppend (Dual (Endo Response)))) -> WebT m a
 mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
 
 -- | see 'mapServerPartT' for a discussion of this function
-mapWebT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> WebT m a -> WebT n b
+mapWebT :: (m (Maybe ((Either Response a), SetAppend (Dual (Endo Response)))) -> n (Maybe ((Either Response b), SetAppend (Dual (Endo Response))))) -> WebT m a -> WebT n b
 mapWebT f ma = mkWebT $  f (ununWebT ma)
 
 
@@ -605,8 +605,8 @@ simpleHTTP = simpleHTTP' id
 -- | a combination of simpleHTTP and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
 -- of the first argument of this function.
 simpleHTTP' :: (Monad m, ToMessage b) =>
-   (m (Maybe (Either Response a, SetAppend (Endo Response)))
-   -> IO (Maybe (Either Response b, SetAppend (Endo Response))))
+   (m (Maybe (Either Response a, SetAppend (Dual (Endo Response))))
+   -> IO (Maybe (Either Response b, SetAppend (Dual (Endo Response)))))
    -> Conf
    -> ServerPartT m a
    -> IO ()
@@ -1177,7 +1177,7 @@ setValidator v r = r { rsValidator = Just v }
 -- @
 --
 -- See also: 'setValidator'
-setValidatorSP :: (ToMessage r) => (Response -> IO Response) -> ServerPartT IO r -> ServerPartT IO Response
+setValidatorSP :: (Monad m, ToMessage r) => (Response -> IO Response) -> m r -> m Response
 setValidatorSP v sp = return . setValidator v . toResponse =<< sp
 
 -- |This extends 'nullConf' by enabling validation and setting
