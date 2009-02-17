@@ -161,8 +161,8 @@ module Happstack.Server.SimpleHTTP
     , anyPath'
     , withData
     , withDataFn
+    , getDataFn
     , getData
-    , getData'
     , require
     , requireM
     , basicAuth
@@ -289,13 +289,13 @@ withRequest = ServerPartT . ReaderT
 -- With @unpackErrorT@ you can now call simpleHTTP.  Just wrap your @ServerPartT@ list.
 --
 -- @
---   simpleHTTP nullConf [mapServerPartT unpackErrorT (myPart `catchError` myHandler)]
+--   simpleHTTP nullConf [mapServerPartT unpackErrorT (myPart \`catchError\` myHandler)]
 -- @
 -- 
 -- Or alternatively:
 --
 -- @
---   simpleHTTP' unpackErrorT nullConf [(myPart `catchError` myHandler)]
+--   simpleHTTP' unpackErrorT nullConf [(myPart \`catchError\` myHandler)]
 -- @
 --
 mapServerPartT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> ServerPartT m a -> ServerPartT n b
@@ -341,7 +341,7 @@ instance Monad m => WebMonad Response (ServerPartT m) where
 -- you could no longer modify the Request.  This way
 -- you can add a ReaderT to your monad stack without
 -- any trouble.
-class ServerMonad m where
+class Monad m => ServerMonad m where
     askRq :: m Request
     localRq :: (Request->Request)->m a->m a
 
@@ -387,7 +387,7 @@ newtype FilterT a m b =
 -- FilterMonad Response so these methods are the fundamental ways of
 -- manipulating the response object, especially before you've converted your
 -- monadic value to a 'Response'
-class FilterMonad a m | m->a where
+class Monad m => FilterMonad a m | m->a where
     -- | Ignores all previous
     -- alterations to your filter
     --
@@ -465,7 +465,7 @@ newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT 
 instance Error Response where
     strMsg = toResponse
 
-class WebMonad a m | m->a where
+class Monad m => WebMonad a m | m->a where
     -- | A control structure
     -- It ends the computation and returns the Response you passed into it
     -- immediately.  This provides an alternate escape route.  In particular
@@ -537,7 +537,7 @@ mkWebT :: m (Maybe
         SetAppend (Endo Response))) -> WebT m a
 mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
 
--- | see 'mapServerT' for a discussion of this function
+-- | see 'mapServerPartT' for a discussion of this function
 mapWebT :: (m (Maybe ((Either Response a), SetAppend (Endo Response))) -> n (Maybe ((Either Response b), SetAppend (Endo Response)))) -> WebT m a -> WebT n b
 mapWebT f ma = mkWebT $  f (ununWebT ma)
 
@@ -577,12 +577,12 @@ ignoreFilters = setFilter id
 -- | Used to ignore all your filters
 -- and immediately end the computation.  A combination of
 -- 'ignoreFilters' and 'finishWith'
-escape :: (WebMonad a m, FilterMonad a m, Monad m) => m a -> m b
+escape :: (WebMonad a m, FilterMonad a m) => m a -> m b
 escape gen = ignoreFilters >> gen >>= finishWith
 
 -- | An alternate form of 'escape' that can
 -- be easily used within a do block.
-escape' :: (WebMonad a m, FilterMonad a m, Monad m) => a -> m b
+escape' :: (WebMonad a m, FilterMonad a m) => a -> m b
 escape' a = ignoreFilters >> finishWith a
 
 ----------------------------------------------
@@ -627,6 +627,8 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT (msum hs) req) >>= (return . (m
     where
         standardNotFound = result 404 "No suitable handler found"
 
+-- | a wrapper for Read apparently.  Pretty much only used for 'path' and probably
+-- unnecessarily, as it is exactly "readM"
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
@@ -640,6 +642,8 @@ instance FromReqURI Double where fromReqURI = readM
 
 type RqData a = ReaderT ([(String,Input)], [(String,Cookie)]) Maybe a
 
+-- | Useful for withData and getData'  implement this on your preferred type
+-- to use those functions
 class FromData a where
     fromData :: RqData a
 
@@ -659,11 +663,11 @@ instance (FromData a, FromData b, FromData c, FromData d) => FromData (a,b,c,d) 
 instance FromData a => FromData (Maybe a) where
     fromData = fmap Just fromData `mplus` return Nothing
 
-{- |
-  Minimal definition: 'toMessage'
--}
-
-
+-- |
+--  Minimal definition: 'toMessage'
+--
+--  Used to convert arbitrary types into an HTTP response.  You need to implement
+--  this if you want to pass @ServerPartT m@ containing your type into simpleHTTP
 class ToMessage a where
     toContentType :: a -> B.ByteString
     toContentType _ = B.pack "text/plain"
@@ -722,9 +726,11 @@ instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
 instance MatchMethod (Method -> Bool) where matchMethod f = f 
 instance MatchMethod () where matchMethod () _ = True
 
+-- | lifts 'query' into your monad.
 webQuery :: (MonadIO m, QueryEvent ev res) => ev -> m res
 webQuery = liftIO . query
 
+-- | lifts 'update' into your monad.
 webUpdate :: (MonadIO m, UpdateEvent ev res) => ev -> m res
 webUpdate = liftIO . update
 
@@ -741,7 +747,7 @@ localContext fn hs
 
 
 -- | Get a header out of the request
-getHeaderM :: (ServerMonad m, Monad m) => String -> m (Maybe B.ByteString)
+getHeaderM :: (ServerMonad m) => String -> m (Maybe B.ByteString)
 getHeaderM a = askRq >>= return . (getHeader a)
 
 -- | Set a header into the response
@@ -773,7 +779,8 @@ methodSP :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m b-> 
 methodSP m handle = methodM m >> handle
 
 -- | Guard against the method. Note, this function also guards against any
---   remaining path segments. See 'anyRequest'.
+-- remaining path segments.  This function id deprecated.  You can probably
+-- just use methodSP (or methodM) now.
 method :: (MatchMethod method, Monad m) => method -> WebT m a -> ServerPartT m a
 method m handle = methodSP m (anyRequest handle)
 {-# DEPRECATED method "you should be able to use methodSP" #-}
@@ -783,8 +790,7 @@ nullDir :: (ServerMonad m, MonadPlus m) => m ()
 nullDir = guardRq $ \rq -> null (rqPaths rq)
 
 -- | Pop a path element and run the @[ServerPartT]@ if it matches the given string.
-
-dir :: (ServerMonad m, MonadPlus m, Monad m) => String -> [m a] -> m a
+dir :: (ServerMonad m, MonadPlus m) => String -> [m a] -> m a
 dir staticPath handle =
     do
         rq <- askRq
@@ -793,8 +799,10 @@ dir staticPath handle =
                    | otherwise -> mzero
             _ -> mzero
 
--- | Pop a path element and parse it.
-path :: (FromReqURI a, MonadPlus m, Monad m, ServerMonad m) => (a -> [m b]) -> m b
+-- | Pop a path element and parse it.  Annoyingly enough, rather than just using Read
+-- (or providing a parser argument), this method uses 'FromReqURI' which is just a wrapper
+-- for Read.
+path :: (FromReqURI a, MonadPlus m, ServerMonad m) => (a -> [m b]) -> m b
 path handle = do
     rq <- askRq
     case rqPaths rq of
@@ -804,17 +812,17 @@ path handle = do
         _ -> mzero
 
 -- | grabs the rest of the URL (dirs + query) and passes it to your handler
-uriRest :: (ServerMonad m, Monad m) => (String -> m a) -> m a
+uriRest :: (ServerMonad m) => (String -> m a) -> m a
 uriRest handle = askRq >>= handle . rqURL
 
 -- | pops any path element and ignores when chosing a ServerPartT to handle the
 --
 -- request.
-anyPath :: (ServerMonad m, MonadPlus m, Monad m) => [m r] -> m r
+anyPath :: (ServerMonad m, MonadPlus m) => [m r] -> m r
 anyPath x = path $ (\(_::String) -> x)
 
 -- | pops any path element and uses a single ServerPartT to handle the request
-anyPath' :: (ServerMonad m, MonadPlus m, Monad m) => m r -> m r
+anyPath' :: (ServerMonad m, MonadPlus m) => m r -> m r
 anyPath' x = path $ (\(_::String) -> [x])
 
 -- | used to read parse your request with a RqData (a ReaderT, basically)
@@ -833,8 +841,8 @@ anyPath' x = path $ (\(_::String) -> [x])
 --          Just a | isValid a -> mzero
 --          Just a | otherwise -> errorHandler
 --  @
-getData :: (ServerMonad m, Monad m) => RqData a -> m (Maybe a)
-getData rqData = do
+getDataFn :: (ServerMonad m) => RqData a -> m (Maybe a)
+getDataFn rqData = do
     rq <- askRq
     return $ runReaderT rqData (rqInputs rq, rqCookies rq)
 
@@ -855,8 +863,8 @@ getData rqData = do
 --          Just a | isValid a -> mzero
 --          Just a | otherwise -> errorHandler
 -- @
-getData' :: (ServerMonad m, Monad m, FromData a) => m (Maybe a)
-getData' = getData fromData
+getData :: (ServerMonad m, FromData a) => m (Maybe a)
+getData = getDataFn fromData
 
 -- | Retrieve data from the input query or the cookies.
 withData :: (FromData a, MonadPlus m, ServerMonad m) => (a -> [m r]) -> m r
@@ -864,9 +872,9 @@ withData = withDataFn fromData
 
 -- | withDataFn is like with data, but you pass in a RqData monad
 -- for reading.
-withDataFn :: (MonadPlus m, ServerMonad m, Monad m) => RqData a -> (a -> [m r]) -> m r
+withDataFn :: (MonadPlus m, ServerMonad m) => RqData a -> (a -> [m r]) -> m r
 withDataFn fn handle = do
-    d <- getData fn
+    d <- getDataFn fn
     case d of
         Nothing -> mzero
         Just a -> msum (handle a)
@@ -959,68 +967,71 @@ doXslt cmd xslPath res =
               setHeader "Content-Length" (show $ L.length new) $
               res { rsBody = new }
 
-
+-- | deprecated.  Same as 'composeFilter'
 modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
 modifyResponse = composeFilter
 {-# DEPRECATED modifyResponse "Use composeFilter" #-}
 
+-- | sets the return code in your response
 setResponseCode :: FilterMonad Response m => Int -> m ()
 setResponseCode code
     = composeFilter $ \r -> r{rsCode = code}
 
+-- | adds the cookie with a timeout to the response
 addCookie :: (FilterMonad Response m) => Seconds -> Cookie -> m ()
 addCookie sec = (addHeaderM "Set-Cookie") . mkCookieHeader sec
 
-
-addCookies :: (FilterMonad Response m, Monad m) => [(Seconds, Cookie)] -> m ()
+-- | adds the list of cookie timeout pairs to the response
+addCookies :: (FilterMonad Response m) => [(Seconds, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
 
-resp :: (FilterMonad Response m, Monad m) => Int -> b -> m b
+-- | same as setResponseCode status >> return val
+resp :: (FilterMonad Response m) => Int -> b -> m b
 resp status val = setResponseCode status >> return val
 
 -- | Respond with @200 OK@.
-ok :: (FilterMonad Response m, Monad m) => a -> m a
+ok :: (FilterMonad Response m) => a -> m a
 ok = resp 200
 
-internalServerError :: (FilterMonad Response m, Monad m) => a -> m a
+internalServerError :: (FilterMonad Response m) => a -> m a
 internalServerError = resp 500
 
-badGateway :: (FilterMonad Response m, Monad m) => a -> m a
+badGateway :: (FilterMonad Response m) => a -> m a
 badGateway = resp 502
 
 -- | Respond with @400 Bad Request@.
-badRequest :: (FilterMonad Response m, Monad m) => a -> m a
+badRequest :: (FilterMonad Response m) => a -> m a
 badRequest = resp 400
 
 -- | Respond with @401 Unauthorized@.
-unauthorized :: (FilterMonad Response m, Monad m) => a -> m a
+unauthorized :: (FilterMonad Response m) => a -> m a
 unauthorized = resp 401
 
 -- | Respond with @403 Forbidden@.
-forbidden :: (FilterMonad Response m, Monad m) => a -> m a
+forbidden :: (FilterMonad Response m) => a -> m a
 forbidden = resp 403
 
 -- | Respond with @404 Not Found@.
-notFound :: (FilterMonad Response m, Monad m) => a -> m a
+notFound :: (FilterMonad Response m) => a -> m a
 notFound = resp 404
 
 -- | Respond with @303 See Other@.
-seeOther :: (FilterMonad Response m, Monad m, ToSURI uri) => uri -> res -> m res
+seeOther :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 seeOther uri res = do modifyResponse $ redirect 303 uri
                       return res
 
 -- | Respond with @302 Found@.
-found :: (FilterMonad Response m, Monad m, ToSURI uri) => uri -> res -> m res
+found :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 found uri res = do modifyResponse $ redirect 302 uri
                    return res
 
 -- | Respond with @301 Moved Permanently@.
-movedPermanently :: (FilterMonad Response m, Monad m, ToSURI a) => a -> res -> m res
+movedPermanently :: (FilterMonad Response m, ToSURI a) => a -> res -> m res
 movedPermanently uri res = do modifyResponse $ redirect 301 uri
                               return res
 
 -- | Respond with @307 Temporary Redirect@.
-tempRedirect :: (FilterMonad Response m, Monad m, ToSURI a) => a -> res -> m res
+tempRedirect :: (FilterMonad Response m, ToSURI a) => a -> res -> m res
 tempRedirect val res = do modifyResponse $ redirect 307 val
                           return res
 
@@ -1047,7 +1058,7 @@ applyRequest :: (ToMessage a, Monad m) =>
 applyRequest hs = simpleHTTP'' hs >>= return . Left
 
 -- | a simple HTTP basic authentication guard
-basicAuth :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, Monad m, MonadPlus m) =>
+basicAuth :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadPlus m) =>
    String -- ^ the realm name
    -> M.Map String String -- ^ the username password map
    -> [m a] -- ^ the list of parts to guard
@@ -1075,7 +1086,8 @@ basicAuth realmName authMap xs = msum $ basicAuthImpl:xs
 -- Query/Post data validating
 --------------------------------------------------------------
 
-
+-- | Useful inside the RqData monad.  Gets the named input parameter (either
+-- from a POST or a GET)
 lookInput :: String -> RqData Input
 lookInput name
     = do inputs <- asks fst
@@ -1083,12 +1095,16 @@ lookInput name
            Nothing -> fail "input not found"
            Just i  -> return i
 
+-- | Gets the named input parameter as a lazy byte string
 lookBS :: String -> RqData L.ByteString
 lookBS = fmap inputValue . lookInput
 
+-- | Gets the named input as a String
 look :: String -> RqData String
 look = fmap L.unpack . lookBS
 
+-- | Gets the named cookie
+-- the cookie name is case insensitive
 lookCookie :: String -> RqData Cookie
 lookCookie name
     = do cookies <- asks snd
@@ -1096,15 +1112,19 @@ lookCookie name
            Nothing -> fail "cookie not found"
            Just c  -> return c
 
+-- | gets the named cookie as a string
 lookCookieValue :: String -> RqData String
 lookCookieValue = fmap cookieValue . lookCookie
 
+-- | gets the named cookie as the requested Read type
 readCookieValue :: Read a => String -> RqData a
 readCookieValue name = readM =<< fmap cookieValue (lookCookie name)
 
+-- | like look, but Reads for you.
 lookRead :: Read a => String -> RqData a
 lookRead name = readM =<< look name
 
+-- | gets all the input parameters, and converts them to a string
 lookPairs :: RqData [(String,String)]
 lookPairs = asks fst >>= return . map (\(n,vbs)->(n,L.unpack $ inputValue vbs))
 
@@ -1119,6 +1139,9 @@ lookPairs = asks fst >>= return . map (\(n,vbs)->(n,L.unpack $ inputValue vbs))
 --   You can wrap the complete second argument to 'simpleHTTP' in this function.
 --
 --   See 'simpleErrorHandler' for an example error handler.
+--   
+--   For a more general version of this, see 'simpleHTTP\'' and 'mapServerPartT' most of the
+--   time those are what you want.
 errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> [ServerPartT (ErrorT e m) a] -> [ServerPartT m a] 
 errorHandlerSP handler sps = [ withRequest $ \req -> mkWebT $ do
 			eer <- runErrorT $ ununWebT $ runServerPartT (multi sps) req
