@@ -28,8 +28,7 @@ ioErrors = fromException
 errorwrapper :: (MonadIO m, MonadPlus m, FilterMonad Response m) => String -> String -> m Response
 errorwrapper binarylocation loglocation
     = require getErrorLog $ \errorLog ->
-      --[method () $ SH.ok errorLog]
-      [anyRequest $ liftIO $ return $ toResponse errorLog]
+      return $ toResponse errorLog
     where getErrorLog
                 = handleJust ioErrors (const (return Nothing)) $
                 do bintime <- getModificationTime binarylocation
