@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 module Happstack.Server.HTTP.FileServe
     (
      MimeMap,fileServe, mimeTypes,isDot, blockDotFiles,doIndex,errorwrapper
@@ -24,14 +25,13 @@ import qualified Happstack.Server.SimpleHTTP as SH
 ioErrors :: SomeException -> Maybe IOException
 ioErrors = fromException
 
-errorwrapper :: MonadIO m => String -> String -> ServerPartT m Response
+errorwrapper :: (MonadIO m, MonadPlus m, FilterMonad Response m) => String -> String -> m Response
 errorwrapper binarylocation loglocation
     = require getErrorLog $ \errorLog ->
       --[method () $ SH.ok errorLog]
-      anyRequest $ liftIO $ return $ toResponse errorLog
+      [anyRequest $ liftIO $ return $ toResponse errorLog]
     where getErrorLog
-              = liftIO $
-                handleJust ioErrors (const (return Nothing)) $
+                = handleJust ioErrors (const (return Nothing)) $
                 do bintime <- getModificationTime binarylocation
                    logtime <- getModificationTime loglocation
                    if (logtime > bintime)
@@ -40,40 +40,39 @@ errorwrapper binarylocation loglocation
 
 type MimeMap = Map.Map String String
 
-doIndex :: (MonadIO m) =>
-           [String] -> Map.Map String String -> Request -> String -> WebT m Response
-doIndex [] _mime _rq _fp = do setResponseCode 403
-                              return $ toResponse "Directory index forbidden"
-doIndex (index:rest) mime rq fp =
+doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
+           [String] -> Map.Map String String -> String -> m Response
+doIndex [] _mime _fp = do forbidden $ toResponse "Directory index forbidden"
+doIndex (index:rest) mime fp =
     do
     let path = fp++'/':index
     --print path
     fe <- liftIO $ doesFileExist path
-    if fe then retFile path else doIndex rest mime rq fp
-    where retFile = returnFile mime rq
+    if fe then retFile path else doIndex rest mime fp
+    where retFile = returnFile mime
 defaultIxFiles :: [String]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
-fileServe :: MonadIO m => [FilePath] -> FilePath -> ServerPartT m Response
+fileServe :: (ServerMonad m, FilterMonad Response m, MonadIO m) => [FilePath] -> FilePath -> m Response
 fileServe ixFiles localpath  = 
-    withRequest (fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes)
+    fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes
 
 -- | Serve files with a mime type map under a directory.
 --   Uses the function to transform URIs to FilePaths.
-fileServe' :: (MonadIO m) =>
+fileServe' :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
               String
-              -> (Map.Map String String -> Request -> String -> WebT m Response)
+              -> (Map.Map String String -> String -> m Response)
               -> Map.Map String String
-              -> Request
-              -> WebT m Response
-fileServe' localpath fdir mime rq = do
+              -> m Response
+fileServe' localpath fdir mime = do
+    rq <- askRq
     let fp2 = takeWhile (/=',') fp
         fp = filepath
         safepath = filter (\x->not (null x) && head x /= '.') (rqPaths rq)
         filepath = intercalate "/"  (localpath:safepath)
         fp' = if null safepath then "" else last safepath
     if "TESTH" `isPrefixOf` fp'
-        then renderResponse mime rq $ fakeFile $ (read $ drop 5 $ fp' :: Integer)
+        then renderResponse mime $ fakeFile $ (read $ drop 5 $ fp' :: Integer)
         else do
     fe <- liftIO $ doesFileExist fp
     fe2 <- liftIO $ doesFileExist fp2
@@ -84,14 +83,14 @@ fileServe' localpath fdir mime rq = do
                | fe2  = "group"
                | True = "NOT FOUND"
     liftIO $ logM "Happstack.Server.HTTP.FileServe" INFO ("fileServe: "++show fp++" \t"++status)
-    if de then fdir mime rq fp else do
-    getFile mime fp >>= flip either (renderResponse mime rq) 
-                (const $ returnGroup localpath mime rq safepath)
+    if de then fdir mime fp else do
+    getFile mime fp >>= flip either (renderResponse mime) 
+                (const $ returnGroup localpath mime safepath)
 
-returnFile :: (MonadIO m) =>
-              Map.Map String String -> Request -> String -> WebT m Response
-returnFile mime rq fp =  
-    getFile mime fp >>=  either fileNotFound (renderResponse mime rq)
+returnFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
+              Map.Map String String -> String -> m Response
+returnFile mime fp =  
+    getFile mime fp >>=  either fileNotFound (renderResponse mime)
 
 -- if fp has , separated then return concatenation with content-type of last
 -- and last modified of latest
@@ -100,9 +99,9 @@ tr a b = map (\x->if x==a then b else x)
 ltrim :: String -> String
 ltrim = dropWhile (flip elem " \t\r")   
 
-returnGroup :: (MonadIO m) =>
-               String -> Map.Map String String -> Request -> [String] -> WebT m Response
-returnGroup localPath mime rq fp = do
+returnGroup :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
+               String -> Map.Map String String -> [String] -> m Response
+returnGroup localPath mime fp = do
   let fps0 = map ((:[]). ltrim) $ lines $ tr ',' '\n' $ last fp
       fps = map (intercalate "/" . ((localPath:init fp) ++)) fps0
 
@@ -116,12 +115,12 @@ returnGroup localPath mime rq fp = do
   let totSize = sum $ map (snd . fst) files
       maxTime = maximum $ map (fst . fst) files :: ClockTime
 
-  renderResponse mime rq ((maxTime,totSize),(fst $ snd $ head files,
+  renderResponse mime ((maxTime,totSize),(fst $ snd $ head files,
                                              L.concat $ map (snd . snd) files))
 
 
 
-fileNotFound :: (Monad m) => String -> WebT m Response
+fileNotFound :: (Monad m, FilterMonad Response m) => String -> m Response
 fileNotFound fp = do setResponseCode 404 
                      return $ toResponse $ "File not found "++ fp
 --fakeLen = 71* 1024
@@ -147,16 +146,15 @@ getFile mime fp = do
   lbs <- liftIO $ L.hGetContents h
   return $ Right ((time,size),(ct,lbs))
 
-
-
 renderResponse :: (Monad m,
+                   ServerMonad m,
+                   FilterMonad Response m,
                    Show t1) =>
                   t
-                  -> Request
                   -> ((ClockTime, t1), (String, L.ByteString))
-                  -> WebT m Response
-renderResponse _ rq ((modtime,size),(ct,body)) = do
-
+                  -> m Response
+renderResponse _ ((modtime,size),(ct,body)) = do
+  rq <- askRq
   let notmodified = getHeader "if-modified-since" rq == Just (P.pack $ repr)
       repr = formatCalendarTime defaultTimeLocale 
              "%a, %d %b %Y %X GMT" (toUTCTime modtime)
@@ -164,10 +162,10 @@ renderResponse _ rq ((modtime,size),(ct,body)) = do
   -- when (isJust $ getHeader "if-modified-since"  rq) $ error $ show $ getHeader "if-modified-since" rq
   if notmodified then do setResponseCode 304 ; return $ toResponse "" else do
   --  modifyResponse (setHeader "HUH" $ show $ (fmap P.unpack mod == Just repr,mod,Just repr))
-  modifyResponse (setHeader "Last-modified" repr)
+  addHeaderM "Last-modified" repr
   -- if %Z or UTC are in place of GMT below, wget complains that the last-modified header is invalid
-  modifyResponse (setHeader "Content-Length" (show size))
-  modifyResponse (setHeader "Content-Type" ct)  
+  addHeaderM "Content-Length" (show size)
+  addHeaderM "Content-Type" ct
   return $ resultBS 200 body
 
               
