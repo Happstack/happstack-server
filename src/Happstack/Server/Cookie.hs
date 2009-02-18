@@ -21,6 +21,7 @@ data Cookie = Cookie
     , cookieValue   :: String
     } deriving(Show,Eq,Read,Typeable,Data)
 
+-- | Creates a cookie with a default version of 1 and path of "/"
 mkCookie :: String -> String -> Cookie
 mkCookie key val = Cookie "1" "/" "" key val
 
