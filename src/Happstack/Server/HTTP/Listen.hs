@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, ScopedTypeVariables, PatternSignatures #-}
 module Happstack.Server.HTTP.Listen(listen) where
 
-import System.Log.Logger
+
 
 import Happstack.Server.HTTP.Types
 import Happstack.Server.HTTP.Handler
@@ -21,6 +21,9 @@ import System.Posix.Signals
 {-
 #endif
 -}
+
+import System.Log.Logger (Priority(..), logM)
+log' = logM "Happstack.Server.HTTP.Listen"
 
 -- alternative implementation of accept to work around EAI_AGAIN errors
 acceptLite :: Socket -> IO (Handle, HostName, Socket.PortNumber)
@@ -42,14 +45,16 @@ listen conf hand = do
 {-
 #endif
 -}
-  s <- listenOn $ PortNumber $ toEnum $ port conf
+  let port' = port conf
+  log' NOTICE ("Listening on port " ++ show port')
+  s <- listenOn $ PortNumber $ toEnum port'
   let work (h,hn,p) = do -- hSetBuffering h NoBuffering
-                         let eh (x::SomeException) = logM "Happstack.Server.HTTP.Listen" ERROR ("HTTP request failed with: "++show x)
+                         let eh (x::SomeException) = log' ERROR ("HTTP request failed with: "++show x)
                          request conf h (hn,fromIntegral p) hand `E.catch` eh
                          hClose h
   let loop = do acceptLite s >>= forkIO . work
                 loop
-  let pe e = logM "Happstack.Server.HTTP.Listen" ERROR ("ERROR in accept thread: "++
+  let pe e = log' ERROR ("ERROR in accept thread: "++
                                                     show e)
   let infi = loop `catchSome` pe >> infi -- loop `E.catch` pe >> infi
   infi `finally` sClose s
