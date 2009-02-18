@@ -202,6 +202,8 @@ module Happstack.Server.SimpleHTTP
     , noopValidator
     , lazyProcValidator
     ) where
+import qualified Paths_happstack_server as Cabal
+import qualified Data.Version as DV
 import Happstack.Server.HTTP.Client
 import Happstack.Data.Xml.HaXml
 import qualified Happstack.Server.MinHaXML as H
@@ -474,8 +476,13 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 --  @
 --  
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
-    deriving (Monad, MonadIO, Functor)
-    
+    deriving (MonadIO, Functor)
+
+instance Monad m => Monad (WebT m) where
+    m >>= f = WebT $ unWebT m >>= unWebT . f
+    return a = WebT $ return a
+    fail s = mkFailMessage s
+
 instance Error Response where
     strMsg = toResponse
 
@@ -634,7 +641,8 @@ simpleHTTP' toIO conf hs = do
 simpleHTTP'' :: (ToMessage b, Monad m) => ServerPartT m b -> Request -> m Response
 simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe standardNotFound id))
     where
-        standardNotFound = result 404 "No suitable handler found"
+        standardNotFound = setHeader "Content-Type" "text/html" $ toResponse notFoundHtml
+
 
 -- | a wrapper for Read apparently.  Pretty much only used for 'path' and probably
 -- unnecessarily, as it is exactly "readM"
@@ -1316,3 +1324,29 @@ lazyProcValidator exec args wd env mimeTypePred response
       column = "  " ++ (take 120 $ concatMap  (\n -> "         " ++ show n) (drop 1 $ cycle [0..9::Int]))
       showLines :: L.ByteString -> [String]
       showLines string = column : zipWith (\n -> \l  -> show n ++ " " ++ (L.unpack l)) [1::Integer ..] (L.lines string)
+
+
+mkFailMessage s = do
+    ignoreFilters
+    internalServerError ()
+    setHeaderM "Content-Type" "text/html"
+    res <- return $ toResponse $ failHtml s
+    finishWith $ res
+
+failHtml errString = "<html><head><title>Happstack "
+    ++ ver ++ " Internal Server Error</title>"
+    ++ "<body><h1>Happstack " ++ ver ++ "</h1>"
+    ++ "<p>Something went wrong here<br />"
+    ++ "Internal server error<br />"
+    ++ "Everything has stopped</p>"
+    ++ "<p>The error was \"" ++ errString ++ "\"</p></body></html>"
+    where ver = DV.showVersion Cabal.version
+
+notFoundHtml = "<html><head><title>Happstack "
+    ++ ver ++ " File not found</title>"
+    ++ "<body><h1>Happstack " ++ ver ++ "</h1>"
+    ++ "<p>Your file is not found<br />"
+    ++ "To try again is useless<br />"
+    ++ "It is just not here</p>"
+    ++ "</body></html>"
+    where ver = DV.showVersion Cabal.version

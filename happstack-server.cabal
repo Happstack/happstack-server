@@ -49,6 +49,7 @@ Library
                        Happstack.Server.HTTP.Multipart,
                        Happstack.Server.HTTP.RFC822Headers,
                        Happstack.Server.SURI.ParseURI
+                       Paths_happstack_server
 
   Build-Depends:       base, HaXml >= 1.13 && < 1.14, parsec<3, mtl, network,
                        hslogger >= 1.0.2, happstack-data >= 0.1.9,
