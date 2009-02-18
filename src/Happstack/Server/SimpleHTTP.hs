@@ -69,7 +69,7 @@
 --    where
 --        err = do
 --            unauthorized ()
---            addHeaderM headerName headerValue
+--            setHeaderM headerName headerValue
 --            unauthorizedPart
 --        headerValue = \"Basic realm=\\\"\" ++ realmName ++ \"\\\"\"
 --        headerName  = \"WWW-Authenticate\"
@@ -149,6 +149,7 @@ module Happstack.Server.SimpleHTTP
     , addCookie
     , addCookies
     , addHeaderM
+    , setHeaderM
 
      -- * guards and building blocks
     , guardRq
@@ -334,7 +335,6 @@ instance (Monad m, MonadReader r m) => MonadReader r (ServerPartT m) where
 instance Monad m => FilterMonad Response (ServerPartT m) where
     setFilter = anyRequest . setFilter
     composeFilter = anyRequest . composeFilter
-    applyFilter f m = withRequest $ \rq -> applyFilter f (runServerPartT m rq)
     getFilter m = withRequest $ \rq -> getFilter (runServerPartT m rq)
 
 instance Monad m => WebMonad Response (ServerPartT m) where
@@ -370,7 +370,7 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
 -- right is appended to the left.  If the left side is Set, then the right side
 -- is ignored.
 data SetAppend a = Set a | Append a
-
+    deriving (Eq, Show)
 instance Monoid a => Monoid (SetAppend a) where
    mempty = Append mempty
    Set x    `mappend` Append y = Set (x `mappend` y)
@@ -416,22 +416,12 @@ class Monad m => FilterMonad a m | m->a where
     -- composes your filter function with the
     -- existing filter function.
     composeFilter :: (a->a) -> m ()
-    -- while applying your filter to your result.
-    applyFilter :: (b->a) -- ^ A function for converting your monadic value to your filtered type
-                   -> m b -- ^ The monad you wish to apply the filters of
-                   -> m a -- ^ The result of your filter application.  This monad should have the
-                          -- identity filter.
     -- | retrives the filter from the environment
     getFilter :: m b -> m (b,a->a)
-
 
 instance (Monad m) => FilterMonad a (FilterT a m) where
     setFilter f = FilterT $ Writer.tell $ Set $ Dual $ Endo f
     composeFilter f = FilterT $ Writer.tell $ Append $ Dual $ Endo f
-    applyFilter g fm =  FilterT $ do
-        (b,sa) <- Writer.listen (unFilterT fm)
-        tell $ Set $ Dual $ Endo id
-        return $ (appEndo . getDual $ value sa) (g b)
     getFilter m = FilterT $ Writer.listens (appEndo . getDual . value)  (unFilterT m) 
 
 -- | The basic response building object.
@@ -527,9 +517,6 @@ noHandle = mzero
 instance (Monad m) => FilterMonad Response (WebT m) where
     setFilter f = WebT $ lift $ setFilter $ f
     composeFilter f = WebT . lift . composeFilter $ f
-    applyFilter g fm = WebT $ ErrorT $ (runErrorT $ unWebT fm) >>= liftWebT
-        where liftWebT (Left response) = applyFilter id (return response) >>= return . Left
-              liftWebT (Right a) = applyFilter g (return a) >>= return . Right
     getFilter m = WebT $ ErrorT $ getFilter (runErrorT $ unWebT m) >>= liftWebT
         where liftWebT (Left r, _) = return $ Left r
               liftWebT (Right a, f) = return $ Right (a, f)
@@ -542,9 +529,9 @@ instance (Monad m) => Monoid (WebT m a) where
 -- applys your filter, and returns it wrapped in a Maybe.
 runWebT :: (ToMessage b, Monad m) => WebT m b -> m (Maybe Response)
 runWebT m = runMaybeT $ do
-                (r,_) <- (runWriterT $ unFilterT $ runErrorT $ unWebT $
-                    applyFilter toResponse m)
-                return $ (either id id) r
+                (r,ed) <- runWriterT $ unFilterT $ runErrorT $ unWebT $ m
+                let f = appEndo $ getDual $ value ed
+                return $ either (f) (f . toResponse) r
 -- | for when you really need to unpack a WebT entirely (and not
 -- just unwrap the first layer with unWebT)
 ununWebT :: WebT m a
@@ -764,10 +751,18 @@ localContext fn hs
 getHeaderM :: (ServerMonad m) => String -> m (Maybe B.ByteString)
 getHeaderM a = askRq >>= return . (getHeader a)
 
--- | Set a header into the response
+-- | adds headers into the response.
+--   This method does not overwrite any existing header of
+--   the same name, hence the name addHeaderM.  If you
+--   want to replace a header use setHeaderM.
 addHeaderM :: (FilterMonad Response m) => String -> String -> m ()
 addHeaderM a v = composeFilter $ \res-> addHeader a v res
 
+-- | sets a header into the response.  This will replace
+-- an existing header of the same name.  Use addHeaderM, if you 
+-- want to add more than one header of the same name.
+setHeaderM :: (FilterMonad Response m) => String -> String -> m ()
+setHeaderM a v = composeFilter $ \res -> setHeader a v res
 -------------------------------------
 -- guards
 
@@ -1094,7 +1089,7 @@ basicAuth realmName authMap xs = basicAuthImpl `mplus` xs
     headerValue = "Basic realm=\"" ++ realmName ++ "\""
     err = do
         unauthorized ()
-        addHeaderM headerName headerValue
+        setHeaderM headerName headerValue
         escape' $ toResponse "Not authorized"
 
 --------------------------------------------------------------

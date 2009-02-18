@@ -161,10 +161,10 @@ renderResponse _ ((modtime,size),(ct,body)) = do
   -- when (isJust $ getHeader "if-modified-since"  rq) $ error $ show $ getHeader "if-modified-since" rq
   if notmodified then do setResponseCode 304 ; return $ toResponse "" else do
   --  modifyResponse (setHeader "HUH" $ show $ (fmap P.unpack mod == Just repr,mod,Just repr))
-  addHeaderM "Last-modified" repr
+  setHeaderM "Last-modified" repr
   -- if %Z or UTC are in place of GMT below, wget complains that the last-modified header is invalid
-  addHeaderM "Content-Length" (show size)
-  addHeaderM "Content-Type" ct
+  setHeaderM "Content-Length" (show size)
+  setHeaderM "Content-Type" ct
   return $ resultBS 200 body
 
               
