@@ -9,6 +9,7 @@ import Control.Monad.State
 import Control.Monad.Reader
 
 data MyState = MyState Int deriving (Typeable)
+
 instance Version MyState
 $(deriveSerialize ''MyState)
 
