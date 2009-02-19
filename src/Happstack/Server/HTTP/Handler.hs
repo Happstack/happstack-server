@@ -5,6 +5,8 @@ module Happstack.Server.HTTP.Handler(request-- version,required
 -- ,unchunkBody,val,testChunk,pack
 ) where
 --    ,fsepC,crlfC,pversion
+import qualified Paths_happstack_server as Paths
+import qualified Data.Version as DV
 import Control.Exception.Extensible as E
 import Control.Monad
 import Data.List(elemIndex)
@@ -253,7 +255,7 @@ dateCLower       = P.map toLower dateC
 serverC :: B.ByteString
 serverC          = P.pack "Server"
 happsC :: B.ByteString
-happsC           = P.pack "Happstack/0.9.2"
+happsC           = P.pack "Happstack/" ++ DV.showVersion Paths.version
 textHtmlC :: B.ByteString
 textHtmlC        = P.pack "text/html; charset=utf-8"
 
