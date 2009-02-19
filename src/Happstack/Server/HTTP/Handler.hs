@@ -255,7 +255,7 @@ dateCLower       = P.map toLower dateC
 serverC :: B.ByteString
 serverC          = P.pack "Server"
 happsC :: B.ByteString
-happsC           = P.pack "Happstack/" ++ DV.showVersion Paths.version
+happsC           = P.pack $ "Happstack/" ++ DV.showVersion Paths.version
 textHtmlC :: B.ByteString
 textHtmlC        = P.pack "text/html; charset=utf-8"
 
