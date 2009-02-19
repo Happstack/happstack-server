@@ -33,7 +33,8 @@ Library
                        Happstack.Server.MinHaXML,
                        Happstack.Server.SURI,
                        Happstack.Server.XSLT,
-                       Happstack.Server.StdConfig
+                       Happstack.Server.StdConfig,
+                       Happstack.Server.Parts
   if flag(tests)
     Exposed-modules:   
                        Happstack.Server.Tests
@@ -56,7 +57,7 @@ Library
                        happstack-util >= 0.1.9,
                        happstack-ixset >= 0.1.9, template-haskell, xhtml, html,
                        bytestring, containers, old-time, old-locale, directory, 
-                       process, extensible-exceptions, MaybeT
+                       process, extensible-exceptions, MaybeT, zlib
   hs-source-dirs:      src
   if flag(tests)
     hs-source-dirs:    tests
