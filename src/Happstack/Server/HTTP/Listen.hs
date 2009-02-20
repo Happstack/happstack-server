@@ -1,19 +1,13 @@
 {-# LANGUAGE CPP, ScopedTypeVariables, PatternSignatures #-}
 module Happstack.Server.HTTP.Listen(listen) where
 
-
-
 import Happstack.Server.HTTP.Types
 import Happstack.Server.HTTP.Handler
-
+import Happstack.Server.HTTP.Socket (acceptLite)
 import Control.Exception.Extensible as E
 import Control.Concurrent
-import Network
-import Network.Socket as Socket (
-  PortNumber(..), SockAddr(SockAddrInet), accept, socketToHandle)
+import Network(PortID(..), listenOn, sClose)
 import System.IO
-import Happstack.Util.HostAddress
-
 {-
 #ifndef mingw32_HOST_OS
 -}
@@ -21,21 +15,9 @@ import System.Posix.Signals
 {-
 #endif
 -}
-
 import System.Log.Logger (Priority(..), logM)
 log':: Priority -> String -> IO ()
 log' = logM "Happstack.Server.HTTP.Listen"
-
--- alternative implementation of accept to work around EAI_AGAIN errors
-acceptLite :: Socket -> IO (Handle, HostName, Socket.PortNumber)
-acceptLite sock = do
-  (sock', addr) <- Socket.accept sock
-  h <- socketToHandle sock' ReadWriteMode
-  (PortNumber p) <- Network.socketPort sock'
-  let peer = case addr of
-               (SockAddrInet _ ha) -> showHostAddress ha
-               _                   -> error "Only IPV4 is supported"
-  return (h, peer, p)
 
 listen :: Conf -> (Request -> IO Response) -> IO ()
 listen conf hand = do
@@ -73,3 +55,4 @@ listen conf hand = do
             Handler $ \(e :: ArithException) -> h (toException e),
             Handler $ \(e :: ArrayException) -> h (toException e)
           ]
+

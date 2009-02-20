@@ -21,34 +21,35 @@ Flag tests
 Library
 
   Exposed-modules:
-                       Happstack.Server,
-                       Happstack.Server.Cookie,
-                       Happstack.Server.HTTP.Client,
-                       Happstack.Server.HTTP.Types,
-                       Happstack.Server.HTTP.LowLevel,
-                       Happstack.Server.HTTP.FileServe,
-                       Happstack.Server.SimpleHTTP,
-                       Happstack.Server.JSON,
-                       Happstack.Server.MessageWrap,
-                       Happstack.Server.MinHaXML,
-                       Happstack.Server.SURI,
-                       Happstack.Server.XSLT,
-                       Happstack.Server.StdConfig,
+                       Happstack.Server
+                       Happstack.Server.Cookie
+                       Happstack.Server.HTTP.Client
+                       Happstack.Server.HTTP.Types
+                       Happstack.Server.HTTP.LowLevel
+                       Happstack.Server.HTTP.FileServe
+                       Happstack.Server.SimpleHTTP
+                       Happstack.Server.JSON
+                       Happstack.Server.MessageWrap
+                       Happstack.Server.MinHaXML
+                       Happstack.Server.SURI
+                       Happstack.Server.XSLT
+                       Happstack.Server.StdConfig
                        Happstack.Server.Parts
   if flag(tests)
     Exposed-modules:   
                        Happstack.Server.Tests
   Other-modules:       
-                       Happstack.Server.S3,
-                       Happstack.Server.HTTPClient.HTTP,
-                       Happstack.Server.HTTPClient.Stream,
-                       Happstack.Server.HTTPClient.TCP,
-                       Happstack.Server.HTTP.Clock,
-                       Happstack.Server.HTTP.Handler,
-                       Happstack.Server.HTTP.LazyLiner,
-                       Happstack.Server.HTTP.Listen,
-                       Happstack.Server.HTTP.Multipart,
-                       Happstack.Server.HTTP.RFC822Headers,
+                       Happstack.Server.S3
+                       Happstack.Server.HTTPClient.HTTP
+                       Happstack.Server.HTTPClient.Stream
+                       Happstack.Server.HTTPClient.TCP
+                       Happstack.Server.HTTP.Clock
+                       Happstack.Server.HTTP.Handler
+                       Happstack.Server.HTTP.LazyLiner
+                       Happstack.Server.HTTP.Listen
+                       Happstack.Server.HTTP.Multipart
+                       Happstack.Server.HTTP.RFC822Headers
+                       Happstack.Server.HTTP.Socket
                        Happstack.Server.SURI.ParseURI
                        Paths_happstack_server
 
