@@ -2,6 +2,7 @@
 module Happstack.Server.HTTP.Socket(acceptLite) where
 
 import Happstack.Server.HTTP.SocketTH(supportsIPv6)
+import Language.Haskell.TH.Syntax
 import Happstack.Util.HostAddress
 import qualified Network as N
   ( PortID(PortNumber)
@@ -26,11 +27,21 @@ acceptLite sock = do
   
   let peer = $(if supportsIPv6
                  then
-                 [| case addr of
-                      (S.SockAddrInet _ ha)      -> showHostAddress ha
-                      (S.SockAddrInet6 _ _ ha _) -> showHostAddress6 ha
-                      _                        -> error "Unsupported socket"
-                 |]
+                 return $ CaseE (VarE (mkName "addr")) 
+                            [Match 
+                             (ConP (mkName "S.SockAddrInet") 
+                              [WildP,VarP (mkName "ha")]) 
+                             (NormalB (AppE (VarE (mkName "showHostAddress")) 
+                                       (VarE (mkName "ha")))) []
+                            ,Match (ConP (mkName "S.SockAddrInet6") [WildP,WildP,VarP (mkName "ha"),WildP])
+                             (NormalB (AppE (VarE (mkName "showHostAddress6")) (VarE (mkName "ha")))) []
+                            ,Match WildP (NormalB (AppE (VarE (mkName "error")) (LitE (StringL "Unsupported socket")))) []]
+                 -- the above mesh is the equivalent of this: 
+                 {-[| case addr of
+                       (S.SockAddrInet _ ha)      -> showHostAddress ha
+                       (S.SockAddrInet6 _ _ ha _) -> showHostAddress6 ha
+                       _                        -> error "Unsupported socket"
+                   |]-}
                  else
                  [| case addr of
                       (S.SockAddrInet _ ha)      -> showHostAddress ha
