@@ -10,9 +10,9 @@ import qualified Network as N
   )
 import qualified Network.Socket as S
   ( Socket(..)
-  , PortNumber(PortNum)
+  , PortNumber()
   , SockAddr(..)
-  , HostName(..)
+  , HostName
   , accept
   , socketToHandle
   )
@@ -36,16 +36,16 @@ acceptLite sock = do
                             ,Match (ConP (mkName "S.SockAddrInet6") [WildP,WildP,VarP (mkName "ha"),WildP])
                              (NormalB (AppE (VarE (mkName "showHostAddress6")) (VarE (mkName "ha")))) []
                             ,Match WildP (NormalB (AppE (VarE (mkName "error")) (LitE (StringL "Unsupported socket")))) []]
-                 -- the above mesh is the equivalent of this: 
+                 -- the above mess is the equivalent of this: 
                  {-[| case addr of
                        (S.SockAddrInet _ ha)      -> showHostAddress ha
                        (S.SockAddrInet6 _ _ ha _) -> showHostAddress6 ha
-                       _                        -> error "Unsupported socket"
+                       _                          -> error "Unsupported socket"
                    |]-}
                  else
                  [| case addr of
                       (S.SockAddrInet _ ha)      -> showHostAddress ha
-                      _                        -> error "Unsupported socket"
+                      _                          -> error "Unsupported socket"
                  |])
                      
   return (h, peer, p)
