@@ -50,6 +50,7 @@ Library
                        Happstack.Server.HTTP.Multipart
                        Happstack.Server.HTTP.RFC822Headers
                        Happstack.Server.HTTP.Socket
+                       Happstack.Server.HTTP.SocketTH
                        Happstack.Server.SURI.ParseURI
                        Paths_happstack_server
 
