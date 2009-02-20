@@ -1,8 +1,8 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
 module Happstack.Server.Parts(
-    contentEncodingFilter
+    compressedResponseFilter
    ,gzipFilter
-   ,compressFilter
+   ,deflateFilter
 ) where
 import Happstack.Server.SimpleHTTP
 import Text.ParserCombinators.Parsec
@@ -13,10 +13,14 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Codec.Compression.GZip as GZ
 import qualified Codec.Compression.Zlib as Z
 
-contentEncodingFilter::
+-- | reads the \"Accept-Encoding\" header.  Then, if possible
+-- will compress the response body with methods "gzip" or "deflate"
+--
+-- Returns the name of the coding chosen
+compressedResponseFilter::
     (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m)
-    => b -> m b
-contentEncodingFilter r = do
+    => m String
+compressedResponseFilter = do
     mbAccept<-getHeaderM "Accept-Encoding"
     accept<- maybe mzero return mbAccept
     let eEncoding = bestEncoding $ BS.unpack accept
@@ -28,14 +32,19 @@ contentEncodingFilter r = do
             id (lookup a allEncodingHandlers))
     setHeaderM "Content-Encoding" coding
     action
-    return r
+    return coding
 
+-- | compresses the body of the response with gzip.
+-- does not set any headers.
 gzipFilter::(FilterMonad Response m) => m()
 gzipFilter = do
     composeFilter (\r -> r{rsBody = GZ.compress $ rsBody r})
 
-compressFilter::(FilterMonad Response m) => m()
-compressFilter = do
+-- | compresses the body of the response with zlib's
+-- deflate method
+-- does not set any headers.
+deflateFilter::(FilterMonad Response m) => m()
+deflateFilter = do
     composeFilter (\r -> r{rsBody = Z.compress $ rsBody r})
 
 -- | based on the rules describe in rfc2616 sec. 14.3
@@ -46,8 +55,16 @@ bestEncoding encs = do
             [] -> Left "no encoding found"
             a -> Right $ head a
     where
+        -- first intersect with the list of encodings we know how to deal with at all
         knownEncodings:: [(String,Maybe Double)] -> [(String, Maybe Double)]
         knownEncodings m = intersectBy (\x y->fst x == fst y) m (map (\x -> (x,Nothing)) allEncodings)
+        -- this expands the wildcard, by figuring out if we need to include "identity" in the list
+        -- Then it deletes the wildcard entry, drops all the "q=0" entries (which aren't allowed).
+        --
+        -- note this implementation is a little conservative.  if someone were to specify "*"
+        -- without a "q" value, it would be this server is willing to accept any format at all.
+        -- We pretty much assume we can't send them /any/ format and that they really
+        -- meant just "identity" this seems safe to me.
         knownEncodings':: [(String,Maybe Double)] -> [(String, Maybe Double)]
         knownEncodings' m = filter dropZero $ deleteBy (\(a,_) (b,_)->a==b) ("*",Nothing) $
             case lookup "*" (knownEncodings m) of
@@ -62,6 +79,7 @@ bestEncoding encs = do
         addIdent m = if isNothing $ lookup "identity" m
             then m ++ [("identity",Nothing)]
             else m
+        -- finally we sort the list of available encodings.
         acceptable:: [(String,Maybe Double)] -> [String]
         acceptable l = map fst $ sortBy (flip cmp) $  knownEncodings'  l
         -- let the client choose but break ties with gzip
@@ -79,8 +97,9 @@ allEncodings :: [String]
 allEncodings =
     ["gzip"
     ,"x-gzip"
-    ,"compress"
-    ,"x-compress"
+--    ,"compress" -- as far as I can tell there is no haskell library that supports this
+--    ,"x-compress" -- as far as I can tell, there is no haskell library that supports this
+    ,"deflate"
     ,"identity"
     ,"*"
     ]
@@ -89,14 +108,15 @@ handlers::(FilterMonad Response m) => [m ()]
 handlers =
     [gzipFilter
     ,gzipFilter
-    ,compressFilter
-    ,compressFilter
+--    ,compressFilter
+--    ,compressFilter
+    ,deflateFilter
     ,return ()
     ,fail $ "chose * as content encoding"
     ]
 
 encodings :: GenParser Char st [([Char], Maybe Double)]
-encodings = (sepBy encoding1 sep) >>= (\x -> eof >> return x)
+encodings = (encoding1 `sepBy` sep) >>= (\x -> eof >> return x)
     where
         sep = do
             char ','
