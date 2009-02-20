@@ -23,6 +23,7 @@ import System.Posix.Signals
 -}
 
 import System.Log.Logger (Priority(..), logM)
+log':: Priority -> String -> IO ()
 log' = logM "Happstack.Server.HTTP.Listen"
 
 -- alternative implementation of accept to work around EAI_AGAIN errors
