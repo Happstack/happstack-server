@@ -1,5 +1,6 @@
 {-# LANGUAGE UndecidableInstances, OverlappingInstances, ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances,
-    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving #-}
+    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving,
+    PatternSignatures #-}
 
 -----------------------------------------------------------------------------
 -- |
