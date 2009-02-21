@@ -1,7 +1,7 @@
 {-# LANGUAGE UndecidableInstances, OverlappingInstances, ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances,
-    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving,
-    PatternSignatures #-}
-
+    MultiParamTypeClasses, PatternGuards, FlexibleContexts, FunctionalDependencies, GeneralizedNewtypeDeriving
+    #-}
+{-# OPTIONS -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Happstack.Server.SimpleHTTP

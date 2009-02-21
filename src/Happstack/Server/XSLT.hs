@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances , UndecidableInstances,
-             DeriveDataTypeable, MultiParamTypeClasses, CPP, ScopedTypeVariables, PatternSignatures  #-}
+             DeriveDataTypeable, MultiParamTypeClasses, CPP, ScopedTypeVariables #-}
 -- | Implement XSLT transformations using xsltproc
 module Happstack.Server.XSLT
     (xsltFile, xsltString, xsltElem, xsltFPS, xsltFPSIO, XSLPath,

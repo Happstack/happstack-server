@@ -73,11 +73,10 @@ Library
   if flag(tests)
     Build-Depends:     HUnit
 
-  -- Should have ", DeriveDataTypeable, PatternSignatures" but Cabal complains
   Extensions:          TemplateHaskell, DeriveDataTypeable, MultiParamTypeClasses,
                        TypeFamilies, FlexibleContexts, OverlappingInstances,
                        FlexibleInstances, UndecidableInstances, ScopedTypeVariables,
-                       TypeSynonymInstances, PatternGuards, PatternSignatures,
+                       TypeSynonymInstances, PatternGuards
                        CPP, ForeignFunctionInterface
   ghc-options:         -Wall
   GHC-Prof-Options:    -auto-all

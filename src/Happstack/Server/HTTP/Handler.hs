@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, PatternSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Happstack.Server.HTTP.Handler(request-- version,required
   ,parseResponse,putRequest
