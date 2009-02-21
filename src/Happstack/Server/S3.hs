@@ -64,7 +64,7 @@ signRequest' akey skey request
     = do now <- getClockTime
          cal <- toCalendarTime now
          let isoDate = formatCalendarTime defaultTimeLocale rfc822DateFormat cal
-             auth = fromJust (parseURIAuthority (authority (rqURI request)))
+             auth = fromJust (uriAuthority (rqURI request))
 --             authErr = error "S3.hs: internal error: failed to parse authority"
          let dat = concat $ intersperse "\n"
                    [show (rqMethod request)
@@ -78,7 +78,7 @@ signRequest' akey skey request
              dateHdr = Header HdrDate isoDate
              lengthHdr = Header HdrContentLength (show $ length (rqBody request))
              connHdr = Header HdrConnection "Keep-Alive"
-             hostHdr = Header HdrHost (host auth)
+             hostHdr = Header HdrHost (uriRegName auth)
          return $ request
                     { rqHeaders = hostHdr:connHdr:lengthHdr:dateHdr:
                                   authorization:rqHeaders request
@@ -94,10 +94,10 @@ getConnection s3
     = modifyMVar (s3Conn s3) $ \mbConn ->
       case mbConn of
         Just conn -> return (mbConn,conn)
-        Nothing -> do print (host auth, port auth)
-                      c <- openTCPPort (host auth) (fromMaybe 80 (port auth))
+        Nothing -> do print (uriRegName auth, uriPort auth)
+                      c <- openTCPPort (uriRegName auth) (if null $ uriPort auth then 80 else read$ uriPort auth)
                       return (Just c,c)
-    where auth = fromJust (parseURIAuthority (authority (s3URI s3)))
+    where auth = fromJust (uriAuthority (s3URI s3))
 
 createRequest :: S3 -> RequestMethod -> String -> String -> Request
 createRequest _s3 method path body

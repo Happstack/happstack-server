@@ -121,9 +121,6 @@ module Happstack.Server.HTTPClient.HTTP (
     urlDecode,
     urlEncodeVars,
 
-    -- ** URI authority parsing
-    URIAuthority(..),
-    parseURIAuthority
 ) where
 
 
@@ -145,10 +142,9 @@ import Data.Bits ((.&.))
 import Data.Char
 import Data.List (partition,elemIndex,intersperse)
 import Data.Maybe
-import Control.Monad (when,guard, forM)
+import Control.Monad (when,forM)
 import Numeric (readHex)
 import Text.ParserCombinators.ReadP
-import Text.Read.Lex 
 import System.IO
 
 
@@ -185,48 +181,6 @@ crlf :: String
 crlf = "\r\n"
 sp :: String
 sp   = " "
-
------------------------------------------------------------------
------------------- URI Authority parsing ------------------------
------------------------------------------------------------------
-
-data URIAuthority = URIAuthority { user :: Maybe String, 
-				   password :: Maybe String,
-				   host :: String,
-				   port :: Maybe Int
-				 } deriving (Eq,Show)
-
--- | Parse the authority part of a URL.
---
--- > RFC 1732, section 3.1:
--- >
--- >       //<user>:<password>@<host>:<port>/<url-path>
--- >  Some or all of the parts "<user>:<password>@", ":<password>",
--- >  ":<port>", and "/<url-path>" may be excluded.
-parseURIAuthority :: String -> Maybe URIAuthority
-parseURIAuthority = listToMaybe . map fst . readP_to_S pURIAuthority
-
-
-pURIAuthority :: ReadP URIAuthority
-pURIAuthority = do
-		(u,pw) <- (pUserInfo `before` char '@') 
-			  <++ return (Nothing, Nothing)
-		h <- munch (/=':')
-		p <- orNothing (char ':' >> readDecP)
-		look >>= guard . null 
-		return URIAuthority{ user=u, password=pw, host=h, port=p }
-
-pUserInfo :: ReadP (Maybe String, Maybe String)
-pUserInfo = do
-	    u <- orNothing (munch (`notElem` ":@"))
-	    p <- orNothing (char ':' >> munch (/='@'))
-	    return (u,p)
-
-before :: Monad m => m a -> m b -> m a
-before a b = a >>= \x -> b >> return x
-
-orNothing :: ReadP a -> ReadP (Maybe a)
-orNothing p = fmap Just p <++ return Nothing
 
 -----------------------------------------------------------------
 ------------------ Header Data ----------------------------------
@@ -670,8 +624,13 @@ simpleHTTP :: Request -> IO (Result Response)
 simpleHTTP r = 
     do 
        auth <- getAuth r
-       c <- openTCPPort (host auth) (fromMaybe 80 (port auth))
+       c <- openTCPPort (uriRegName auth) (port auth)
        simpleHTTP_ c r
+    where
+        port auth = if null (uriPort auth)
+            then 80
+            else read $ uriPort auth
+            
 
 -- | Like 'simpleHTTP', but acting on an already opened stream.
 simpleHTTP_ :: Stream s => s -> Request -> IO (Result Response)
@@ -698,21 +657,34 @@ simpleHTTP_ s r =
   -- the Host header if there is one, otherwise from the request-URI.
   -- Then we make the request-URI an abs_path and make sure that there
   -- is a Host header.
-             fixReq :: URIAuthority -> Request -> Request
-	     fixReq URIAuthority{host=h} req = 
+             fixReq :: URIAuth -> Request -> Request
+	     fixReq URIAuth{uriRegName=h} req = 
 		 insertHeaderIfMissing HdrConnection "close" $
 		 insertHeaderIfMissing HdrHost h $
 		 req { rqURI = (rqURI req){ uriScheme = "", 
 					uriAuthority = Nothing } }	       
 
-getAuth :: Monad m => Request -> m URIAuthority
-getAuth r = case parseURIAuthority auth of
+-- | this is not the most graceful of implementations.
+-- The problem is that Network.URI.authority is
+-- deprecated.  And we want to use Network.URI.URIAuth.
+--
+-- So this method use to parse a "host" field as a URI
+-- auth, which is not stictly correct.  We still 
+-- fake that behavior here.
+getAuth :: Monad m => Request -> m URIAuth
+getAuth r = case auth of
 			 Just x -> return x 
 			 Nothing -> fail $ "Error parsing URI authority '"
-				           ++ auth ++ "'"
-		 where auth = case findHeader HdrHost r of
-			      Just h -> h
-			      Nothing -> authority (rqURI r)
+				           ++ show (rqURI r) ++ "'"
+		 where
+            auth = case findHeader HdrHost r of
+			      Just h -> Just $ fakeAuth h 
+			      Nothing -> uriAuthority (rqURI r)
+            fakeAuth h = fst . head $ (flip readP_to_S) h $ do
+                    host<-many1 $ satisfy (\c -> c /= ':')
+                    port<-option "" $ char ':' >> many1 get
+                    return URIAuth{uriRegName=host, uriPort=port, uriUserInfo=""}
+
 
 sendHTTP :: Stream s => s -> Request -> IO (Result Response)
 sendHTTP conn rq
@@ -834,8 +806,10 @@ sendHTTPPipelined conn rqs =
         fixHostHeader :: Request -> Request
         fixHostHeader rq =
             let uri = rqURI rq
-                h = authority uri
-            in insertHeaderIfMissing HdrHost h rq
+                h = fmap uriRegName $ uriAuthority uri
+            in case h of
+                Just x -> insertHeaderIfMissing HdrHost x rq
+                _ -> rq
                                      
         -- Looks for a "Connection" header with the value "close".
         -- Returns True when this is found.
