@@ -1325,7 +1325,7 @@ lazyProcValidator exec args wd env mimeTypePred response
       showLines :: L.ByteString -> [String]
       showLines string = column : zipWith (\n -> \l  -> show n ++ " " ++ (L.unpack l)) [1::Integer ..] (L.lines string)
 
-
+mkFailMessage :: (FilterMonad Response m, WebMonad Response m) => String -> m b
 mkFailMessage s = do
     ignoreFilters
     internalServerError ()
@@ -1333,6 +1333,7 @@ mkFailMessage s = do
     res <- return $ toResponse $ failHtml s
     finishWith $ res
 
+failHtml:: String->String
 failHtml errString = "<html><head><title>Happstack "
     ++ ver ++ " Internal Server Error</title>"
     ++ "<body><h1>Happstack " ++ ver ++ "</h1>"
@@ -1342,6 +1343,7 @@ failHtml errString = "<html><head><title>Happstack "
     ++ "<p>The error was \"" ++ errString ++ "\"</p></body></html>"
     where ver = DV.showVersion Cabal.version
 
+notFoundHtml :: String
 notFoundHtml = "<html><head><title>Happstack "
     ++ ver ++ " File not found</title>"
     ++ "<body><h1>Happstack " ++ ver ++ "</h1>"

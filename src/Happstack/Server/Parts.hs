@@ -3,6 +3,7 @@ module Happstack.Server.Parts(
     compressedResponseFilter
    ,gzipFilter
    ,deflateFilter
+   ,encodings
 ) where
 import Happstack.Server.SimpleHTTP
 import Text.ParserCombinators.Parsec
@@ -115,19 +116,23 @@ handlers =
     ,fail $ "chose * as content encoding"
     ]
 
+-- | unsupported:  a parser for the Accept-Encoding header
 encodings :: GenParser Char st [([Char], Maybe Double)]
-encodings = (encoding1 `sepBy` sep) >>= (\x -> eof >> return x)
+encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
     where
+        ws = many space
         sep = do
+            ws
             char ','
-            many $ char ' '
+            ws
         encoding1 :: GenParser Char st ([Char], Maybe Double)
         encoding1 = do
             encoding <- many1 letter <|> string "*"
+            ws
             quality<-optionMaybe qual
             return (encoding, fmap read quality)
         qual = do
-            string ";q="
+            char ';' >> ws >> char 'q' >> ws >> char '=' >> ws
             q<-float
             return $ q
         int = many1 digit

@@ -2,16 +2,25 @@
 
 -- http://tools.ietf.org/html/rfc2109
 module Happstack.Server.Cookie
-    ( Cookie(..), mkCookie, mkCookieHeader
-    , getCookies, getCookie )
+    ( Cookie(..)
+    , mkCookie
+    , mkCookieHeader
+    , getCookies
+    , getCookie
+    , getCookies'
+    , getCookie'
+    , parseCookies
+    , cookiesParser
+    )
     where
 
 import qualified Data.ByteString.Char8 as C
+import Data.Either
 import Data.Char
 import Data.List
 import Data.Generics
 import Happstack.Util.Common (Seconds)
-import Text.ParserCombinators.ReadP
+import Text.ParserCombinators.Parsec hiding (token)
 
 data Cookie = Cookie
     { cookieVersion :: String
@@ -40,94 +49,90 @@ mkCookieHeader sec cookie =
             | otherwise          = [c]
     in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ])
 
-
-{- Cookie syntax:
-   av-pairs        =       av-pair *(";" av-pair)
-   av-pair         =       attr ["=" value]        ; optional value
-   attr            =       token
-   value           =       word
-   word            =       token | quoted-string
--}
-
-gmany :: ReadP a -> ReadP [a]
-gmany  p = gmany1 p <++ return []
-gmany1 :: ReadP a -> ReadP [a]
-gmany1 p = do x  <- p
-              xs <- gmany1 p <++ return []
-              return (x:xs)
-gskipMany1 :: ReadP a -> ReadP ()
-gskipMany1 p = p >> (gskipMany p <++ return ())
-gskipMany :: ReadP a -> ReadP ()
-gskipMany  p = gskipMany1 p <++ return ()
-
 fctl :: Char -> Bool
-fctl         = \ch -> ch == chr 127 || ch <= chr 31
-fseparator :: Char -> Bool
-fseparator   = \ch -> ch `elem` "()<>@,;:\\\"[]?={} \t" -- ignore '/' here
-fchar :: Char -> Bool
-fchar        = \ch -> ch <= chr 127
-ftoken :: Char -> Bool
-ftoken       = \ch -> fchar ch && not (fctl ch || fseparator ch)
-lws :: ReadP ()
-lws          = ((char '\r' >> char '\n') <++ return ' ') >> gskipMany (satisfy (\ch -> ch == ' ' || ch == '\t'))
-token :: ReadP [Char]
-token        = gmany $ satisfy ftoken
-quotedString :: ReadP [Char]
-quotedString = do char '"'  -- " stupid emacs syntax highlighting
-                  x <- many ((char '\\' >> satisfy fchar) <++ (satisfy $ \ch -> ch /= '"' && fchar ch && (ch == ' ' || ch == '\t' || not (fctl ch))))
-                  char '"' -- " stupid emacs syntax highlighting
-                  return x
-word :: ReadP [Char]
-word = quotedString <++ token
+fctl ch = ch == chr 127 || ch <= chr 31
 
-avPair :: ReadP (String, [Char])
-avPair = do
-  k <- token
-  lws >> char '=' >> lws
-  v <- word
-  return (low k,v)
+-- | Not an supported api.  Takes a cookie header and returns
+-- either a String error message or an array of parsed cookies
+parseCookies :: String -> Either String [Cookie]
+parseCookies str = either (Left . show) Right $ parse cookiesParser str str
 
-sep :: ReadP ()
-sep = lws >> satisfy (\ch -> ch == ',' || ch == ';') >> lws
+-- | not a supported api.  A parser for RFC 2109 cookies
+cookiesParser :: GenParser Char st [Cookie]
+cookiesParser = cookies
+    where -- Parsers based on RFC 2109
+          cookies = do
+            ws
+            ver<-option "" $ try (cookie_version >>= (\x -> cookieSep >> return x))
+            cookieList<-(cookie_value ver) `sepBy1` try cookieSep
+            ws
+            eof
+            return cookieList
+          cookie_value ver = do
+            name<-attr
+            cookieEq
+            val<-value
+            path<-option "" $ try (cookieSep >> cookie_path)
+            domain<-option "" $ try (cookieSep >> cookie_domain)
+            return $ Cookie ver path domain (low name) val
+          cookie_version = cookie_special "$Version"
+          cookie_path = cookie_special "$Path"
+          cookie_domain = cookie_special "$Domain"
+          cookie_special s = do
+            string s
+            cookieEq
+            value
+          cookieSep = ws >> oneOf ",;" >> ws
+          cookieEq = ws >> char '=' >> ws
+          ws = spaces
+          attr          = token
+          value         = word
+          word          = try (quoted_string) <|> incomp_token
 
-cookies :: ReadP [Cookie]
-cookies = do
-  let kpw n = do lws
-                 (k,v) <- avPair
-                 if k == n then return v else fail "Invalid key"
-  ver <- ((kpw "$version" <~ sep) <++ return "")
-  let ci = do (k,v) <- avPair
-              p <- (sep >> kpw "$path")   <++ return ""
-              d <- (sep >> kpw "$domain") <++ return ""
-              return $ Cookie ver p d k v
-  x  <- lws >> ci
-  xs <- gmany (sep >> ci) <~ lws
-  return (x:xs)
+          -- Parsers based on RFC 2068
+          token         = many1 $ oneOf ((chars \\ ctl) \\ tspecials)
+          quoted_string = do
+            char '"'
+            r <-many (oneOf qdtext)
+            char '"'
+            return r
 
-(<~) :: Monad m => m a -> m b -> m a
-(<~) a b = do x <- a; b; return x
+          -- Custom parser, incompatible with RFC 2068, but very  forgiving ;)
+          incomp_token  = many1 $ oneOf ((chars \\ ctl) \\ " \t\";")
 
-parse :: Monad m => String -> m [Cookie]
-parse i = case readP_to_S cookies i of
-            [(res,"")] -> return res
-            xs         -> fail ("Invalid cookie syntax!: at position "++show (length i - length xs)++" input "++show i)
+          -- Primitives from RFC 2068
+          tspecials     = "()<>@,;:\\\"/[]?={} \t"
+          ctl           = map chr (127:[0..31])
+          chars         = map chr [0..127]
+          octet         = map chr [0..255]
+          text          = octet \\ ctl
+          qdtext        = text \\ "\""
 
 -- | Get all cookies from the HTTP request. The cookies are ordered per RFC from
 -- the most specific to the least specific. Multiple cookies with the same
 -- name are allowed to exist.
 getCookies :: Monad m => C.ByteString -> m [Cookie]
-getCookies header | C.null header = return []
-                  | otherwise     = parse (C.unpack header)
-
+getCookies h = getCookies' h >>=  either (fail. ("Cookie parsing failed!"++)) return
 
 -- | Get the most specific cookie with the given name. Fails if there is no such
 -- cookie or if the browser did not escape cookies in a proper fashion.
 -- Browser support for escaping cookies properly is very diverse.
 getCookie :: Monad m => String -> C.ByteString -> m Cookie
-getCookie s h = do cs <- getCookies h
-                   case filter ((==) (low s) . cookieName) cs of
-                     [r] -> return r
-                     _   -> fail ("getCookie: " ++ show s)
+getCookie s h = getCookie' s h >>= either (const $ fail ("getCookie: " ++ show s)) return
+
+getCookies' :: Monad m => C.ByteString -> m (Either String [Cookie])
+getCookies' header | C.null header = return $ Right []
+                   | otherwise     = return $ parseCookies (C.unpack header)
+
+getCookie' :: Monad m => String -> C.ByteString -> m (Either String Cookie)
+getCookie' s h = do
+    cs <- getCookies' h
+    return $ do -- Either
+       cooks <- cs
+       case filter (\x->(==)  (low s)  (cookieName x) ) cooks of
+            [] -> fail "No cookie found"
+            f -> return $ head f
 
 low :: String -> String
 low = map toLower
+
