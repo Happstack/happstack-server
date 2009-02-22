@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, PatternSignatures #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Happstack.Server.HTTPClient.HTTP
