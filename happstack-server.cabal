@@ -60,7 +60,7 @@ Library
                        template-haskell, xhtml, html,
                        bytestring, containers, old-time, old-locale, directory, 
                        process, extensible-exceptions, MaybeT, zlib
-  hs-source-dirs:      src
+  hs-source-dirs:      src,dist/build/autogen
   if flag(tests)
     hs-source-dirs:    tests
 
