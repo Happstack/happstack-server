@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             0.1.9
+Version:             0.2
 Synopsis:            Web related tools and services.
 Description:         Web framework
 License:             BSD3
@@ -54,12 +54,27 @@ Library
                        Happstack.Server.SURI.ParseURI
                        Paths_happstack_server
 
-  Build-Depends:       base, HaXml >= 1.13 && < 1.14, parsec<3, mtl, network,
-                       hslogger >= 1.0.2, happstack-data >= 0.1.9,
-                       happstack-util >= 0.1.9,
-                       template-haskell, xhtml, html,
-                       bytestring, containers, old-time, old-locale, directory, 
-                       process, extensible-exceptions, MaybeT, zlib
+  Build-Depends:       base,
+                       bytestring,
+                       containers,
+                       directory,
+                       extensible-exceptions,
+                       HaXml >= 1.13 && < 1.14,
+                       hslogger >= 1.0.2,
+                       happstack-data == 0.2.*,
+                       happstack-util == 0.2.*,
+                       html,
+                       MaybeT,
+                       mtl,
+                       network,
+                       old-locale,
+                       old-time,
+                       parsec < 3,
+                       process,
+                       template-haskell,
+                       xhtml,
+                       zlib
+
   hs-source-dirs:      src,dist/build/autogen
   if flag(tests)
     hs-source-dirs:    tests
