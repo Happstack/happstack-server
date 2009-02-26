@@ -72,6 +72,7 @@ Library
                        parsec < 3,
                        process,
                        template-haskell,
+                       time,
                        xhtml,
                        zlib
 

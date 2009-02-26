@@ -32,7 +32,10 @@ import Text.Show.Functions ()
 
 -- | HTTP version
 data Version = Version Int Int
-             deriving(Show,Read,Eq)
+             deriving(Read,Eq)
+
+instance Show Version where
+  show (Version x y) = (show x) ++ "." ++ (show y)
 
 isHTTP1_1 :: Request -> Bool
 isHTTP1_1 rq = case rqVersion rq of Version 1 1 -> True; _ -> False

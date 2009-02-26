@@ -81,7 +81,7 @@ fileServe' localpath fdir mime = do
                | fe   = "file"
                | fe2  = "group"
                | True = "NOT FOUND"
-    liftIO $ logM "Happstack.Server.HTTP.FileServe" INFO ("fileServe: "++show fp++" \t"++status)
+    liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
     if de then fdir mime fp else do
     getFile mime fp >>= flip either (renderResponse mime) 
                 (const $ returnGroup localpath mime safepath)

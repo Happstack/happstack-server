@@ -31,7 +31,11 @@ import Happstack.Server.MessageWrap
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
 import Happstack.Util.TimeOut
+import Happstack.Util.LogFormat (formatRequestCombined)
+import Data.Time.Clock (getCurrentTime)
+import System.Log.Logger (Priority(..), logM)
 
+log' = logM "Happstack.Server"
 
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request conf h host handler = rloop conf h host handler =<< L.hGetContents h
@@ -75,6 +79,18 @@ rloop conf h host handler inputStr
                -> return $
                   do let ioseq act = act >>= \x -> x `seq` return x
                      res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
+                     
+                     -- combined log format
+                     time <- getCurrentTime
+                     let host' = fst host
+                         user = "-"
+                         requestLine = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
+                         responseCode = rsCode res
+                         size = toInteger $ L.length $ rsBody res
+                         referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
+                         userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
+                     log' NOTICE $ formatRequestCombined host' user time requestLine responseCode size referer userAgent
+                     
                      putAugmentedResult h req res
                      when (continueHTTP req res) $ rloop conf h host handler rest
 
