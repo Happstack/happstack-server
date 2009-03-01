@@ -45,7 +45,7 @@ data S3
     , s3Conn             :: MVar (Maybe Connection)
     }
 
-{-
+{- |
   Sign a request using the access key and secret key from the S3 data
   type.
 -}
@@ -55,7 +55,7 @@ signRequest s3
           skey = s3SecretKey s3
       in signRequest' akey skey
 
-{-
+{- |
   Fill in necessary information (such as a date header) and then sign
   then request.
 -}
@@ -85,7 +85,7 @@ signRequest' akey skey request
                     , rqURI = (rqURI request) { uriScheme = ""
                                               , uriAuthority = Nothing}}
 
-{-
+{- |
   Return a connection to an S3 server. Will initiate a new
   connection if no previous was found.
 -}
@@ -104,7 +104,7 @@ createRequest _s3 method path body
     = Request uri method [] body
     where uri = localhost { uriPath = '/':escapeURIString isAllowedInURI path }
 
-{-
+{- |
   Send a single request to an S3 server returning the body
   of the result.
 -}
@@ -124,7 +124,7 @@ sendRequest s3 request
                          | (2,_,_) <- rspCode res -> return (rspBody res)
                          | otherwise -> error ("Server error: " ++ rspReason res)
 
-{-
+{- |
   Same as 'sendRequest' except that it ignored the result.
 -}
 sendRequest_ :: S3 -> Request -> IO ()

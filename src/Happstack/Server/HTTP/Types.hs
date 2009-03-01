@@ -53,12 +53,12 @@ continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq) 
 data Conf = Conf { port      :: Int -- ^ Port for the server to listen on.
                  , validator  :: Maybe (Response -> IO Response)
                  } 
+
+-- | Default configuration contains no validator and the port is set to 8000
 nullConf :: Conf
 nullConf = Conf { port      = 8000
                 , validator  = Nothing
                 }
-
-
 
 -- | HTTP request method
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
@@ -74,6 +74,8 @@ type Headers = M.Map ByteString HeaderPair -- lowercased name -> (realname, valu
 data RsFlags = RsFlags 
     { rsfContentLength :: Bool -- ^ whether a content-length header will be added to the result.
     } deriving(Show,Read,Typeable)
+
+-- | Default RsFlags that will include the content-length header
 nullRsFlags :: RsFlags
 nullRsFlags = RsFlags { rsfContentLength = True }
 -- | Don't display a Content-Lenght field for the 'Result'.
@@ -108,7 +110,7 @@ data Request = Request { rqMethod  :: Method,
                        } deriving(Show,Read,Typeable)
 
 
-
+-- | Converts a Request into a String representing the corresponding URL
 rqURL :: Request -> String
 rqURL rq = '/':intercalate "/" (rqPaths rq) ++ (rqQuery rq)
 
@@ -126,10 +128,13 @@ instance HasHeaders Headers where updateHeaders f = f
 
 newtype RqBody = Body L.ByteString deriving (Read,Show,Typeable)
 
-
+-- | Sets the Response status code to the provided Int and lifts the computation
+-- into a Monad.
 setRsCode :: (Monad m) => Int -> Response -> m Response
 setRsCode code rs = return rs {rsCode = code}
 
+-- | Takes a list of (key,val) pairs and converts it into Headers.  The
+-- keys will be converted to lowercase
 mkHeaders :: [(String,String)] -> Headers
 mkHeaders hdrs
     = M.fromListWith join [ (P.pack (map toLower key), HeaderPair (P.pack key) [P.pack value]) | (key,value) <- hdrs ]
@@ -159,13 +164,17 @@ getHeaderUnsafe' key = M.lookup key . headers
 -- Querying header status
 --------------------------------------------------------------
 
-
+-- | Returns True if the associated key is found in the Headers.  The lookup
+-- is case insensitive.
 hasHeader :: HasHeaders r => String -> r -> Bool
 hasHeader key r = isJust (getHeader key r)
 
+-- | Acts as 'hasHeader' with ByteStrings
 hasHeaderBS :: HasHeaders r => ByteString -> r -> Bool
 hasHeaderBS key r = isJust (getHeaderBS key r)
 
+-- | Acts as 'hasHeaderBS' but the key is case sensitive.  It should be
+-- in lowercase.
 hasHeaderUnsafe :: HasHeaders r => ByteString -> r -> Bool
 hasHeaderUnsafe key r = isJust (getHeaderUnsafe' key r)
 
@@ -183,12 +192,18 @@ checkHeaderUnsafe key val r
 -- Setting header status
 --------------------------------------------------------------
 
+-- | Associates the key/value pair in the headers.  Forces the key to be
+-- lowercase.
 setHeader :: HasHeaders r => String -> String -> r -> r
 setHeader key val = setHeaderBS (pack key) (pack val)
 
+-- | Acts as 'setHeader' but with ByteStrings.
 setHeaderBS :: HasHeaders r => ByteString -> ByteString -> r -> r
 setHeaderBS key val = setHeaderUnsafe (P.map toLower key) (HeaderPair key [val])
 
+-- | Sets the key to the HeaderPair.  This is the only way to associate a key
+-- with multiple values via the setHeader* functions.  Does not force the key
+-- to be in lowercase or guarantee that the given key and the key in the HeaderPair will match. 
 setHeaderUnsafe :: HasHeaders r => ByteString -> HeaderPair -> r -> r
 setHeaderUnsafe key val = updateHeaders (M.insert key val)
 
@@ -196,27 +211,34 @@ setHeaderUnsafe key val = updateHeaders (M.insert key val)
 -- Adding headers
 --------------------------------------------------------------
 
+-- | Add a key/value pair to the header.  If the key already has a value
+-- associated with it, then the value will be appended.  
+-- Forces the key to be lowercase.
 addHeader :: HasHeaders r => String -> String -> r -> r
 addHeader key val = addHeaderBS (pack key) (pack val)
 
+-- | Acts as addHeader except for ByteStrings
 addHeaderBS :: HasHeaders r => ByteString -> ByteString -> r -> r
 addHeaderBS key val = addHeaderUnsafe (P.map toLower key) (HeaderPair key [val])
 
+-- | Add a key/value pair to the header using the underlying HeaderPair data
+-- type.  Does not force the key to be in lowercase or guarantee that the given key and the key in the HeaderPair will match. 
 addHeaderUnsafe :: HasHeaders r => ByteString -> HeaderPair -> r -> r
 addHeaderUnsafe key val = updateHeaders (M.insertWith join key val)
     where join (HeaderPair k vs1) (HeaderPair _ vs2) = HeaderPair k (vs1++vs2)
 
-
+-- | Creates a Response with the given Int as the status code and the provided
+-- String as the body of the Response 
 result :: Int -> String -> Response
 result code = resultBS code . L.pack
 
+-- | Acts as 'result' but works with ByteStrings directly.
 resultBS :: Int -> L.ByteString -> Response
 resultBS code s = Response code M.empty nullRsFlags s Nothing
 
+-- | Sets the Response's status code to the given Int and redirects to the given URI
 redirect :: (ToSURI s) => Int -> s -> Response -> Response
 redirect c s resp = setHeaderBS locationC (pack (render (toSURI s))) resp{rsCode = c}
-
-
 
 -- constants here
 locationC :: ByteString

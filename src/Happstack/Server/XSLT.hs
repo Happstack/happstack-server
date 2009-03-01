@@ -1,7 +1,6 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances , UndecidableInstances,
              DeriveDataTypeable, MultiParamTypeClasses, CPP, ScopedTypeVariables,
     PatternSignatures #-}
--- | Implement XSLT transformations using xsltproc
 module Happstack.Server.XSLT
     (xsltFile, xsltString, xsltElem, xsltFPS, xsltFPSIO, XSLPath,
      xsltproc,saxon,procFPSIO,procLBSIO,XSLTCommand,XSLTCmd
@@ -41,6 +40,8 @@ xsltCmd :: XSLTCmd
 xsltCmd XSLTProc = xsltproc'
 xsltCmd Saxon = saxon'
 
+-- | Uses 'xsltString' to transform the given XML 'Element' into a
+-- a 'String'.    
 xsltElem :: XSLPath -> Element -> String
 xsltElem xsl = xsltString xsl . verbatim
 
@@ -74,9 +75,13 @@ procFPSIO xsltp xsl inp =
     logMX DEBUG (">>> XSLT: result: "++ show s)
     return [s]
 
+-- | Performs an XSL transformation with lists of ByteStrings instead of
+-- a String.
 xsltFPS :: XSLPath -> [P.ByteString] -> [P.ByteString]
 xsltFPS xsl = unsafePerformIO . xsltFPSIO xsl
 
+-- | Equivalent to 'xsltFPS' but does not hide the inherent IO of the low-level
+-- ByteString operations.
 xsltFPSIO :: XSLPath -> [P.ByteString] -> IO [P.ByteString]
 xsltFPSIO xsl inp = 
     withTempFile "happs-src.xml" $ \sfp sh -> do
@@ -89,6 +94,9 @@ xsltFPSIO xsl inp =
     logMX DEBUG (">>> XSLT: result: "++ show s)
     return [s]
 
+-- | Uses the provided xsl file to transform the given string.
+-- This function creates temporary files during its execution, but
+-- guarantees their cleanup.
 xsltString :: XSLPath -> String -> String
 xsltString xsl inp = unsafePerformIO $
     withTempFile "happs-src.xml" $ \sfp sh -> do
@@ -106,10 +114,11 @@ xsltFile :: XSLPath -> FilePath -> FilePath -> IO ()
 xsltFile = xsltFileEx xsltproc'
 
 -- | Use @xsltproc@ to transform XML.
-xsltproc' :: XSLTCommand
-xsltproc' dst xsl src = ("xsltproc",["-o",dst,xsl,src])
 xsltproc :: XSLTCmd
 xsltproc = XSLTProc
+xsltproc' :: XSLTCommand
+xsltproc' dst xsl src = ("xsltproc",["-o",dst,xsl,src])
+
 
 -- | Use @saxon@ to transform XML.
 saxon :: XSLTCmd
