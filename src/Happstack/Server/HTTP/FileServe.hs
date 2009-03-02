@@ -40,7 +40,7 @@ errorwrapper binarylocation loglocation
 type MimeMap = Map.Map String String
 
 doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-           [String] -> Map.Map String String -> String -> m Response
+           [String] -> MimeMap -> String -> m Response
 doIndex [] _mime _fp = do forbidden $ toResponse "Directory index forbidden"
 doIndex (index:rest) mime fp =
     do
@@ -51,6 +51,7 @@ doIndex (index:rest) mime fp =
     where retFile = returnFile mime
 defaultIxFiles :: [String]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
+
 
 fileServe :: (ServerMonad m, FilterMonad Response m, MonadIO m) => [FilePath] -> FilePath -> m Response
 fileServe ixFiles localpath  = 
@@ -196,12 +197,14 @@ mimeTypes = Map.fromList
 	    ,("hs","text/plain")]
 
 
-
+-- | Prevents files of the form '.foo' or 'bar/.foo' from being served
 blockDotFiles :: (Request -> IO Response) -> Request -> IO Response
 blockDotFiles fn rq
     | isDot (intercalate "/" (rqPaths rq)) = return $ result 403 "Dot files not allowed."
     | otherwise = fn rq
 
+-- | Returns True if the given String either starts with a . or is of the form
+-- "foo/.bar", e.g. the typical *nix convention for hidden files.
 isDot :: String -> Bool
 isDot = isD . reverse
     where
