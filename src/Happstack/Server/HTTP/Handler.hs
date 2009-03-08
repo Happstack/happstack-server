@@ -35,8 +35,6 @@ import Happstack.Util.LogFormat (formatRequestCombined)
 import Data.Time.Clock (getCurrentTime)
 import System.Log.Logger (Priority(..), logM)
 
-log' = logM "Happstack.Server"
-
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request conf h host handler = rloop conf h host handler =<< L.hGetContents h
 
@@ -89,7 +87,7 @@ rloop conf h host handler inputStr
                          size = toInteger $ L.length $ rsBody res
                          referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
                          userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
-                     log' NOTICE $ formatRequestCombined host' user time requestLine responseCode size referer userAgent
+                     logM "Happstack.Server.AccessLog.Combined" NOTICE $ formatRequestCombined host' user time requestLine responseCode size referer userAgent
                      
                      putAugmentedResult h req res
                      when (continueHTTP req res) $ rloop conf h host handler rest
