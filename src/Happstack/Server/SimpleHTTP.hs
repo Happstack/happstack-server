@@ -230,6 +230,7 @@ import Data.Maybe
 import Data.Monoid
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Lazy.UTF8 as LU (toString)
 import qualified Data.Generics as G
 import qualified Data.Map as M
 import Text.Html (Html,renderHtml)
@@ -1120,7 +1121,7 @@ lookBS = fmap inputValue . lookInput
 
 -- | Gets the named input as a String
 look :: String -> RqData String
-look = fmap L.unpack . lookBS
+look = fmap LU.toString . lookBS
 
 -- | Gets the named cookie
 -- the cookie name is case insensitive
@@ -1145,7 +1146,7 @@ lookRead name = readM =<< look name
 
 -- | gets all the input parameters, and converts them to a string
 lookPairs :: RqData [(String,String)]
-lookPairs = asks fst >>= return . map (\(n,vbs)->(n,L.unpack $ inputValue vbs))
+lookPairs = asks fst >>= return . map (\(n,vbs)->(n,LU.toString $ inputValue vbs))
 
 
 --------------------------------------------------------------
