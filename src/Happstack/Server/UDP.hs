@@ -62,7 +62,7 @@ recvBSFrom sock maxLength
          bs <- BS.packCStringLen (ptr,len)
          return (bs, sockAddr)
 
-sendUDPMessage             :: HostAddress -> PortNumber -> BS.ByteString -> IO ()
+sendUDPMessage :: HostAddress -> PortNumber -> BS.ByteString -> IO ()
 sendUDPMessage ip port msg =
     do fd <- socket AF_INET Datagram 0
        let target = (SockAddrInet (fromIntegral port) ip)

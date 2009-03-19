@@ -18,7 +18,7 @@ import qualified Network.Socket as S
   )
 import System.IO
 
--- alternative implementation of accept to work around EAI_AGAIN errors
+-- | alternative implementation of accept to work around EAI_AGAIN errors
 acceptLite :: S.Socket -> IO (Handle, S.HostName, S.PortNumber)
 acceptLite sock = do
   (sock', addr) <- S.accept sock
