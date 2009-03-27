@@ -1,7 +1,15 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, Rank2Types #-}
 module Happstack.Server.HTTP.FileServe
     (
-     MimeMap,fileServe, mimeTypes,isDot, blockDotFiles,doIndex,errorwrapper
+     MimeMap,
+     blockDotFiles,
+     doIndex,
+     doIndexStrict,
+     errorwrapper,
+     fileServe,
+     fileServeStrict,
+     isDot,
+     mimeTypes
     ) where
 
 import Control.Exception.Extensible
@@ -37,25 +45,56 @@ errorwrapper binarylocation loglocation
                      then fmap Just $ readFile loglocation -- fileServe [loglocation] [] "./"
                      else return Nothing
 
+
 type MimeMap = Map.Map String String
+
+type GetFileFunc = (MonadIO m) =>
+    Map.Map String String
+    -> String
+    -> m (Either String ((ClockTime, Integer), (String, L.ByteString)))
+
+
 
 doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
            [String] -> MimeMap -> String -> m Response
-doIndex [] _mime _fp = do forbidden $ toResponse "Directory index forbidden"
-doIndex (index:rest) mime fp =
+doIndex = doIndex' getFile
+
+
+doIndexStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
+                 [String] -> MimeMap -> String -> m Response
+doIndexStrict = doIndex' getFileStrict
+
+
+doIndex' :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
+            GetFileFunc
+         -> [String]
+         -> MimeMap
+         -> String
+         -> m Response
+doIndex' getFileFunc [] _mime _fp = forbidden $ toResponse "Directory index forbidden"
+doIndex' getFileFunc (index:rest) mime fp =
     do
     let path = fp++'/':index
     --print path
     fe <- liftIO $ doesFileExist path
     if fe then retFile path else doIndex rest mime fp
-    where retFile = returnFile mime
+    where retFile = returnFile getFileFunc mime
+
+
+
 defaultIxFiles :: [String]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
 
 fileServe :: (ServerMonad m, FilterMonad Response m, MonadIO m) => [FilePath] -> FilePath -> m Response
 fileServe ixFiles localpath  = 
-    fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes
+    fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes getFile
+
+
+fileServeStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) => [FilePath] -> FilePath -> m Response
+fileServeStrict ixFiles localpath =
+    fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes getFileStrict
+
 
 -- | Serve files with a mime type map under a directory.
 --   Uses the function to transform URIs to FilePaths.
@@ -63,8 +102,9 @@ fileServe' :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
               String
               -> (Map.Map String String -> String -> m Response)
               -> Map.Map String String
+              -> GetFileFunc
               -> m Response
-fileServe' localpath fdir mime = do
+fileServe' localpath fdir mime getFileFunc = do
     rq <- askRq
     let fp2 = takeWhile (/=',') fp
         fp = filepath
@@ -84,13 +124,16 @@ fileServe' localpath fdir mime = do
                | True = "NOT FOUND"
     liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
     if de then fdir mime fp else do
-    getFile mime fp >>= flip either (renderResponse mime) 
-                (const $ returnGroup localpath mime safepath)
+    getFileFunc mime fp >>= flip either (renderResponse mime) 
+        (const $ returnGroup localpath mime safepath)
+
 
 returnFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-              Map.Map String String -> String -> m Response
-returnFile mime fp =  
-    getFile mime fp >>=  either fileNotFound (renderResponse mime)
+              GetFileFunc -> Map.Map String String -> String -> m Response
+returnFile getFileFunc mime fp =  
+    getFileFunc mime fp >>=  either fileNotFound (renderResponse mime)
+
+
 
 -- if fp has , separated then return concatenation with content-type of last
 -- and last modified of latest
@@ -131,6 +174,7 @@ fakeFile fakeLen = ((TOD 0 0,L.length body),("text/javascript",body))
       body = L.pack $ (("//"++(show len)++" ") ++ ) $ (replicate len '0') ++ "\n"
       len = fromIntegral fakeLen
 
+
 getFile :: (MonadIO m) =>
            Map.Map String String
            -> String
@@ -140,11 +184,29 @@ getFile mime fp = do
   fe <- liftIO $ doesFileExist fp
   if not fe then return $ Left fp else do
   
-  time <- liftIO  $ getModificationTime fp
-  h <- liftIO $ openBinaryFile fp ReadMode
+  time <- liftIO $ getModificationTime fp
+  h    <- liftIO $ openBinaryFile fp ReadMode
   size <- liftIO $ hFileSize h
-  lbs <- liftIO $ L.hGetContents h
+  lbs  <- liftIO $ L.hGetContents h
   return $ Right ((time,size),(ct,lbs))
+
+
+getFileStrict :: (MonadIO m) =>
+                 Map.Map String String
+              -> String
+              -> m (Either String ((ClockTime, Integer), (String, L.ByteString)))
+getFileStrict mime fp = do
+  let ct = Map.findWithDefault "text/plain" (getExt fp) mime
+  fe     <- liftIO $ doesFileExist fp
+
+  if not fe then return $ Left fp else do
+
+  time     <- liftIO $ getModificationTime fp
+  s        <- liftIO $ P.readFile fp
+  let lbs  = L.fromChunks [s]
+  let size = toInteger . P.length $ s
+  return $ Right ((time,size),(ct,lbs))
+
 
 renderResponse :: (Monad m,
                    ServerMonad m,
