@@ -22,18 +22,26 @@ compressedResponseFilter::
     (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m)
     => m String
 compressedResponseFilter = do
-    mbAccept<-getHeaderM "Accept-Encoding"
-    accept<- maybe mzero return mbAccept
-    let eEncoding = bestEncoding $ BS.unpack accept
-    (coding,action) <- case eEncoding of
-        Left _ -> do
+    getHeaderM "Accept-Encoding" >>=
+        (maybe (return "identity") installHandler)
+
+  where
+    badEncoding = "Encoding returned not in the list of known encodings"
+
+    installHandler accept = do
+      let eEncoding = bestEncoding $ BS.unpack accept
+      (coding,action) <- case eEncoding of
+          Left _ -> do
             setResponseCode 406
             finishWith $ toResponse ""
-        Right a -> return (a, maybe (fail "Encoding returned not in the list of known encodings")
-            id (lookup a allEncodingHandlers))
-    setHeaderM "Content-Encoding" coding
-    action
-    return coding
+
+          Right a -> return (a, fromMaybe (fail badEncoding)
+                                          (lookup a allEncodingHandlers))
+
+      setHeaderM "Content-Encoding" coding
+      action
+      return coding
+
 
 -- | compresses the body of the response with gzip.
 -- does not set any headers.
