@@ -10,6 +10,8 @@ import System.IO
 import qualified Data.ByteString.Char8 as B 
 import Network
 
+-- | Sends the serialized request to the host defined in the request
+-- and attempts to parse response upon arrival.
 getResponse :: Request -> IO (Either String Response)
 getResponse rq = withSocketsDo $ do
   let (hostName,p) = span (/=':') $ fromJust $ fmap B.unpack $ getHeader "host" rq 

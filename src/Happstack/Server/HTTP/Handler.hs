@@ -92,6 +92,8 @@ rloop conf h host handler inputStr
                      putAugmentedResult h req res
                      when (continueHTTP req res) $ rloop conf h host handler rest
 
+-- | Unserializes the bytestring into a response.  If there is an
+-- error it will return @Left msg@.
 parseResponse :: L.ByteString -> Either String Response
 parseResponse inputStr =
     do (topStr,restStr) <- required "failed to separate response" $ 
@@ -203,7 +205,7 @@ putAugmentedResult h req res = do
   when (rqMethod req /= HEAD) $ L.hPut h $ rsBody res
   hFlush h
 
-
+-- | Serializes the request to the given handle
 putRequest :: Handle -> Request -> IO ()
 putRequest h rq = do 
     let put = B.hPut h

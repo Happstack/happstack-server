@@ -25,7 +25,7 @@ bodyInput req =
     in decodeBody ctype (getBS $ rqBody req)
 
 
--- Decodes application\/x-www-form-urlencoded inputs.      
+-- | Decodes application\/x-www-form-urlencoded inputs.      
 formDecode :: String -> [(String, Input)]
 formDecode [] = []
 formDecode qString = 
@@ -71,7 +71,7 @@ bodyPartToInput (BodyPart hs b) =
               _ -> ("ERROR",simpleInput "ERROR") -- FIXME: report error
     where ctype = fromMaybe defaultInputType (getContentType hs)
 
-
+-- | Packs a string into an Input of type "text/plain"
 simpleInput :: String -> Input
 simpleInput v
     = Input { inputValue = L.pack v

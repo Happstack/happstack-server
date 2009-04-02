@@ -38,9 +38,9 @@ escape, unEscape :: String -> String
 unEscape = URI.unEscapeString . map (\x->if x=='+' then ' ' else x)
 escape = URI.escapeURIString URI.isAllowedInURI
 
+-- | Returns true if the URI is absolute
 isAbs :: SURI -> Bool
 isAbs = not . null . URI.uriScheme . suri
---isAbs = maybe True ( mbParsed
 
 newtype SURI = SURI {suri::URI.URI} deriving (Eq,Data,Typeable)
 instance Show SURI where

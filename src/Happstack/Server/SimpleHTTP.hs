@@ -1013,9 +1013,11 @@ resp status val = setResponseCode status >> return val
 ok :: (FilterMonad Response m) => a -> m a
 ok = resp 200
 
+-- | Respond with @500 Interal Server Error@
 internalServerError :: (FilterMonad Response m) => a -> m a
 internalServerError = resp 500
 
+-- | Responds with @502 Bad Gateway@
 badGateway :: (FilterMonad Response m) => a -> m a
 badGateway = resp 502
 
