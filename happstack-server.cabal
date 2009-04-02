@@ -33,7 +33,6 @@ Library
                        Happstack.Server.HTTP.LowLevel
                        Happstack.Server.HTTP.FileServe
                        Happstack.Server.SimpleHTTP
-                       Happstack.Server.JSON
                        Happstack.Server.MessageWrap
                        Happstack.Server.MinHaXML
                        Happstack.Server.SURI
