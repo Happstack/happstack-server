@@ -390,16 +390,17 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
 
 -- | A monoid operation container.
 -- If a is a monoid, then SetAppend is a monoid with the following behaviors:
--- 
+--
 -- @
---   Set x `mappend` Append y = Set (x `mappend` y)
+--   Set    x `mappend` Append y = Set    (x `mappend` y)
 --   Append x `mappend` Append y = Append (x `mappend` y)
---   \_     `mappend` Set y = Set y
+--   \_       `mappend` Set y    = Set y
 -- @
 --
--- A simple way of sumerizing this is, if the left side is Append, then the
--- right is appended to the left.  If the left side is Set, then the right side
+-- A simple way of sumerizing this is, if the right side is Append, then the
+-- right is appended to the left.  If the right side is Set, then the right side
 -- is ignored.
+
 data SetAppend a = Set a | Append a
     deriving (Eq, Show)
 instance Monoid a => Monoid (SetAppend a) where
