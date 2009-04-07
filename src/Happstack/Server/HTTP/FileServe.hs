@@ -42,7 +42,7 @@ errorwrapper binarylocation loglocation
                 do bintime <- getModificationTime binarylocation
                    logtime <- getModificationTime loglocation
                    if (logtime > bintime)
-                     then fmap Just $ readFile loglocation -- fileServe [loglocation] [] "./"
+                     then fmap Just $ readFile loglocation
                      else return Nothing
 
 
@@ -59,7 +59,7 @@ doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
            [String] -> MimeMap -> String -> m Response
 doIndex = doIndex' getFile
 
-
+-- | A variant of 'doIndex' that relies on 'getFileStrict'
 doIndexStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
                  [String] -> MimeMap -> String -> m Response
 doIndexStrict = doIndex' getFileStrict
@@ -174,7 +174,9 @@ fakeFile fakeLen = ((TOD 0 0,L.length body),("text/javascript",body))
       body = L.pack $ (("//"++(show len)++" ") ++ ) $ (replicate len '0') ++ "\n"
       len = fromIntegral fakeLen
 
-
+-- | @getFile mimeMap path@ will lazily read the file as a ByteString
+-- with a content type provided by matching the file extension with the
+-- @mimeMap@.  getFile will return an error string or ((timeFetched,size), (contentType,fileContents))
 getFile :: (MonadIO m) =>
            Map.Map String String
            -> String
@@ -190,7 +192,7 @@ getFile mime fp = do
   lbs  <- liftIO $ L.hGetContents h
   return $ Right ((time,size),(ct,lbs))
 
-
+-- | As 'getFile' but strictly fetches the file, instead of lazily.
 getFileStrict :: (MonadIO m) =>
                  Map.Map String String
               -> String
