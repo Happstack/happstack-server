@@ -609,7 +609,7 @@ instance MonadError e m => MonadError e (WebT m) where
  	catchError action handler = mkWebT $ catchError (ununWebT action) (ununWebT . handler)
 
 instance MonadWriter w m => MonadWriter w (WebT m) where
-    tell = lift . Writer.tell
+    tell = lift . tell
     listen m = mkWebT $ Writer.listen (ununWebT m) >>= (return . liftWebT)
         where liftWebT (Nothing, _) = Nothing
               liftWebT (Just (Left x,f), _) = Just (Left x,f)
