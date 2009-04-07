@@ -82,13 +82,13 @@ rloop conf h host handler inputStr
                      time <- getCurrentTime
                      let host' = fst host
                          user = "-"
-                         requestLine = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
+                         requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
                          responseCode = rsCode res
                          size = toInteger $ L.length $ rsBody res
                          referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
                          userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
-                     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLine responseCode size referer userAgent
-                     
+                     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
+
                      putAugmentedResult h req res
                      when (continueHTTP req res) $ rloop conf h host handler rest
 
