@@ -222,7 +222,7 @@ import Control.Applicative                       (Applicative, pure, (<*>))
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)
 import Control.Monad                             ( MonadPlus, mzero, mplus
-                                                 , msum, ap, when
+                                                 , msum, ap, unless
                                                  , liftM, liftM2, liftM3, liftM4
                                                  )
 import Control.Monad.Trans                       ( MonadTrans, lift
@@ -811,7 +811,7 @@ setHeaderM a v = composeFilter $ \res -> setHeader a v res
 guardRq :: (ServerMonad m, MonadPlus m) => (Request -> Bool) -> m ()
 guardRq f = do
     rq <- askRq
-    when ( f rq /= True ) mzero 
+    unless (f rq) mzero
 
 -- | Guard against the method.  This function also guards against
 -- any remaining path segments.  See methodOnly for the version
