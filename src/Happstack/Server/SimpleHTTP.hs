@@ -203,46 +203,73 @@ module Happstack.Server.SimpleHTTP
     , noopValidator
     , lazyProcValidator
     ) where
-import qualified Paths_happstack_server as Cabal
-import qualified Data.Version as DV
-import Happstack.Server.HTTP.Client
-import Happstack.Data.Xml.HaXml
-import qualified Happstack.Server.MinHaXML as H
 
 import Happstack.Server.HTTP.Types hiding (Version(..))
-import qualified Happstack.Server.HTTP.Types as Types
-import Happstack.Server.HTTP.Listen as Listen
-import Happstack.Server.XSLT
-import Happstack.Server.SURI (ToSURI)
-import Happstack.Util.Common
 import Happstack.Server.Cookie
-import Happstack.Data -- used by default implementation of fromData
-import Control.Applicative
-import Control.Concurrent (forkIO)
-import Control.Exception (evaluate)
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Error
-import Control.Monad.Trans()
-import Control.Monad.Maybe
-import Control.Monad.Writer as Writer
-import Data.Maybe
-import Data.Monoid
-import qualified Data.ByteString.Char8 as B
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString.Lazy.UTF8 as LU (toString)
-import qualified Data.Generics as G
-import qualified Data.Map as M
-import Text.Html (Html,renderHtml)
-import qualified Text.XHtml as XHtml (Html,renderHtml)
-import qualified Happstack.Crypto.Base64 as Base64
-import Data.Char
-import Data.List
-import System.IO
-import System.Console.GetOpt
-import System.Process (runInteractiveProcess, waitForProcess)
-import System.Exit
-import Text.Show.Functions ()
+
+import qualified Paths_happstack_server          as Cabal
+
+import qualified Data.Version                    as DV
+import Happstack.Server.HTTP.Client              (getResponse, unproxify, unrproxify)
+import Happstack.Data.Xml.HaXml                  (toHaXmlEl)
+import qualified Happstack.Server.MinHaXML       as H
+import qualified Happstack.Server.HTTP.Listen    as Listen (listen) -- So that we can disambiguate 'Writer.listen'
+import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
+import Happstack.Server.SURI                     (ToSURI)
+import Happstack.Util.Common                     (Seconds, readM)
+import Happstack.Data                            (Xml, normalize, fromPairs, Element, toXml, toPublicXml) -- used by default implementation of fromData
+import Control.Applicative                       (Applicative, pure, (<*>))
+import Control.Concurrent                        (forkIO)
+import Control.Exception                         (evaluate)
+import Control.Monad                             ( MonadPlus, mzero, mplus
+                                                 , msum, ap, when
+                                                 , liftM, liftM2, liftM3, liftM4
+                                                 )
+import Control.Monad.Trans                       ( MonadTrans, lift
+                                                 , MonadIO, liftIO
+                                                 )
+import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
+                                                 , MonadReader, ask, local
+                                                 , asks
+                                                 )
+import Control.Monad.Writer                      ( WriterT(WriterT), runWriterT
+                                                 , MonadWriter, tell, pass
+                                                 , listens
+                                                 )
+import qualified Control.Monad.Writer            as Writer (listen) -- So that we can disambiguate 'Listen.listen'
+import Control.Monad.State                       (MonadState, get, put)
+import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
+                                                 , Error, strMsg
+                                                 , MonadError, throwError, catchError
+                                                 )
+import Control.Monad.Maybe                       (MaybeT(MaybeT), runMaybeT)
+import Data.Maybe                                (fromMaybe)
+import Data.Monoid                               ( Monoid, mempty, mappend
+                                                 , Dual(Dual), getDual
+                                                 , Endo(Endo), appEndo
+                                                 )
+
+import qualified Data.ByteString.Char8           as B
+import qualified Data.ByteString.Lazy.Char8      as L
+import qualified Data.ByteString.Lazy.UTF8       as LU (toString)
+
+import qualified Data.Generics                   as G
+import qualified Data.Map                        as M
+
+import Text.Html                                 (Html, renderHtml)
+import qualified Text.XHtml                      as XHtml (Html, renderHtml)
+
+import qualified Happstack.Crypto.Base64         as Base64
+import Data.Char                                 (toLower)
+import Data.List                                 (isPrefixOf)
+import System.IO                                 (hGetContents, hClose)
+import System.Console.GetOpt                     ( OptDescr(Option)
+                                                 , ArgDescr(ReqArg)
+                                                 , ArgOrder(Permute)
+                                                 , getOpt
+                                                 )
+import System.Process                            (runInteractiveProcess, waitForProcess)
+import System.Exit                               (ExitCode(ExitSuccess, ExitFailure))
 
 -- | An alias for WebT when using IO
 type Web a = WebT IO a
