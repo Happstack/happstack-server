@@ -923,11 +923,7 @@ withData = withDataFn fromData
 -- | withDataFn is like with data, but you pass in a RqData monad
 -- for reading.
 withDataFn :: (MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
-withDataFn fn handle = do
-    d <- getDataFn fn
-    case d of
-        Nothing -> mzero
-        Just a -> handle a
+withDataFn fn handle = getDataFn fn >>= maybe mzero handle
 
 -- | proxyServe is for creating ServerPartT's that proxy.
 -- The sole argument [String] is a list of allowed domains for
