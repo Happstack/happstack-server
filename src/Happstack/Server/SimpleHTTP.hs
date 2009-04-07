@@ -847,7 +847,6 @@ dir staticPath handle =
         rq <- askRq
         case rqPaths rq of
             (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
-                   | otherwise -> mzero
             _ -> mzero
 
 -- | Pop a path element and parse it.  Annoyingly enough, rather than just using Read
@@ -859,7 +858,6 @@ path handle = do
     case rqPaths rq of
         (p:xs) | Just a <- fromReqURI p
                             -> localRq (\newRq -> newRq{rqPaths = xs}) (handle a)
-               | otherwise -> mzero
         _ -> mzero
 
 -- | grabs the rest of the URL (dirs + query) and passes it to your handler
