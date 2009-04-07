@@ -71,8 +71,8 @@ doIndex' :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
          -> MimeMap
          -> String
          -> m Response
-doIndex' getFileFunc [] _mime _fp = forbidden $ toResponse "Directory index forbidden"
-doIndex' getFileFunc (index:rest) mime fp =
+doIndex' _getFileFunc []           _mime _fp = forbidden $ toResponse "Directory index forbidden"
+doIndex'  getFileFunc (index:rest)  mime  fp =
     do
     let path = fp++'/':index
     --print path
