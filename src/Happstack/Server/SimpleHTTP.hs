@@ -16,7 +16,7 @@
 --
 -- By default, the built-in HTTP server will be used. However, other back-ends
 -- like CGI\/FastCGI can used if so desired.
--- 
+--
 -- So the general nature of 'simpleHTTP' is no different than what you'd expect
 -- from a web application container.  First you figure out when function is
 -- going to process your request, process the request to generate a response,
@@ -39,12 +39,12 @@
 -- suitable for sending back to the server.  Most of the time though you don't
 -- even need to worry about that as ServerPartT hides almost all the machinery
 -- for building your response by exposing a few type classes.
--- 
+--
 -- 'ServerPartT' is a pretty rich monad.  You can interact with your request,
 -- your response, do IO, etc.  Here is a do block that validates basic
 -- authentication It takes a realm name as a string, a Map of username to
 -- password and a server part to run if authentication fails.
--- 
+--
 -- @basicAuth'@ acts like a guard, and only produces a response when
 -- authentication fails.  So put it before any ServerPartT you want to demand
 -- authentication for in any collection of ServerPartTs.
@@ -63,7 +63,7 @@
 --        authHeader <- getHeaderM \"authorization\"
 --        case authHeader of
 --            Nothing -> err
---            Just x  -> case parseHeader x of 
+--            Just x  -> case parseHeader x of
 --                (name, \':\':pass) | validLogin name pass -> mzero
 --                                   | otherwise -> err
 --                _                                       -> err
@@ -87,7 +87,7 @@
 --     when (take 2 line \/= \"ok\") $ (notfound () >> return \"refused\")
 --     return \"Hello World!\"
 -- @
--- 
+--
 -- This example will ask in the console \"return? \" if you type \"ok\" it will
 -- show \"Hello World!\" and if you type anything else it will return a 404.
 --
@@ -140,7 +140,7 @@ module Happstack.Server.SimpleHTTP
     , badGateway
     , internalServerError
     , badRequest
-    , unauthorized 
+    , unauthorized
     , forbidden
     , notFound
     , seeOther
@@ -316,35 +316,41 @@ withRequest = ServerPartT . ReaderT
 --          Left err -> return $ Just (Left "Catastrophic failure " ++ show e, Set $ Endo \r -> r{rsCode = 500})
 --          Right x -> return x
 -- @
--- 
+--
 -- With @unpackErrorT@ you can now call simpleHTTP.  Just wrap your @ServerPartT@ list.
 --
 -- @
 --   simpleHTTP nullConf $ mapServerPartT unpackErrorT (myPart \`catchError\` myHandler)
 -- @
--- 
+--
 -- Or alternatively:
 --
 -- @
 --   simpleHTTP' unpackErrorT nullConf (myPart \`catchError\` myHandler)
 -- @
--- 
+--
 -- Also see 'spUnwrapErrorT' for a more sophisticated version of this function
 --
-mapServerPartT :: (m (Maybe (Either Response a, FilterFun Response)) -> n (Maybe (Either Response b, FilterFun Response))) -> ServerPartT m a -> ServerPartT n b
+mapServerPartT :: ( m (Maybe (Either Response a, FilterFun Response)) ->
+                    n (Maybe (Either Response b, FilterFun Response))
+                  ) -> ServerPartT m a -> ServerPartT n b
 mapServerPartT f ma = withRequest $ \rq -> mapWebT f (runServerPartT ma rq)
 
 -- | A varient of mapServerPartT where the first argument, also takes a request.
 -- useful if you want to runServerPartT on a different ServerPartT inside your
 -- monad (see spUnwrapErrorT)
-mapServerPartT' :: (Request -> m (Maybe (Either Response a, FilterFun Response)) -> n (Maybe (Either Response b, FilterFun Response))) -> ServerPartT m a -> ServerPartT n b
+mapServerPartT' :: ( Request ->
+                     m (Maybe (Either Response a, FilterFun Response)) ->
+                     n (Maybe (Either Response b, FilterFun Response))
+                   ) -> ServerPartT m a -> ServerPartT n b
 mapServerPartT' f ma = withRequest $ \rq -> mapWebT (f rq) (runServerPartT ma rq)
+
 instance MonadTrans (ServerPartT) where
     lift m = withRequest (\_ -> lift m)
 
-instance (Monad m) => Monoid (ServerPartT m a)
- where mempty = mzero
-       mappend = mplus
+instance (Monad m) => Monoid (ServerPartT m a) where
+    mempty  = mzero
+    mappend = mplus
 
 instance (Monad m, Functor m) => Applicative (ServerPartT m) where
     pure = return
@@ -379,12 +385,13 @@ instance Monad m => WebMonad Response (ServerPartT m) where
 -- you can add a ReaderT to your monad stack without
 -- any trouble.
 class Monad m => ServerMonad m where
-    askRq :: m Request
-    localRq :: (Request->Request)->m a->m a
+    askRq   :: m Request
+    localRq :: (Request -> Request) -> m a -> m a
 
 instance (Monad m) => ServerMonad (ServerPartT m) where
     askRq = ServerPartT $ ask
     localRq f m = ServerPartT $ local f (unServerPartT m)
+
 -------------------------------
 -- HERE BEGINS WebT definitions
 
@@ -403,9 +410,11 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
 
 data SetAppend a = Set a | Append a
     deriving (Eq, Show)
+
 instance Monoid a => Monoid (SetAppend a) where
    mempty = Append mempty
-   Set x    `mappend` Append y = Set (x `mappend` y)
+
+   Set    x `mappend` Append y = Set    (x `mappend` y)
    Append x `mappend` Append y = Append (x `mappend` y)
    _        `mappend` Set y    = Set y
 
@@ -418,7 +427,7 @@ extract (Set    x) = x
 extract (Append x) = x
 
 instance Functor (SetAppend) where
-    fmap f (Set x) = Set $ f x
+    fmap f (Set    x) = Set    $ f x
     fmap f (Append x) = Append $ f x
 
 -- | @FilterFun@ is a lot more fun to type than @SetAppend (Dual (Endo a))@
@@ -465,11 +474,11 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 --  in 'mapServerPartT' and 'mapWebT'.
 --
 --  A fully unpacked WebT has a structure that looks like:
---  
+--
 --  @
 --    ununWebT $ WebT m a :: m (Maybe (Either Response a, FilterFun Response))
 --  @
---   
+--
 --  So, ignoring m, as it is just the containing Monad, the outermost layer is
 --  a Maybe.  This is 'Nothing' if 'mzero' was called or @Just (Either Response
 --  a, SetAppend (Endo Response))@ if 'mzero' wasn't called.  Inside the Maybe,
@@ -508,7 +517,7 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 --          Just (Right a, f) -> Just (Right a, f) -- a is our normal monadic value
 --                                                 -- f is still our filter function
 --  @
---  
+--
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
     deriving (MonadIO, Functor)
 
@@ -588,7 +597,9 @@ mkWebT :: m (Maybe
 mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
 
 -- | see 'mapServerPartT' for a discussion of this function
-mapWebT :: (m (Maybe (Either Response a, FilterFun Response)) -> n (Maybe (Either Response b, FilterFun Response))) -> WebT m a -> WebT n b
+mapWebT :: ( m (Maybe (Either Response a, FilterFun Response)) ->
+             n (Maybe (Either Response b, FilterFun Response))
+           ) -> WebT m a -> WebT n b
 mapWebT f ma = mkWebT $  f (ununWebT ma)
 
 
@@ -661,14 +672,15 @@ simpleHTTP = simpleHTTP' id
 -- | a combination of simpleHTTP and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
 -- of the first argument of this function.
 simpleHTTP' :: (Monad m, ToMessage b) =>
-   (m (Maybe (Either Response a, FilterFun Response))
-   -> IO (Maybe (Either Response b, FilterFun Response)))
-   -> Conf
-   -> ServerPartT m a
-   -> IO ()
-simpleHTTP' toIO conf hs = do
+               ( m  (Maybe (Either Response a, FilterFun Response)) ->
+                 IO (Maybe (Either Response b, FilterFun Response))
+               )
+            -> Conf
+            -> ServerPartT m a
+            -> IO ()
+simpleHTTP' toIO conf hs =
     Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
-    
+
 
 -- | Generate a result from a 'ServerPart' and a 'Request'. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
@@ -683,13 +695,11 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
-
-
-instance FromReqURI String where fromReqURI = Just
-instance FromReqURI Int where    fromReqURI = readM
-instance FromReqURI Integer where    fromReqURI = readM
-instance FromReqURI Float where  fromReqURI = readM
-instance FromReqURI Double where fromReqURI = readM
+instance FromReqURI String  where fromReqURI = Just
+instance FromReqURI Int     where fromReqURI = readM
+instance FromReqURI Integer where fromReqURI = readM
+instance FromReqURI Float   where fromReqURI = readM
+instance FromReqURI Double  where fromReqURI = readM
 
 type RqData a = ReaderT ([(String,Input)], [(String,Cookie)]) Maybe a
 
@@ -772,9 +782,9 @@ instance (Xml a)=>ToMessage a where
 
 
 class MatchMethod m where matchMethod :: m -> Method -> Bool
-instance MatchMethod Method where matchMethod m = (== m) 
+instance MatchMethod Method where matchMethod m = (== m)
 instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
-instance MatchMethod (Method -> Bool) where matchMethod f = f 
+instance MatchMethod (Method -> Bool) where matchMethod f = f
 instance MatchMethod () where matchMethod () _ = True
 
 -- | flatten turns your arbitrary @m a@ and converts it too
@@ -801,7 +811,7 @@ addHeaderM :: (FilterMonad Response m) => String -> String -> m ()
 addHeaderM a v = composeFilter $ \res-> addHeader a v res
 
 -- | sets a header into the response.  This will replace
--- an existing header of the same name.  Use addHeaderM, if you 
+-- an existing header of the same name.  Use addHeaderM, if you
 -- want to add more than one header of the same name.
 setHeaderM :: (FilterMonad Response m) => String -> String -> m ()
 setHeaderM a v = composeFilter $ \res -> setHeader a v res
@@ -950,7 +960,7 @@ proxyServe allowed = do
      | superdomain `elem` wildcards =True
      | otherwise = False
      where
-     domain = head (rqPaths rq) 
+     domain = head (rqPaths rq)
      superdomain = tail $ snd $ break (=='.') domain
      wildcards = (map (drop 2) $ filter ("*." `isPrefixOf`) allowed)
 
@@ -1007,9 +1017,9 @@ xslt cmd xslPath parts = do
 
 doXslt :: (MonadIO m) =>
           XSLTCmd -> XSLPath -> Response -> m Response
-doXslt cmd xslPath res = 
+doXslt cmd xslPath res =
     do new <- liftIO $ procLBSIO cmd xslPath $ rsBody res
-       return $ setHeader "Content-Type" "text/html" $ 
+       return $ setHeader "Content-Type" "text/html" $
               setHeader "Content-Length" (show $ L.length new) $
               res { rsBody = new }
 
@@ -1186,7 +1196,7 @@ lookPairs = asks fst >>= return . map (\(n,vbs)->(n,LU.toString $ inputValue vbs
 --
 --   You can wrap the complete second argument to 'simpleHTTP' in this function.
 --
-errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> ServerPartT (ErrorT e m) a -> ServerPartT m a 
+errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> ServerPartT (ErrorT e m) a -> ServerPartT m a
 errorHandlerSP handler sps = withRequest $ \req -> mkWebT $ do
 			eer <- runErrorT $ ununWebT $ runServerPartT sps req
 			case eer of
@@ -1208,11 +1218,11 @@ simpleErrorHandler err = ok $ toResponse $ ("An error occured: " ++ err)
 -- that monad into a ServerPartT m a.  Used with
 -- mapServerPartT\' to allow throwError and catchError inside your
 -- monad.  Eg.
--- 
+--
 -- @
 --   simpleHTTP conf $ mapServerPartT\' (spUnWrapErrorT failurePart)  $ myPart \`catchError\` errorPart
 -- @
--- 
+--
 -- Note that @failurePart@ will only be run if errorPart threw an error
 -- so it doesn\'t have to be very complex.
 spUnwrapErrorT:: Monad m =>
@@ -1274,9 +1284,9 @@ validateConf :: Conf
 validateConf = nullConf { validator = Just wdgHTMLValidator }
 
 -- |Actually perform the validation on a 'Response'
--- 
+--
 -- Run the validator specified in the 'Response'. If none is provide
--- use the supplied default instead. 
+-- use the supplied default instead.
 --
 -- Note: This function will run validation unconditionally. You
 -- probably want 'setValidator' or 'validateConf'.
@@ -1307,7 +1317,7 @@ noopValidator :: Response -> IO Response
 noopValidator = return
 
 -- |Validate the 'Response' using an external application.
--- 
+--
 -- If the external application returns 0, the original response is
 -- returned unmodified. If the external application returns non-zero, a 'Response'
 -- containing the error messages and original response body is
@@ -1319,7 +1329,7 @@ noopValidator = return
 --
 -- NOTE: This function requirse the use of -threaded to avoid blocking.
 -- However, you probably need that for Happstack anyway.
--- 
+--
 -- See also: 'wdgHTMLValidator'
 lazyProcValidator :: FilePath -- ^ name of executable
                -> [String] -- ^ arguements to pass to the executable
@@ -1340,14 +1350,14 @@ lazyProcValidator exec args wd env mimeTypePred response
            ec <- waitForProcess ph
            case ec of
              ExitSuccess     -> return response
-             (ExitFailure _) -> 
+             (ExitFailure _) ->
                  return $ toResponse (unlines ([ "ExitCode: " ++ show ec
                                                , "stdout:"
                                                , out
                                                , "stderr:"
                                                , err
                                                , "input:"
-                                               ] ++ 
+                                               ] ++
                                                showLines (rsBody response)))
     | otherwise = return response
     where
