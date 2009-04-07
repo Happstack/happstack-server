@@ -381,9 +381,13 @@ instance Monoid a => Monoid (SetAppend a) where
    Append x `mappend` Append y = Append (x `mappend` y)
    _        `mappend` Set y    = Set y
 
-value :: SetAppend t -> t
-value (Set x) = x
-value (Append x) = x
+-- | Extract the value from a SetAppend
+-- Note that a SetAppend is actually a CoPointed from:
+-- <http://hackage.haskell.org/packages/archive/category-extras/latest/doc/html/Control-Functor-Pointed.html>
+-- But lets not drag in that dependency. yet...
+extract :: SetAppend t -> t
+extract (Set    x) = x
+extract (Append x) = x
 
 instance Functor (SetAppend) where
     fmap f (Set x) = Set $ f x
@@ -424,9 +428,9 @@ class Monad m => FilterMonad a m | m->a where
     getFilter :: m b -> m (b,a->a)
 
 instance (Monad m) => FilterMonad a (FilterT a m) where
-    setFilter f = FilterT $ Writer.tell $ Set $ Dual $ Endo f
-    composeFilter f = FilterT $ Writer.tell $ Append $ Dual $ Endo f
-    getFilter m = FilterT $ Writer.listens (appEndo . getDual . value)  (unFilterT m) 
+    setFilter     f = FilterT $ tell $ Set    $ Dual $ Endo f
+    composeFilter f = FilterT $ tell $ Append $ Dual $ Endo f
+    getFilter     m = FilterT $ listens (appEndo . getDual . extract) (unFilterT m)
 
 -- | The basic response building object.
 --  It is worth discussing the unpacked structure of WebT a bit as it's exposed
@@ -539,7 +543,7 @@ instance (Monad m) => Monoid (WebT m a) where
 runWebT :: (ToMessage b, Monad m) => WebT m b -> m (Maybe Response)
 runWebT m = runMaybeT $ do
                 (r,ed) <- runWriterT $ unFilterT $ runErrorT $ unWebT $ m
-                let f = appEndo $ getDual $ value ed
+                let f = appEndo $ getDual $ extract ed
                 return $ either (f) (f . toResponse) r
 -- | for when you really need to unpack a WebT entirely (and not
 -- just unwrap the first layer with unWebT)
