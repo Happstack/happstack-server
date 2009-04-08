@@ -121,7 +121,7 @@ handlers =
 --    ,compressFilter
     ,deflateFilter
     ,return ()
-    ,fail $ "chose * as content encoding"
+    ,fail "chose * as content encoding"
     ]
 
 -- | unsupported:  a parser for the Accept-Encoding header
@@ -142,7 +142,7 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
         qual = do
             char ';' >> ws >> char 'q' >> ws >> char '=' >> ws
             q<-float
-            return $ q
+            return q
         int = many1 digit
         float = do
                 wholePart<-many1 digit
@@ -151,7 +151,7 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
             <|>
                 do
                 fractionalPart<-fraction
-                return $ fractionalPart
+                return fractionalPart
         fraction :: GenParser Char st String
         fraction = do
             char '.'

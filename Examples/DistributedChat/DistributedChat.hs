@@ -43,7 +43,7 @@ $(mkMethods ''ChatState [ 'listMessages, 'addMessage ])
 -- Wait for a new message to appear.
 getMessages last
     = do stream <- getEventStream
-         msgs <- query $ ListMessages
+         msgs <- query ListMessages
          case msgs of
            ((_,_,mid):_) | mid > last -> return (mid,msgs)
            _ -> do waitForAdd stream
@@ -73,7 +73,7 @@ main = bracket (startSystemStateMultimaster rootState) closeTxControl $ \ctl ->
                      [ do
                           mbUser <- getDataFn getUserFromCookie
                           user <- maybe mzero return mbUser
-                          msum $
+                          msum 
                             [ dir "send" $ do
                                   msg <- getDataFn (look "msg") >>= maybe mzero return
                                   update $ AddMessage (userNick user) msg

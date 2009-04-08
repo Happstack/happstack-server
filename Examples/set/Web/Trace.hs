@@ -22,7 +22,7 @@ transform :: (Monad m) => (WriterT (Endo [String]) m) (Maybe (Either Response St
 transform wt = do
     (res, t) <- runWriterT wt
     case res of
-        Just (Right r, f) -> return $ Just $ (Right $ context t r,f)
+        Just (Right r, f) -> return $ Just (Right $ context t r,f)
         _ -> return res
     where context t r = "Context:\n\n" ++ unlines (reverse $ appEndo t []) ++ "\n\n" ++ show r
 

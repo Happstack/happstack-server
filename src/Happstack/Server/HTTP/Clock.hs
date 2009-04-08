@@ -22,7 +22,7 @@ clock = unsafePerformIO $ do
   return ref
 
 updater :: IORef B.ByteString -> IO ()
-updater ref = do threadDelay (10^(6 :: Int) * 1) -- Every second
+updater ref = do threadDelay (10^(6 :: Int)) -- Every second
                  writeIORef ref =<< mkTime
                  updater ref
 

@@ -13,7 +13,7 @@ import Happstack.Server.SURI as SURI
 import Happstack.Util.Common
 
 queryInput :: SURI -> [(String, Input)]
-queryInput uri = formDecode (case SURI.query $ uri of
+queryInput uri = formDecode (case SURI.query uri of
                                '?':r -> r
                                xs    -> xs)
 
