@@ -439,6 +439,9 @@ instance Functor (SetAppend) where
 -- | @FilterFun@ is a lot more fun to type than @SetAppend (Dual (Endo a))@
 type FilterFun a = SetAppend (Dual (Endo a))
 
+unFilterFun :: FilterFun a -> (a -> a)
+unFilterFun = appEndo . getDual . extract
+
 newtype FilterT a m b = FilterT { unFilterT :: WriterT (FilterFun a) m b }
    deriving (Monad, MonadTrans, Functor, MonadIO)
 
@@ -467,12 +470,12 @@ class Monad m => FilterMonad a m | m->a where
     -- existing filter function.
     composeFilter :: (a->a) -> m ()
     -- | retrives the filter from the environment
-    getFilter :: m b -> m (b,a->a)
+    getFilter :: m b -> m (b, a->a)
 
 instance (Monad m) => FilterMonad a (FilterT a m) where
-    setFilter     f = FilterT $ tell $ Set    $ Dual $ Endo f
-    composeFilter f = FilterT $ tell $ Append $ Dual $ Endo f
-    getFilter     m = FilterT $ listens (appEndo . getDual . extract) (unFilterT m)
+    setFilter     = FilterT . tell                . Set    . Dual . Endo
+    composeFilter = FilterT . tell                . Append . Dual . Endo
+    getFilter     = FilterT . listens unFilterFun . unFilterT
 
 -- | The basic response building object.
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
