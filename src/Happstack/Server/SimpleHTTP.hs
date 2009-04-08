@@ -587,13 +587,13 @@ instance (Monad m) => Monoid (WebT m a) where
     mempty = mzero
     mappend = mplus
 
--- | takes your WebT, converts the monadic value to a Response,
--- applys your filter, and returns it wrapped in a Maybe.
-runWebT :: (ToMessage b, Monad m) => WebT m b -> m (Maybe Response)
-runWebT m = runMaybeT $ do
-                (r,ed) <- runWriterT $ unFilterT $ runErrorT $ unWebT $ m
-                let f = appEndo $ getDual $ extract ed
-                return $ either (f) (f . toResponse) r
+-- | takes your WebT, if it is 'mempty' it returns Nothing else it
+-- converts the value to a Response and applies your filter to it.
+runWebT :: forall m b. (Functor m, ToMessage b) => WebT m b -> m (Maybe Response)
+runWebT = (fmap . fmap) appFilterToResp . ununWebT
+    where
+      appFilterToResp :: (Either Response b, FilterFun Response) -> Response
+      appFilterToResp (e, ff) = unFilterFun ff $ either id toResponse e
 
 -- | for when you really need to unpack a WebT entirely (and not
 -- just unwrap the first layer with unWebT)
@@ -677,7 +677,7 @@ simpleHTTP = simpleHTTP' id
 
 -- | a combination of simpleHTTP and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
 -- of the first argument of this function.
-simpleHTTP' :: (Monad m, ToMessage b) => (UnWebT m a -> UnWebT IO b)
+simpleHTTP' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
             -> Conf -> ServerPartT m a -> IO ()
 simpleHTTP' toIO conf hs =
     Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
@@ -685,7 +685,7 @@ simpleHTTP' toIO conf hs =
 
 -- | Generate a result from a 'ServerPart' and a 'Request'. This is mainly used
 -- by CGI (and fast-cgi) wrappers.
-simpleHTTP'' :: (ToMessage b, Monad m) => ServerPartT m b -> Request -> m Response
+simpleHTTP'' :: (ToMessage b, Monad m, Functor m) => ServerPartT m b -> Request -> m Response
 simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe standardNotFound id))
     where
         standardNotFound = setHeader "Content-Type" "text/html" $ toResponse notFoundHtml
@@ -1112,7 +1112,7 @@ anyRequest :: Monad m => WebT m a -> ServerPartT m a
 anyRequest x = withRequest $ \_ -> x
 
 -- | again, why is this useful?
-applyRequest :: (ToMessage a, Monad m) =>
+applyRequest :: (ToMessage a, Monad m, Functor m) =>
                 ServerPartT m a -> Request -> Either (m Response) b
 applyRequest hs = simpleHTTP'' hs >>= return . Left
 
