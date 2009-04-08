@@ -565,9 +565,10 @@ noHandle = mzero
 instance (Monad m) => FilterMonad Response (WebT m) where
     setFilter f = WebT $ lift $ setFilter $ f
     composeFilter f = WebT . lift . composeFilter $ f
-    getFilter m = WebT $ ErrorT $ getFilter (runErrorT $ unWebT m) >>= liftWebT
-        where liftWebT (Left r, _) = return $ Left r
-              liftWebT (Right a, f) = return $ Right (a, f)
+    getFilter     m = WebT $ ErrorT $ fmap lft $ getFilter (runErrorT $ unWebT m)
+        where
+          lft (Left  r, _) = Left r
+          lft (Right a, f) = Right (a, f)
 
 instance (Monad m) => Monoid (WebT m a) where
     mempty = mzero
