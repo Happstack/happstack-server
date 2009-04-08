@@ -109,6 +109,7 @@ module Happstack.Server.SimpleHTTP
     , anyRequest
     -- * WebT
     , WebT(..)
+    , UnWebT
     , FilterFun
     , Web
     , mkWebT
@@ -307,9 +308,7 @@ withRequest = ServerPartT . ReaderT
 -- can provide the function:
 --
 -- @
---   unpackErrorT:: (Monad m, Show e) =>
---       -> (ErrorT e m) (Maybe ((Either Response a), FilterFun Response))
---       -> m (Maybe ((Either Response a), FilterFun Response))
+--   unpackErrorT:: (Monad m, Show e) => UnWebT (ErrorT e m) a -> UnWebT m a
 --   unpackErrorT handler et = do
 --      eitherV <- runErrorT et
 --      case eitherV of
@@ -331,18 +330,15 @@ withRequest = ServerPartT . ReaderT
 --
 -- Also see 'spUnwrapErrorT' for a more sophisticated version of this function
 --
-mapServerPartT :: ( m (Maybe (Either Response a, FilterFun Response)) ->
-                    n (Maybe (Either Response b, FilterFun Response))
-                  ) -> ServerPartT m a -> ServerPartT n b
+mapServerPartT :: (     UnWebT m a ->      UnWebT n b)
+               -> (ServerPartT m a -> ServerPartT n b)
 mapServerPartT f ma = withRequest $ \rq -> mapWebT f (runServerPartT ma rq)
 
 -- | A varient of mapServerPartT where the first argument, also takes a request.
 -- useful if you want to runServerPartT on a different ServerPartT inside your
 -- monad (see spUnwrapErrorT)
-mapServerPartT' :: ( Request ->
-                     m (Maybe (Either Response a, FilterFun Response)) ->
-                     n (Maybe (Either Response b, FilterFun Response))
-                   ) -> ServerPartT m a -> ServerPartT n b
+mapServerPartT' :: (Request -> UnWebT m a ->      UnWebT n b)
+                -> (      ServerPartT m a -> ServerPartT n b)
 mapServerPartT' f ma = withRequest $ \rq -> mapWebT (f rq) (runServerPartT ma rq)
 
 instance MonadTrans (ServerPartT) where
@@ -433,8 +429,7 @@ instance Functor (SetAppend) where
 -- | @FilterFun@ is a lot more fun to type than @SetAppend (Dual (Endo a))@
 type FilterFun a = SetAppend (Dual (Endo a))
 
-newtype FilterT a m b =
-   FilterT { unFilterT :: WriterT (FilterFun a) m b }
+newtype FilterT a m b = FilterT { unFilterT :: WriterT (FilterFun a) m b }
    deriving (Monad, MonadTrans, Functor, MonadIO)
 
 -- | A set of functions for manipulating filters.  A ServerPartT implements
@@ -470,6 +465,10 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
     getFilter     m = FilterT $ listens (appEndo . getDual . extract) (unFilterT m)
 
 -- | The basic response building object.
+newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
+    deriving (MonadIO, Functor)
+
+-- |
 --  It is worth discussing the unpacked structure of WebT a bit as it's exposed
 --  in 'mapServerPartT' and 'mapWebT'.
 --
@@ -518,8 +517,7 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 --                                                 -- f is still our filter function
 --  @
 --
-newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
-    deriving (MonadIO, Functor)
+type UnWebT m a = m (Maybe (Either Response a, FilterFun Response))
 
 instance Monad m => Monad (WebT m) where
     m >>= f = WebT $ unWebT m >>= unWebT . f
@@ -582,26 +580,20 @@ runWebT m = runMaybeT $ do
                 (r,ed) <- runWriterT $ unFilterT $ runErrorT $ unWebT $ m
                 let f = appEndo $ getDual $ extract ed
                 return $ either (f) (f . toResponse) r
+
 -- | for when you really need to unpack a WebT entirely (and not
 -- just unwrap the first layer with unWebT)
-ununWebT :: WebT m a
-    -> m (Maybe
-            (Either Response a,
-             FilterFun Response))
+ununWebT :: WebT m a -> UnWebT m a
 ununWebT = runMaybeT . runWriterT . unFilterT . runErrorT . unWebT
 
 -- | for wrapping a WebT back up.  @mkWebT . ununWebT = id@
-mkWebT :: m (Maybe
-       (Either Response a,
-        FilterFun Response)) -> WebT m a
+mkWebT :: UnWebT m a -> WebT m a
 mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
 
 -- | see 'mapServerPartT' for a discussion of this function
-mapWebT :: ( m (Maybe (Either Response a, FilterFun Response)) ->
-             n (Maybe (Either Response b, FilterFun Response))
-           ) -> WebT m a -> WebT n b
-mapWebT f ma = mkWebT $  f (ununWebT ma)
-
+mapWebT :: (UnWebT m a -> UnWebT n b)
+        -> (  WebT m a ->   WebT n b)
+mapWebT f ma = mkWebT $ f (ununWebT ma)
 
 instance (Monad m, Functor m) => Applicative (WebT m) where
     pure = return
@@ -671,13 +663,8 @@ simpleHTTP = simpleHTTP' id
 
 -- | a combination of simpleHTTP and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
 -- of the first argument of this function.
-simpleHTTP' :: (Monad m, ToMessage b) =>
-               ( m  (Maybe (Either Response a, FilterFun Response)) ->
-                 IO (Maybe (Either Response b, FilterFun Response))
-               )
-            -> Conf
-            -> ServerPartT m a
-            -> IO ()
+simpleHTTP' :: (Monad m, ToMessage b) => (UnWebT m a -> UnWebT IO b)
+            -> Conf -> ServerPartT m a -> IO ()
 simpleHTTP' toIO conf hs =
     Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
 
@@ -1225,11 +1212,10 @@ simpleErrorHandler err = ok $ toResponse $ ("An error occured: " ++ err)
 --
 -- Note that @failurePart@ will only be run if errorPart threw an error
 -- so it doesn\'t have to be very complex.
-spUnwrapErrorT:: Monad m =>
-        (e -> ServerPartT m a)
-        -> Request
-        -> ErrorT e m (Maybe (Either Response a, FilterFun Response))
-        -> m (Maybe (Either Response a, FilterFun Response))
+spUnwrapErrorT:: Monad m => (e -> ServerPartT m a)
+              -> Request
+              -> UnWebT (ErrorT e m) a
+              -> UnWebT m a
 spUnwrapErrorT handler rq = \x -> do
     err <- runErrorT x
     case err of
