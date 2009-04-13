@@ -254,6 +254,7 @@ import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
                                                  , MonadError, throwError, catchError
                                                  )
 import Control.Monad.Maybe                       (MaybeT(MaybeT), runMaybeT)
+import Data.Char                                 (ord)
 import Data.Maybe                                (fromMaybe)
 import Data.Monoid                               ( Monoid, mempty, mappend
                                                  , Dual(Dual), getDual
@@ -1374,21 +1375,37 @@ mkFailMessage s = do
     finishWith $ res
 
 failHtml:: String->String
-failHtml errString = "<html><head><title>Happstack "
-    ++ ver ++ " Internal Server Error</title>"
+failHtml errString = 
+   "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">"
+    ++ "<html><head><title>Happstack "
+    ++ ver ++ " Internal Server Error</title></head>"
     ++ "<body><h1>Happstack " ++ ver ++ "</h1>"
-    ++ "<p>Something went wrong here<br />"
-    ++ "Internal server error<br />"
+    ++ "<p>Something went wrong here<br>"
+    ++ "Internal server error<br>"
     ++ "Everything has stopped</p>"
-    ++ "<p>The error was \"" ++ errString ++ "\"</p></body></html>"
+    ++ "<p>The error was \"" ++ (escapeString errString) ++ "\"</p></body></html>"
     where ver = DV.showVersion Cabal.version
 
+escapeString :: String -> String
+escapeString str = concatMap encodeEntity str
+    where
+      encodeEntity :: Char -> String
+      encodeEntity '<' = "&lt;"
+      encodeEntity '>' = "&gt;"
+      encodeEntity '&' = "&amp;"
+      encodeEntity '"' = "&quot;"
+      encodeEntity c
+          | ord c > 127 = "&#" ++ show (ord c) ++ ";"
+          | otherwise = [c]
+
 notFoundHtml :: String
-notFoundHtml = "<html><head><title>Happstack "
-    ++ ver ++ " File not found</title>"
+notFoundHtml = 
+    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">"
+    ++ "<html><head><title>Happstack "
+    ++ ver ++ " File not found</title></head>"
     ++ "<body><h1>Happstack " ++ ver ++ "</h1>"
-    ++ "<p>Your file is not found<br />"
-    ++ "To try again is useless<br />"
+    ++ "<p>Your file is not found<br>"
+    ++ "To try again is useless<br>"
     ++ "It is just not here</p>"
     ++ "</body></html>"
     where ver = DV.showVersion Cabal.version
