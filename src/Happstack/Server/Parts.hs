@@ -8,6 +8,7 @@ module Happstack.Server.Parts(
 import Happstack.Server.SimpleHTTP
 import Text.ParserCombinators.Parsec
 import Control.Monad
+import Data.Char
 import Data.Maybe
 import Data.List
 import qualified Data.ByteString.Char8 as BS
@@ -133,9 +134,10 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
             ws
             char ','
             ws
+        
         encoding1 :: GenParser Char st ([Char], Maybe Double)
         encoding1 = do
-            encoding <- many1 letter <|> string "*"
+            encoding <- many1 alphaNum <|> string "*"
             ws
             quality<-optionMaybe qual
             return (encoding, fmap read quality)
