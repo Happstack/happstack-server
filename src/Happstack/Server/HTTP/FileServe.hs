@@ -86,14 +86,47 @@ defaultIxFiles :: [String]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
 
-fileServe :: (ServerMonad m, FilterMonad Response m, MonadIO m) => [FilePath] -> FilePath -> m Response
-fileServe ixFiles localpath  = 
-    fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes getFile
+-- | Serve a file (lazy version). For efficiency reasons when serving large
+-- files, will escape the computation early if a file is successfully served,
+-- to prevent filters from being applied; if a filter were applied, we would
+-- need to compute the content-length (thereby forcing the spine of the
+-- ByteString into memory) rather than reading it from the filesystem.
+--
+-- Note that using lazy fileServe can result in some filehandles staying open
+-- until the garbage collector gets around to closing them.
+fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+             [FilePath]         -- ^ index files if the path is a directory
+          -> FilePath           -- ^ file/directory to serve
+          -> m Response
+fileServe ixFiles localpath = do
+    resp <- fileServe' localpath
+                       (doIndex (ixFiles++defaultIxFiles))
+                       mimeTypes
+                       getFile
+
+    escape' $ resp { rsFlags = RsFlags {rsfContentLength=False} }
 
 
-fileServeStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) => [FilePath] -> FilePath -> m Response
-fileServeStrict ixFiles localpath =
-    fileServe' localpath (doIndex (ixFiles++defaultIxFiles)) mimeTypes getFileStrict
+
+-- | Serve a file (strict version). Reads the entire file strictly into
+-- memory, and ensures that the handle is properly closed. Unlike lazy
+-- fileServe, this function doesn't shortcut the computation early, and it
+-- allows for filtering (ex: gzip compression) to be applied
+fileServeStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
+                   [FilePath]   -- ^ index files if the path is a directory
+                -> FilePath     -- ^ file/directory to serve
+                -> m Response
+fileServeStrict ixFiles localpath = do
+    resp <- fileServe' localpath
+                       (doIndex (ixFiles++defaultIxFiles))
+                       mimeTypes
+                       getFileStrict
+
+    -- clear "Content-Length" because it could be modified by filters
+    -- downstream
+    let headers = rsHeaders resp
+    return $ resp {rsHeaders = Map.delete (P.pack "content-length") headers}
+
 
 
 -- | Serve files with a mime type map under a directory.
@@ -124,13 +157,13 @@ fileServe' localpath fdir mime getFileFunc = do
                | True = "NOT FOUND"
     liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
     if de then fdir mime fp else do
-    getFileFunc mime fp >>= flip either (renderResponse mime) 
+    getFileFunc mime fp >>= flip either (renderResponse mime)
         (const $ returnGroup localpath mime safepath)
 
 
 returnFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
               GetFileFunc -> Map.Map String String -> String -> m Response
-returnFile getFileFunc mime fp =  
+returnFile getFileFunc mime fp =
     getFileFunc mime fp >>=  either fileNotFound (renderResponse mime)
 
 
@@ -140,7 +173,7 @@ returnFile getFileFunc mime fp =
 tr :: (Eq a) => a -> a -> [a] -> [a]
 tr a b = map (\x->if x==a then b else x)
 ltrim :: String -> String
-ltrim = dropWhile (flip elem " \t\r")   
+ltrim = dropWhile (flip elem " \t\r")
 
 returnGroup :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
                String -> Map.Map String String -> [String] -> m Response
@@ -153,7 +186,7 @@ returnGroup localPath mime fp = do
   mbFiles <-  mapM (getFile mime) $ fps
   let notFounds = [x | Left x <- mbFiles]
       files = [x | Right x <- mbFiles]
-  if not $ null notFounds 
+  if not $ null notFounds
     then fileNotFound $ drop (length localPath) $ head notFounds else do
   let totSize = sum $ map (snd . fst) files
       maxTime = maximum $ map (fst . fst) files :: ClockTime
@@ -164,7 +197,7 @@ returnGroup localPath mime fp = do
 
 
 fileNotFound :: (Monad m, FilterMonad Response m) => String -> m Response
-fileNotFound fp = do setResponseCode 404 
+fileNotFound fp = do setResponseCode 404
                      return $ toResponse $ "File not found "++ fp
 --fakeLen = 71* 1024
 fakeFile :: (Integral a) =>
@@ -185,7 +218,7 @@ getFile mime fp = do
   let ct = Map.findWithDefault "text/plain" (getExt fp) mime
   fe <- liftIO $ doesFileExist fp
   if not fe then return $ Left fp else do
-  
+
   time <- liftIO $ getModificationTime fp
   h    <- liftIO $ openBinaryFile fp ReadMode
   size <- liftIO $ hFileSize h
@@ -220,19 +253,18 @@ renderResponse :: (Monad m,
 renderResponse _ ((modtime,size),(ct,body)) = do
   rq <- askRq
   let notmodified = getHeader "if-modified-since" rq == Just (P.pack $ repr)
-      repr = formatCalendarTime defaultTimeLocale 
+      repr = formatCalendarTime defaultTimeLocale
              "%a, %d %b %Y %X GMT" (toUTCTime modtime)
   -- "Mon, 07 Jan 2008 19:51:02 GMT"
   -- when (isJust $ getHeader "if-modified-since"  rq) $ error $ show $ getHeader "if-modified-since" rq
   if notmodified then do setResponseCode 304 ; return $ toResponse "" else do
-  --  modifyResponse (setHeader "HUH" $ show $ (fmap P.unpack mod == Just repr,mod,Just repr))
-  setHeaderM "Last-modified" repr
-  -- if %Z or UTC are in place of GMT below, wget complains that the last-modified header is invalid
-  setHeaderM "Content-Length" (show size)
-  setHeaderM "Content-Type" ct
-  return $ resultBS 200 body
 
-              
+  return $ ((setHeader "Last-modified" repr) .
+            (setHeader "Content-Length" (show size)) .
+            (setHeader "Content-Type" ct)) $
+           resultBS 200 body
+
+
 
 
 getExt :: String -> String

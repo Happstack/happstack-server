@@ -84,7 +84,18 @@ rloop conf h host handler inputStr
                          user = "-"
                          requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
                          responseCode = rsCode res
-                         size = toInteger $ L.length $ rsBody res
+                         sendContentLength = rsfContentLength (rsFlags res)
+
+                         -- don't force the bytestring if "sendContentLength"
+                         -- is false, at least not if a content-length header
+                         -- has been set
+                         size = if not sendContentLength then
+                                    maybe (toInteger $ L.length $ rsBody res)
+                                          ((read . P.unpack) :: P.ByteString -> Integer)
+                                          (getHeaderBS contentLengthC req)
+                                  else
+                                    toInteger $ L.length $ rsBody res
+
                          referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
                          userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                      logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
