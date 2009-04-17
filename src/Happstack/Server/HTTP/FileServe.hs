@@ -277,6 +277,7 @@ mimeTypes = Map.fromList
 	    ,("xsl","application/xml")
 	    ,("js","text/javascript")
 	    ,("html","text/html")
+	    ,("htm","text/html")
 	    ,("css","text/css")
 	    ,("gif","image/gif")
 	    ,("jpg","image/jpeg")
