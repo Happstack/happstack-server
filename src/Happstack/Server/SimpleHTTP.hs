@@ -692,8 +692,17 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
         standardNotFound = setHeader "Content-Type" "text/html" $ toResponse notFoundHtml
 
 
--- | a wrapper for Read apparently.  Pretty much only used for 'path' and probably
--- unnecessarily, as it is exactly "readM"
+-- | This class is used by 'path' to parse a path component into a value.
+-- At present, the instances for number types (Int, Float, etc) just
+-- call 'readM'. The instance for 'String' however, just passes the
+-- path component straight through. This is so that you can read a
+-- path component which looks like this as a String:
+--
+--  \/somestring\/
+--
+-- instead of requiring the path component to look like:
+--
+-- \/"somestring"\/
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
@@ -861,9 +870,7 @@ dir staticPath handle =
             (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
             _ -> mzero
 
--- | Pop a path element and parse it.  Annoyingly enough, rather than just using Read
--- (or providing a parser argument), this method uses 'FromReqURI' which is just a wrapper
--- for Read.
+-- | Pop a path element and parse it using the 'fromReqURI' in the 'FromReqURI' class.
 path :: (FromReqURI a, MonadPlus m, ServerMonad m) => (a -> m b) -> m b
 path handle = do
     rq <- askRq
