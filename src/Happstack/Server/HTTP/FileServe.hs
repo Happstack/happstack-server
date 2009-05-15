@@ -167,7 +167,6 @@ returnFile getFileFunc mime fp =
     getFileFunc mime fp >>=  either fileNotFound (renderResponse mime)
 
 
-
 -- if fp has , separated then return concatenation with content-type of last
 -- and last modified of latest
 tr :: (Eq a) => a -> a -> [a] -> [a]
@@ -197,8 +196,9 @@ returnGroup localPath mime fp = do
 
 
 fileNotFound :: (Monad m, FilterMonad Response m) => String -> m Response
-fileNotFound fp = do setResponseCode 404
-                     return $ toResponse $ "File not found "++ fp
+fileNotFound fp = return $ result 404 $ "File not found " ++ fp
+
+
 --fakeLen = 71* 1024
 fakeFile :: (Integral a) =>
             a -> ((ClockTime, Int64), (String, L.ByteString))
@@ -257,12 +257,13 @@ renderResponse _ ((modtime,size),(ct,body)) = do
              "%a, %d %b %Y %X GMT" (toUTCTime modtime)
   -- "Mon, 07 Jan 2008 19:51:02 GMT"
   -- when (isJust $ getHeader "if-modified-since"  rq) $ error $ show $ getHeader "if-modified-since" rq
-  if notmodified then do setResponseCode 304 ; return $ toResponse "" else do
-
-  return $ ((setHeader "Last-modified" repr) .
-            (setHeader "Content-Length" (show size)) .
-            (setHeader "Content-Type" ct)) $
-           resultBS 200 body
+  if notmodified then
+      return $ result 304 ""
+    else do
+      return $ ((setHeader "Last-modified" repr) .
+                (setHeader "Content-Length" (show size)) .
+                (setHeader "Content-Type" ct)) $
+               resultBS 200 body
 
 
 
