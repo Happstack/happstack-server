@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             0.3.1
+Version:             0.3.2
 Synopsis:            Web related tools and services.
 Description:         Web framework
 License:             BSD3
@@ -65,8 +65,8 @@ Library
                        extensible-exceptions,
                        HaXml >= 1.13 && < 1.14,
                        hslogger >= 1.0.2,
-                       happstack-data >= 0.3.1 && < 0.4,
-                       happstack-util >= 0.3.1 && < 0.4,
+                       happstack-data >= 0.3.2 && < 0.4,
+                       happstack-util >= 0.3.2 && < 0.4,
                        html,
                        MaybeT,
                        mtl,
