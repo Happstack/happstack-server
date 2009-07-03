@@ -263,7 +263,7 @@ import Data.Monoid                               ( Monoid, mempty, mappend
 
 import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
-import qualified Data.ByteString.Lazy.UTF8       as LU (toString)
+import qualified Data.ByteString.Lazy.UTF8       as LU (toString, fromString)
 
 import qualified Data.Generics                   as G
 import qualified Data.Map                        as M
@@ -753,8 +753,8 @@ class ToMessage a where
            res
 
 instance ToMessage [Element] where
-    toContentType _ = B.pack "application/xml"
-    toMessage [el] = L.pack $ H.simpleDoc H.NoStyle $ toHaXmlEl el -- !! OPTIMIZE
+    toContentType _ = B.pack "application/xml; charset=UTF-8"
+    toMessage [el] = LU.fromString $ H.simpleDoc H.NoStyle $ toHaXmlEl el -- !! OPTIMIZE
     toMessage x    = error ("Happstack.Server.SimpleHTTP 'instance ToMessage [Element]' Can't handle " ++ show x)
 
 
@@ -764,8 +764,8 @@ instance ToMessage () where
     toContentType _ = B.pack "text/plain"
     toMessage () = L.empty
 instance ToMessage String where
-    toContentType _ = B.pack "text/plain"
-    toMessage = L.pack
+    toContentType _ = B.pack "text/plain; charset=UTF-8"
+    toMessage = LU.fromString
 instance ToMessage Integer where
     toMessage = toMessage . show
 instance ToMessage a => ToMessage (Maybe a) where
@@ -775,12 +775,12 @@ instance ToMessage a => ToMessage (Maybe a) where
 
 
 instance ToMessage Html where
-    toContentType _ = B.pack "text/html"
-    toMessage = L.pack . renderHtml
+    toContentType _ = B.pack "text/html; charset=UTF-8"
+    toMessage = LU.fromString . renderHtml
 
 instance ToMessage XHtml.Html where
-    toContentType _ = B.pack "text/html"
-    toMessage = L.pack . XHtml.renderHtml
+    toContentType _ = B.pack "text/html; charset=UTF-8"
+    toMessage = LU.fromString . XHtml.renderHtml
 
 instance ToMessage Response where
     toResponse = id
