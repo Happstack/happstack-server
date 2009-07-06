@@ -95,7 +95,16 @@ data Response  = Response  { rsCode    :: Int,
                              rsFlags   :: RsFlags,
                              rsBody    :: L.ByteString,
                              rsValidator:: Maybe (Response -> IO Response)
-                           } deriving (Show,Typeable) 
+                           }
+               | SendFile  { rsCode    :: Int,
+                             rsHeaders :: Headers,
+                             rsFlags   :: RsFlags,
+                             sfPath    :: String,
+                             sfOffset  :: Integer,
+                             sfCount   :: Integer,
+                             rsValidator:: Maybe (Response -> IO Response)
+                           }
+               deriving (Show,Typeable) 
 
 data Request = Request { rqMethod  :: Method,
                          rqPaths   :: [String],

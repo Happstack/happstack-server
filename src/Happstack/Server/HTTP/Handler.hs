@@ -34,6 +34,7 @@ import Happstack.Util.TimeOut
 import Happstack.Util.LogFormat (formatRequestCombined)
 import Data.Time.Clock (getCurrentTime)
 import System.Log.Logger (Priority(..), logM)
+import SendFile (sendFile')
 
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request conf h host handler = rloop conf h host handler =<< L.hGetContents h
@@ -194,27 +195,35 @@ staticHeaders =
 
 putAugmentedResult :: Handle -> Request -> Response -> IO ()
 putAugmentedResult h req res = do
-  let ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
-  raw <- getApproximateTime
-  let cl = L.length $ rsBody res
-  let put = P.hPut h
-  -- TODO: Hoist static headers to the toplevel.
-  let stdHeaders = staticHeaders `M.union`
-                   M.fromList ( [ (dateCLower,       HeaderPair dateC [raw])
-                                , (connectionCLower, HeaderPair connectionC [if continueHTTP req res then keepAliveC else closeC])
-                                ] ++ if rsfContentLength (rsFlags res)
-                                     then [(contentlengthC, HeaderPair contentLengthC [P.pack (show cl)])]
-                                     else [] )
-      allHeaders = rsHeaders res `M.union` stdHeaders  -- 'union' prefers 'headers res' when duplicate keys are encountered.
+    let ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
+    allHeaders <- augmentHeaders req res
 
-  mapM_ put $ concat
-    [ (pversion $ rqVersion req)          -- Print HTTP version
-    , [responseMessage $ rsCode res]      -- Print responseCode
-    , concatMap ph (M.elems allHeaders)   -- Print all headers
-    , [crlfC]
-    ]
-  when (rqMethod req /= HEAD) $ L.hPut h $ rsBody res
-  hFlush h
+    mapM_ (P.hPut h) $ concat
+      [ (pversion $ rqVersion req)          -- Print HTTP version
+      , [responseMessage $ rsCode res]      -- Print responseCode
+      , concatMap ph (M.elems allHeaders)   -- Print all headers
+      , [crlfC]
+      ]
+    when (rqMethod req /= HEAD) $
+      case res of
+          Response {} -> L.hPut h $ rsBody res
+          SendFile {} -> sendFile' h (sfPath res) (fromIntegral $ sfOffset res) (fromIntegral $ sfCount res)
+    hFlush h
+
+augmentHeaders :: Request -> Response -> IO Headers
+augmentHeaders req res = do
+    -- TODO: Hoist static headers to the toplevel.
+    raw <- getApproximateTime
+    let cl = case res of
+                 Response {} -> L.length (rsBody res)
+                 SendFile {} -> fromIntegral (sfCount res)
+        stdHeaders = staticHeaders `M.union`
+          M.fromList ( [ (dateCLower,       HeaderPair dateC [raw])
+                       , (connectionCLower, HeaderPair connectionC [if continueHTTP req res then keepAliveC else closeC])
+                       ] ++ if rsfContentLength (rsFlags res)
+                              then [(contentlengthC, HeaderPair contentLengthC [P.pack (show cl)])]
+                              else [] )
+    return (rsHeaders res `M.union` stdHeaders) -- 'union' prefers 'headers res' when duplicate keys are encountered.
 
 -- | Serializes the request to the given handle
 putRequest :: Handle -> Request -> IO ()
