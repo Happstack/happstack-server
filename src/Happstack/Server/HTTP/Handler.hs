@@ -85,18 +85,7 @@ rloop conf h host handler inputStr
                          user = "-"
                          requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
                          responseCode = rsCode res
-                         sendContentLength = rsfContentLength (rsFlags res)
-
-                         -- don't force the bytestring if "sendContentLength"
-                         -- is false, at least not if a content-length header
-                         -- has been set
-                         size = if not sendContentLength then
-                                    maybe (toInteger $ L.length $ rsBody res)
-                                          ((read . P.unpack) :: P.ByteString -> Integer)
-                                          (getHeaderBS contentLengthC req)
-                                  else
-                                    toInteger $ L.length $ rsBody res
-
+                         size = maybe (-1) (read . B.unpack) (getHeader "Content-Length" res) -- -1 indicates unknown size
                          referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
                          userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                      logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
@@ -193,6 +182,8 @@ staticHeaders =
     foldr (uncurry setHeaderBS) (mkHeaders [])
     [ (serverC, happsC), (contentTypeC, textHtmlC) ]
 
+-- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
+-- headers should be set by application code and the core http engine should be very lean.
 putAugmentedResult :: Handle -> Request -> Response -> IO ()
 putAugmentedResult outp req res = do
     case res of
@@ -201,11 +192,12 @@ putAugmentedResult outp req res = do
             sendTop (fromIntegral (L.length (rsBody res)))
             when (rqMethod req /= HEAD) (L.hPut outp $ rsBody res)
         -- zero-copy sendfile response
-        -- we only need to open the handle once for getting the file and sending it
-        SendFile {} -> withBinaryFile (sfPath res) ReadMode $ \inp -> do
-            cl <- hFileSize inp
-            sendTop cl
-            sendFile' outp inp cl
+        -- the handle *should* be closed by the garbage collector
+        SendFile {} -> do
+            let count = sfCount res
+                inp = sfHandle res
+            sendTop count
+            sendFile' outp inp count
     hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl = do

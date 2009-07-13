@@ -7,6 +7,7 @@ module Happstack.Server.HTTP.FileServe
      doIndexStrict,
      errorwrapper,
      fileServe,
+     fileServeLazy,
      fileServeStrict,
      isDot,
      mimeTypes
@@ -19,6 +20,7 @@ import Control.Monad.Trans
 import Data.List
 import Data.Maybe
 import Data.Int
+import qualified Data.Map as M
 import Happstack.Server.SimpleHTTP hiding (path)
 import System.Directory
 import System.IO
@@ -94,19 +96,17 @@ defaultIxFiles= ["index.html","index.xml","index.gif"]
 --
 -- Note that using lazy fileServe can result in some filehandles staying open
 -- until the garbage collector gets around to closing them.
-fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
              [FilePath]         -- ^ index files if the path is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
-fileServe ixFiles localpath = do
+fileServeLazy ixFiles localpath = do
     resp <- fileServe' localpath
                        (doIndex (ixFiles++defaultIxFiles))
                        mimeTypes
                        getFile
 
     escape' $ resp { rsFlags = RsFlags {rsfContentLength=False} }
-
-
 
 -- | Serve a file (strict version). Reads the entire file strictly into
 -- memory, and ensures that the handle is properly closed. Unlike lazy
@@ -127,7 +127,34 @@ fileServeStrict ixFiles localpath = do
     let headers = rsHeaders resp
     return $ resp {rsHeaders = Map.delete (P.pack "content-length") headers}
 
-
+-- | Serve a file (sendfile version). Should perform much better than its' predecessors.
+fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+             [FilePath]         -- ^ index files if the path is a directory
+          -> FilePath           -- ^ file/directory to serve
+          -> m Response
+fileServe ixFiles localpath = do
+    let mime = mimeTypes
+        fdir = doIndex (ixFiles++defaultIxFiles)
+    rq <- askRq
+    let fp2 = takeWhile (/=',') fp
+        fp = filepath
+        safepath = filter (\x->not (null x) && head x /= '.') (rqPaths rq)
+        filepath = intercalate "/"  (localpath:safepath)
+        fp' = if null safepath then "" else last safepath
+    if "TESTH" `isPrefixOf` fp'
+        then renderResponse mime $ fakeFile $ (read $ drop 5 $ fp' :: Integer)
+        else do
+    fe <- liftIO $ doesFileExist fp
+    fe2 <- liftIO $ doesFileExist fp2
+    de <- liftIO $ doesDirectoryExist fp
+    let status | de   = "DIR"
+               | fe   = "file"
+               | fe2  = "group"
+               | True = "NOT FOUND"
+    liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
+    if de
+        then fdir mime fp
+        else renderResponse' mime fp
 
 -- | Serve files with a mime type map under a directory.
 --   Uses the function to transform URIs to FilePaths.
@@ -159,7 +186,6 @@ fileServe' localpath fdir mime getFileFunc = do
     if de then fdir mime fp else do
     getFileFunc mime fp >>= flip either (renderResponse mime)
         (const $ returnGroup localpath mime safepath)
-
 
 returnFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
               GetFileFunc -> Map.Map String String -> String -> m Response
@@ -265,8 +291,27 @@ renderResponse _ ((modtime,size),(ct,body)) = do
                 (setHeader "Content-Type" ct)) $
                resultBS 200 body
 
-
-
+-- version which uses sendfile
+renderResponse' :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m)
+                => Map.Map String String
+                -> FilePath
+                -> m Response
+renderResponse' mime fp = do
+    inp <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
+    modtime <- liftIO $ getModificationTime fp
+    rq <- askRq
+    let ct = (Map.findWithDefault "text/plain" (getExt fp) mime)
+        notmodified = getHeader "if-modified-since" rq == Just (P.pack $ repr)
+        repr = formatCalendarTime defaultTimeLocale "%a, %d %b %Y %X GMT" (toUTCTime modtime)
+    
+    if notmodified
+      then return $ result 304 ""
+      else do
+        count <- liftIO $  hFileSize inp
+        let res = (SendFile 200 M.empty nullRsFlags{rsfContentLength=False} inp count Nothing)
+        return $ ((setHeader "Last-modified" repr) .
+                  (setHeader "Content-Length" (show count)) .
+                  (setHeader "Content-Type" ct)) res
 
 getExt :: String -> String
 getExt = reverse . takeWhile (/='.') . reverse

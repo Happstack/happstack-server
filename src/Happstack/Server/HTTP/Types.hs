@@ -29,6 +29,7 @@ import Happstack.Server.HTTP.Multipart ( ContentType(..) )
 import Happstack.Server.Cookie
 import Data.List
 import Text.Show.Functions ()
+import System.IO (Handle)
 
 -- | HTTP version
 data Version = Version Int Int
@@ -94,13 +95,14 @@ data Response  = Response  { rsCode    :: Int,
                              rsHeaders :: Headers,
                              rsFlags   :: RsFlags,
                              rsBody    :: L.ByteString,
-                             rsValidator:: Maybe (Response -> IO Response)
+                             rsValidator :: Maybe (Response -> IO Response)
                            }
                | SendFile  { rsCode    :: Int,
                              rsHeaders :: Headers,
                              rsFlags   :: RsFlags,
-                             sfPath    :: String,
-                             rsValidator:: Maybe (Response -> IO Response)
+                             sfHandle  :: Handle,  -- file handle to send from
+                             sfCount   :: Integer, -- number of bytes to send
+                             rsValidator :: Maybe (Response -> IO Response)
                            }
                deriving (Show,Typeable) 
 
@@ -115,7 +117,6 @@ data Request = Request { rqMethod  :: Method,
                          rqBody    :: RqBody,
                          rqPeer    :: Host
                        } deriving(Show,Read,Typeable)
-
 
 -- | Converts a Request into a String representing the corresponding URL
 rqURL :: Request -> String
