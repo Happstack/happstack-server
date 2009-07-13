@@ -100,8 +100,6 @@ data Response  = Response  { rsCode    :: Int,
                              rsHeaders :: Headers,
                              rsFlags   :: RsFlags,
                              sfPath    :: String,
-                             sfOffset  :: Integer,
-                             sfCount   :: Integer,
                              rsValidator:: Maybe (Response -> IO Response)
                            }
                deriving (Show,Typeable) 

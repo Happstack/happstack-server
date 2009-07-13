@@ -195,31 +195,33 @@ staticHeaders =
 
 putAugmentedResult :: Handle -> Request -> Response -> IO ()
 putAugmentedResult outp req res = do
-    let ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
-    allHeaders <- augmentHeaders req res
-
-    mapM_ (P.hPut outp) $ concat
-      [ (pversion $ rqVersion req)          -- Print HTTP version
-      , [responseMessage $ rsCode res]      -- Print responseCode
-      , concatMap ph (M.elems allHeaders)   -- Print all headers
-      , [crlfC]
-      ]
-    when (rqMethod req /= HEAD) $
-      case res of
-          Response {} -> L.hPut outp $ rsBody res
-          SendFile {} ->
-              withBinaryFile (sfPath res) ReadMode $ \inp ->
-              sendFile' outp inp =<< hFileSize inp
+    case res of
+        -- standard bytestring response
+        Response {} -> do
+            sendTop (fromIntegral (L.length (rsBody res)))
+            when (rqMethod req /= HEAD) (L.hPut outp $ rsBody res)
+        -- zero-copy sendfile response
+        -- we only need to open the handle once for getting the file and sending it
+        SendFile {} -> withBinaryFile (sfPath res) ReadMode $ \inp -> do
+            cl <- hFileSize inp
+            sendTop cl
+            sendFile' outp inp cl
     hFlush outp
+    where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
+          sendTop cl = do
+              allHeaders <- augmentHeaders req res cl
+              mapM_ (P.hPut outp) $ concat
+                [ (pversion $ rqVersion req)          -- Print HTTP version
+                , [responseMessage $ rsCode res]      -- Print responseCode
+                , concatMap ph (M.elems allHeaders)   -- Print all headers
+                , [crlfC]
+                ]
 
-augmentHeaders :: Request -> Response -> IO Headers
-augmentHeaders req res = do
+augmentHeaders :: Request -> Response -> Integer -> IO Headers
+augmentHeaders req res cl = do
     -- TODO: Hoist static headers to the toplevel.
     raw <- getApproximateTime
-    let cl = case res of
-                 Response {} -> L.length (rsBody res)
-                 SendFile {} -> fromIntegral (sfCount res)
-        stdHeaders = staticHeaders `M.union`
+    let stdHeaders = staticHeaders `M.union`
           M.fromList ( [ (dateCLower,       HeaderPair dateC [raw])
                        , (connectionCLower, HeaderPair connectionC [if continueHTTP req res then keepAliveC else closeC])
                        ] ++ if rsfContentLength (rsFlags res)
