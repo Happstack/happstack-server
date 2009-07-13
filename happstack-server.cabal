@@ -75,7 +75,7 @@ Library
                        old-time,
                        parsec < 3,
                        process,
-                       sendfile >= 0.2 && < 1,
+                       sendfile >= 0.3.1 && < 0.4,
                        template-haskell,
                        time,
                        utf8-string >= 0.3.4 && < 0.4,

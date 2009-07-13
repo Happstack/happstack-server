@@ -33,8 +33,8 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Util.TimeOut
 import Happstack.Util.LogFormat (formatRequestCombined)
 import Data.Time.Clock (getCurrentTime)
+import Network.Socket.SendFile (sendFile')
 import System.Log.Logger (Priority(..), logM)
-import SendFile (sendFile')
 
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request conf h host handler = rloop conf h host handler =<< L.hGetContents h
@@ -194,11 +194,11 @@ staticHeaders =
     [ (serverC, happsC), (contentTypeC, textHtmlC) ]
 
 putAugmentedResult :: Handle -> Request -> Response -> IO ()
-putAugmentedResult h req res = do
+putAugmentedResult outp req res = do
     let ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
     allHeaders <- augmentHeaders req res
 
-    mapM_ (P.hPut h) $ concat
+    mapM_ (P.hPut outp) $ concat
       [ (pversion $ rqVersion req)          -- Print HTTP version
       , [responseMessage $ rsCode res]      -- Print responseCode
       , concatMap ph (M.elems allHeaders)   -- Print all headers
@@ -206,9 +206,11 @@ putAugmentedResult h req res = do
       ]
     when (rqMethod req /= HEAD) $
       case res of
-          Response {} -> L.hPut h $ rsBody res
-          SendFile {} -> sendFile' h (sfPath res) (fromIntegral $ sfOffset res) (fromIntegral $ sfCount res)
-    hFlush h
+          Response {} -> L.hPut outp $ rsBody res
+          SendFile {} ->
+              withBinaryFile (sfPath res) ReadMode $ \inp ->
+              sendFile' outp inp =<< hFileSize inp
+    hFlush outp
 
 augmentHeaders :: Request -> Response -> IO Headers
 augmentHeaders req res = do
