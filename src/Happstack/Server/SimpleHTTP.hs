@@ -166,6 +166,8 @@ module Happstack.Server.SimpleHTTP
      -- * guards and building blocks
     , guardRq
     , dir
+    , host
+    , withHost
     , method
     , methodSP
     , methodM
@@ -869,6 +871,23 @@ dir staticPath handle =
         case rqPaths rq of
             (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
             _ -> mzero
+
+-- |Gaurd against the host
+host :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
+host desiredHost handle =
+    do rq <- askRq
+       case getHeader "host" rq of
+         (Just hostBS) | desiredHost == B.unpack hostBS -> handle
+         _ -> mzero
+
+-- |lookup the host header and pass it to the handler
+withHost :: (ServerMonad m, MonadPlus m) => (String -> m a) -> m a
+withHost handle =
+    do rq <- askRq
+       case getHeader "host" rq of
+         (Just hostBS) -> handle (B.unpack hostBS)
+         _ -> mzero
+
 
 -- | Pop a path element and parse it using the 'fromReqURI' in the 'FromReqURI' class.
 path :: (FromReqURI a, MonadPlus m, ServerMonad m) => (a -> m b) -> m b
