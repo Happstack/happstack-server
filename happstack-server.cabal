@@ -43,7 +43,6 @@ Library
     Exposed-modules:   
                        Happstack.Server.Tests
   Other-modules:       
-                       Happstack.Server.S3
                        Happstack.Server.HTTPClient.HTTP
                        Happstack.Server.HTTPClient.Stream
                        Happstack.Server.HTTPClient.TCP
