@@ -308,7 +308,7 @@ renderResponse' mime fp = do
       then return $ result 304 ""
       else do
         count <- liftIO $  hFileSize inp
-        let res = (SendFile 200 M.empty nullRsFlags{rsfContentLength=False} inp count Nothing)
+        let res = (SendFile 200 M.empty nullRsFlags{rsfContentLength=False} Nothing inp 0 count)
         return $ ((setHeader "Last-modified" repr) .
                   (setHeader "Content-Length" (show count)) .
                   (setHeader "Content-Type" ct)) res

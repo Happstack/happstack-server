@@ -91,18 +91,19 @@ data Input = Input
 
 type Host = (String,Int)
 
-data Response  = Response  { rsCode    :: Int,
-                             rsHeaders :: Headers,
-                             rsFlags   :: RsFlags,
-                             rsBody    :: L.ByteString,
+data Response  = Response  { rsCode      :: Int,
+                             rsHeaders   :: Headers,
+                             rsFlags     :: RsFlags,
+                             rsBody      :: L.ByteString,
                              rsValidator :: Maybe (Response -> IO Response)
                            }
-               | SendFile  { rsCode    :: Int,
-                             rsHeaders :: Headers,
-                             rsFlags   :: RsFlags,
-                             sfHandle  :: Handle,  -- file handle to send from
-                             sfCount   :: Integer, -- number of bytes to send
-                             rsValidator :: Maybe (Response -> IO Response)
+               | SendFile  { rsCode      :: Int,
+                             rsHeaders   :: Headers,
+                             rsFlags     :: RsFlags,
+                             rsValidator :: Maybe (Response -> IO Response),
+                             sfHandle    :: Handle,  -- file handle to send from
+                             sfOffset    :: Integer, -- offset to start at
+                             sfCount     :: Integer  -- number of bytes to send
                            }
                deriving (Show,Typeable) 
 

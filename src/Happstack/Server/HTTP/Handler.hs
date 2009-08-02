@@ -33,7 +33,7 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Util.TimeOut
 import Happstack.Util.LogFormat (formatRequestCombined)
 import Data.Time.Clock (getCurrentTime)
-import Network.Socket.SendFile (sendFile')
+import Network.Socket.SendFile (unsafeSendFile')
 import System.Log.Logger (Priority(..), logM)
 
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
@@ -194,10 +194,11 @@ putAugmentedResult outp req res = do
         -- zero-copy sendfile response
         -- the handle *should* be closed by the garbage collector
         SendFile {} -> do
-            let count = sfCount res
-                inp = sfHandle res
+            let inp = sfHandle res
+                off = sfOffset res
+                count = sfCount res
             sendTop count
-            sendFile' outp inp count
+            unsafeSendFile' outp inp off count
     hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl = do
