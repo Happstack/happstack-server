@@ -162,6 +162,7 @@ module Happstack.Server.SimpleHTTP
     , addCookies
     , addHeaderM
     , setHeaderM
+    , ifModifiedSince
 
      -- * guards and building blocks
     , guardRq
@@ -282,7 +283,9 @@ import System.Console.GetOpt                     ( OptDescr(Option)
                                                  , ArgOrder(Permute)
                                                  , getOpt
                                                  )
+import System.Locale                             (defaultTimeLocale)
 import System.Process                            (runInteractiveProcess, waitForProcess)
+import System.Time                               (CalendarTime, formatCalendarTime, toUTCTime)
 import System.Exit                               (ExitCode(ExitSuccess, ExitFailure))
 
 -- | An alias for WebT when using IO
@@ -1068,6 +1071,21 @@ addCookie sec = (addHeaderM "Set-Cookie") . mkCookieHeader sec
 -- | adds the list of cookie timeout pairs to the response
 addCookies :: (FilterMonad Response m) => [(Seconds, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
+
+-- |honor if-modified-since header in Request
+-- If the 'Request' includes the if-modified-since header and the
+-- Response has not been modified, then return 304 (Not Modified),
+-- otherwise return the 'Response'.
+ifModifiedSince :: CalendarTime -- ^ mod-time for the Response (MUST NOT be later than server's time of message origination)
+                -> Request -- ^ incoming request (used to check for if-modified-since)
+                -> Response -- ^ Response to send if there are modifications
+                -> Response
+ifModifiedSince modTime request response =
+    let repr = formatCalendarTime defaultTimeLocale "%a, %d %b %Y %X GMT" modTime
+        notmodified = getHeader "if-modified-since" request == Just (B.pack $ repr)
+    in if notmodified
+          then result 304 "" -- Not Modified
+          else setHeader "Last-modified" repr response
 
 -- | same as setResponseCode status >> return val
 resp :: (FilterMonad Response m) => Int -> b -> m b
