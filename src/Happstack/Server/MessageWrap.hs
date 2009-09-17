@@ -18,7 +18,7 @@ queryInput uri = formDecode (case SURI.query uri of
                                xs    -> xs)
 
 bodyInput :: Request -> [(String, Input)]
-bodyInput req | rqMethod req /= POST = []
+bodyInput req | (rqMethod req /= POST) && (rqMethod req /= PUT) = []
 bodyInput req =
     let ctype = getHeader "content-type" req >>= parseContentType . P.unpack
         getBS (Body bs) = bs
