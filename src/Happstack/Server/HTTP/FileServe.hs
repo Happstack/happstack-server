@@ -1,36 +1,54 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types #-}
+-- |File Serving functions
 module Happstack.Server.HTTP.FileServe
     (
+     -- * Content-Type \/ Mime-Type
      MimeMap,
-     blockDotFiles,
-     doIndex,
-     doIndexStrict,
-     errorwrapper,
+     mimeTypes,
+     asContentType,
+     guessContentType,
+     guessContentTypeM,
+     -- * Low-Level
+     sendFileResponse,     
+     lazyByteStringResponse,
+     strictByteStringResponse,
+     filePathSendFile,
+     filePathLazy,
+     filePathStrict,
+     -- * High-Level
+     -- ** Serving a single file
+     serveFile,
+     serveFileUsing,
+     -- ** Serving files from a directory
+     fileServe',
      fileServe,
      fileServeLazy,
      fileServeStrict,
-     isDot,
-     mimeTypes
+     -- * Other
+     blockDotFiles,
+     defaultIxFiles,
+     doIndex,
+     doIndex',
+     doIndexLazy,
+     doIndexStrict,
+     errorwrapper,
+     isDot
     ) where
 
-import Control.Exception.Extensible
-
-import Control.Monad.Reader
-import Control.Monad.Trans
-import Data.List
-import Data.Maybe
-import Data.Int
-import qualified Data.Map as M
-import Happstack.Server.SimpleHTTP hiding (path)
-import System.Directory
-import System.IO
-import System.Locale(defaultTimeLocale)
-import System.Log.Logger
-import System.Time -- (formatCalendarTime, toUTCTime,TOD(..))
-import qualified Data.ByteString.Char8 as P
+import Control.Exception.Extensible (IOException, SomeException, Exception(fromException), bracket, handleJust)
+import Control.Monad (MonadPlus)
+import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Char8 as S
+import Data.Maybe (fromMaybe)
+import           Data.Map (Map)
 import qualified Data.Map as Map
-import qualified Happstack.Server.SimpleHTTP as SH
+import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, getHeader, nullRsFlags, result, require, rsfContentLength, ifModifiedSince )
+import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
+import System.IO (Handle, IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
+import System.FilePath ((</>), joinPath, takeExtension)
+import System.Log.Logger (Priority(DEBUG), logM)
+import System.Time (CalendarTime, toUTCTime)
 
 ioErrors :: SomeException -> Maybe IOException
 ioErrors = fromException
@@ -47,274 +65,9 @@ errorwrapper binarylocation loglocation
                      then fmap Just $ readFile loglocation
                      else return Nothing
 
+-- * Mime-Type / Content-Type
 
-type MimeMap = Map.Map String String
-
-type GetFileFunc = (MonadIO m) =>
-    Map.Map String String
-    -> String
-    -> m (Either String ((ClockTime, Integer), (String, L.ByteString)))
-
-
-
-doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-           [String] -> MimeMap -> String -> m Response
-doIndex = doIndex' getFile
-
--- | A variant of 'doIndex' that relies on 'getFileStrict'
-doIndexStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-                 [String] -> MimeMap -> String -> m Response
-doIndexStrict = doIndex' getFileStrict
-
-
-doIndex' :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-            GetFileFunc
-         -> [String]
-         -> MimeMap
-         -> String
-         -> m Response
-doIndex' _getFileFunc []           _mime _fp = forbidden $ toResponse "Directory index forbidden"
-doIndex'  getFileFunc (index:rest)  mime  fp =
-    do
-    let path = fp++'/':index
-    --print path
-    fe <- liftIO $ doesFileExist path
-    if fe then retFile path else doIndex rest mime fp
-    where retFile = returnFile getFileFunc mime
-
-
-
-defaultIxFiles :: [String]
-defaultIxFiles= ["index.html","index.xml","index.gif"]
-
-
--- | Serve a file (lazy version). For efficiency reasons when serving large
--- files, will escape the computation early if a file is successfully served,
--- to prevent filters from being applied; if a filter were applied, we would
--- need to compute the content-length (thereby forcing the spine of the
--- ByteString into memory) rather than reading it from the filesystem.
---
--- Note that using lazy fileServe can result in some filehandles staying open
--- until the garbage collector gets around to closing them.
-fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
-             [FilePath]         -- ^ index files if the path is a directory
-          -> FilePath           -- ^ file/directory to serve
-          -> m Response
-fileServeLazy ixFiles localpath = do
-    resp <- fileServe' localpath
-                       (doIndex (ixFiles++defaultIxFiles))
-                       mimeTypes
-                       getFile
-
-    escape' $ resp { rsFlags = RsFlags {rsfContentLength=False} }
-
--- | Serve a file (strict version). Reads the entire file strictly into
--- memory, and ensures that the handle is properly closed. Unlike lazy
--- fileServe, this function doesn't shortcut the computation early, and it
--- allows for filtering (ex: gzip compression) to be applied
-fileServeStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-                   [FilePath]   -- ^ index files if the path is a directory
-                -> FilePath     -- ^ file/directory to serve
-                -> m Response
-fileServeStrict ixFiles localpath = do
-    resp <- fileServe' localpath
-                       (doIndex (ixFiles++defaultIxFiles))
-                       mimeTypes
-                       getFileStrict
-
-    -- clear "Content-Length" because it could be modified by filters
-    -- downstream
-    let headers = rsHeaders resp
-    return $ resp {rsHeaders = Map.delete (P.pack "content-length") headers}
-
--- | Serve a file (sendfile version). Should perform much better than its' predecessors.
-fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
-             [FilePath]         -- ^ index files if the path is a directory
-          -> FilePath           -- ^ file/directory to serve
-          -> m Response
-fileServe ixFiles localpath = do
-    let mime = mimeTypes
-        fdir = doIndex (ixFiles++defaultIxFiles)
-    rq <- askRq
-    let fp2 = takeWhile (/=',') fp
-        fp = filepath
-        safepath = filter (\x->not (null x) && head x /= '.') (rqPaths rq)
-        filepath = intercalate "/"  (localpath:safepath)
-        fp' = if null safepath then "" else last safepath
-    if "TESTH" `isPrefixOf` fp'
-        then renderResponse mime $ fakeFile $ (read $ drop 5 $ fp' :: Integer)
-        else do
-    fe <- liftIO $ doesFileExist fp
-    fe2 <- liftIO $ doesFileExist fp2
-    de <- liftIO $ doesDirectoryExist fp
-    let status | de   = "DIR"
-               | fe   = "file"
-               | fe2  = "group"
-               | True = "NOT FOUND"
-    liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
-    if de
-        then fdir mime fp
-        else renderResponse' mime fp
-
--- | Serve files with a mime type map under a directory.
---   Uses the function to transform URIs to FilePaths.
-fileServe' :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-              String
-              -> (Map.Map String String -> String -> m Response)
-              -> Map.Map String String
-              -> GetFileFunc
-              -> m Response
-fileServe' localpath fdir mime getFileFunc = do
-    rq <- askRq
-    let fp2 = takeWhile (/=',') fp
-        fp = filepath
-        safepath = filter (\x->not (null x) && head x /= '.') (rqPaths rq)
-        filepath = intercalate "/"  (localpath:safepath)
-        fp' = if null safepath then "" else last safepath
-    if "TESTH" `isPrefixOf` fp'
-        then renderResponse mime $ fakeFile $ (read $ drop 5 $ fp' :: Integer)
-        else do
-    fe <- liftIO $ doesFileExist fp
-    fe2 <- liftIO $ doesFileExist fp2
-    de <- liftIO $ doesDirectoryExist fp
-    -- error $ "show ilepath: " ++show (fp,de)
-    let status | de   = "DIR"
-               | fe   = "file"
-               | fe2  = "group"
-               | True = "NOT FOUND"
-    liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
-    if de then fdir mime fp else do
-    getFileFunc mime fp >>= flip either (renderResponse mime)
-        (const $ returnGroup localpath mime safepath)
-
-returnFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-              GetFileFunc -> Map.Map String String -> String -> m Response
-returnFile getFileFunc mime fp =
-    getFileFunc mime fp >>=  either fileNotFound (renderResponse mime)
-
-
--- if fp has , separated then return concatenation with content-type of last
--- and last modified of latest
-tr :: (Eq a) => a -> a -> [a] -> [a]
-tr a b = map (\x->if x==a then b else x)
-ltrim :: String -> String
-ltrim = dropWhile (flip elem " \t\r")
-
-returnGroup :: (ServerMonad m, FilterMonad Response m, MonadIO m) =>
-               String -> Map.Map String String -> [String] -> m Response
-returnGroup localPath mime fp = do
-  let fps0 = map ((:[]). ltrim) $ lines $ tr ',' '\n' $ last fp
-      fps = map (intercalate "/" . ((localPath:init fp) ++)) fps0
-
-  -- if (head $ head fps0)=="TEST" then   renderResponse mime rq fakeFile else do
-
-  mbFiles <-  mapM (getFile mime) $ fps
-  let notFounds = [x | Left x <- mbFiles]
-      files = [x | Right x <- mbFiles]
-  if not $ null notFounds
-    then fileNotFound $ drop (length localPath) $ head notFounds else do
-  let totSize = sum $ map (snd . fst) files
-      maxTime = maximum $ map (fst . fst) files :: ClockTime
-
-  renderResponse mime ((maxTime,totSize),(fst $ snd $ head files,
-                                             L.concat $ map (snd . snd) files))
-
-
-
-fileNotFound :: (Monad m, FilterMonad Response m) => String -> m Response
-fileNotFound fp = return $ result 404 $ "File not found " ++ fp
-
-
---fakeLen = 71* 1024
-fakeFile :: (Integral a) =>
-            a -> ((ClockTime, Int64), (String, L.ByteString))
-fakeFile fakeLen = ((TOD 0 0,L.length body),("text/javascript",body))
-    where
-      body = L.pack $ (("//"++(show len)++" ") ++ ) $ (replicate len '0') ++ "\n"
-      len = fromIntegral fakeLen
-
--- | @getFile mimeMap path@ will lazily read the file as a ByteString
--- with a content type provided by matching the file extension with the
--- @mimeMap@.  getFile will return an error string or ((timeFetched,size), (contentType,fileContents))
-getFile :: (MonadIO m) =>
-           Map.Map String String
-           -> String
-           -> m (Either String ((ClockTime, Integer), (String, L.ByteString)))
-getFile mime fp = do
-  let ct = Map.findWithDefault "text/plain" (getExt fp) mime
-  fe <- liftIO $ doesFileExist fp
-  if not fe then return $ Left fp else do
-
-  time <- liftIO $ getModificationTime fp
-  h    <- liftIO $ openBinaryFile fp ReadMode
-  size <- liftIO $ hFileSize h
-  lbs  <- liftIO $ L.hGetContents h
-  return $ Right ((time,size),(ct,lbs))
-
--- | As 'getFile' but strictly fetches the file, instead of lazily.
-getFileStrict :: (MonadIO m) =>
-                 Map.Map String String
-              -> String
-              -> m (Either String ((ClockTime, Integer), (String, L.ByteString)))
-getFileStrict mime fp = do
-  let ct = Map.findWithDefault "text/plain" (getExt fp) mime
-  fe     <- liftIO $ doesFileExist fp
-
-  if not fe then return $ Left fp else do
-
-  time     <- liftIO $ getModificationTime fp
-  s        <- liftIO $ P.readFile fp
-  let lbs  = L.fromChunks [s]
-  let size = toInteger . P.length $ s
-  return $ Right ((time,size),(ct,lbs))
-
-
-renderResponse :: (Monad m,
-                   ServerMonad m,
-                   FilterMonad Response m,
-                   Show t1) =>
-                  t
-                  -> ((ClockTime, t1), (String, L.ByteString))
-                  -> m Response
-renderResponse _ ((modtime,size),(ct,body)) = do
-  rq <- askRq
-  let notmodified = getHeader "if-modified-since" rq == Just (P.pack $ repr)
-      repr = formatCalendarTime defaultTimeLocale
-             "%a, %d %b %Y %X GMT" (toUTCTime modtime)
-  -- "Mon, 07 Jan 2008 19:51:02 GMT"
-  -- when (isJust $ getHeader "if-modified-since"  rq) $ error $ show $ getHeader "if-modified-since" rq
-  if notmodified then
-      return $ result 304 ""
-    else do
-      return $ ((setHeader "Last-modified" repr) .
-                (setHeader "Content-Length" (show size)) .
-                (setHeader "Content-Type" ct)) $
-               resultBS 200 body
-
--- version which uses sendfile
-renderResponse' :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m)
-                => Map.Map String String
-                -> FilePath
-                -> m Response
-renderResponse' mime fp = do
-    inp <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
-    modtime <- liftIO $ getModificationTime fp
-    rq <- askRq
-    let ct = (Map.findWithDefault "text/plain" (getExt fp) mime)
-        notmodified = getHeader "if-modified-since" rq == Just (P.pack $ repr)
-        repr = formatCalendarTime defaultTimeLocale "%a, %d %b %Y %X GMT" (toUTCTime modtime)
-    
-    if notmodified
-      then return $ result 304 ""
-      else do
-        count <- liftIO $  hFileSize inp
-        let res = (SendFile 200 M.empty nullRsFlags{rsfContentLength=False} Nothing inp 0 count)
-        return $ ((setHeader "Last-modified" repr) .
-                  (setHeader "Content-Length" (show count)) .
-                  (setHeader "Content-Type" ct)) res
-
-getExt :: String -> String
-getExt = reverse . takeWhile (/='.') . reverse
+type MimeMap = Map String String
 
 -- | Ready collection of common mime types.
 mimeTypes :: MimeMap
@@ -340,10 +93,32 @@ mimeTypes = Map.fromList
 	    ,("hs","text/plain")]
 
 
+guessContentType :: MimeMap -> FilePath -> Maybe String
+guessContentType mimeMap filepath =
+    case getExt filepath of
+      "" -> Nothing
+      ext -> Map.lookup ext mimeMap
+
+guessContentTypeM :: (Monad m) => MimeMap -> (FilePath -> m String)
+guessContentTypeM mimeMap filePath = return $ fromMaybe "text/plain" $ guessContentType mimeMap filePath
+
+asContentType :: (Monad m) => String -> (FilePath -> m String)
+asContentType = const . return
+
+defaultIxFiles :: [String]
+defaultIxFiles= ["index.html","index.xml","index.gif"]
+
+fileNotFound :: (Monad m, FilterMonad Response m) => FilePath -> m Response
+fileNotFound fp = return $ result 404 $ "File not found " ++ fp
+
+-- | Similar to 'takeExtension' but does not include the extension separator char
+getExt :: FilePath -> String
+getExt fp = drop 1 $ takeExtension fp
+
 -- | Prevents files of the form '.foo' or 'bar/.foo' from being served
 blockDotFiles :: (Request -> IO Response) -> Request -> IO Response
 blockDotFiles fn rq
-    | isDot (intercalate "/" (rqPaths rq)) = return $ result 403 "Dot files not allowed."
+    | isDot (joinPath (rqPaths rq)) = return $ result 403 "Dot files not allowed."
     | otherwise = fn rq
 
 -- | Returns True if the given String either starts with a . or is of the form
@@ -356,3 +131,239 @@ isDot = isD . reverse
     --isD ('/':_)     = False
     isD (_:cs)      = isD cs
     isD []          = False
+
+-- * Low-level functions for generating a Response
+
+-- | Use sendFile to send the contents of a Handle
+sendFileResponse :: String  -- ^ content-type string
+                 -> Handle  -- ^ file handle for content to send
+                 -> Maybe (CalendarTime, Request) -- ^ mod-time for the handle (MUST NOT be later than server's time of message origination), incoming request (used to check for if-modified-since header)
+                 -> Integer -- ^ offset into Handle
+                 -> Integer -- ^ number of bytes to send
+                 -> Response
+sendFileResponse ct handle mModTime offset count =
+    let res = ((setHeader "Content-Length" (show count)) .
+               (setHeader "Content-Type" ct) $ 
+               (SendFile 200 Map.empty nullRsFlags{rsfContentLength=False} Nothing handle 0 count)
+              )
+    in case mModTime of
+         Nothing -> res
+         (Just (modTime, request)) -> ifModifiedSince modTime request res
+
+-- | Send the contents of a Lazy ByteString
+lazyByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plain; charset=utf-8\"@)
+                       -> L.ByteString   -- ^ lazy bytestring content to send
+                       -> Maybe (CalendarTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)
+                       -> Integer -- ^ offset into the bytestring
+                       -> Integer -- ^ number of bytes to send (offset + count must be less than or equal to the length of the bytestring)
+                       -> Response
+lazyByteStringResponse ct body mModTime offset count =
+    let res = ((setHeader "Content-Length" (show count)) .
+               (setHeader "Content-Type" ct) $
+               resultBS 200 (L.drop (fromInteger offset)  body)
+              )
+    in case mModTime of
+         Nothing -> res
+         (Just (modTime, request)) -> ifModifiedSince modTime request res
+
+-- | Send the contents of a Lazy ByteString
+strictByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plain; charset=utf-8\"@)
+                         -> S.ByteString   -- ^ lazy bytestring content to send
+                         -> Maybe (CalendarTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)
+                         -> Integer -- ^ offset into the bytestring
+                         -> Integer -- ^ number of bytes to send (offset + count must be less than or equal to the length of the bytestring)
+                         -> Response
+strictByteStringResponse ct body mModTime offset count =
+    let res = ((setHeader "Content-Length" (show count)) .
+               (setHeader "Content-Type" ct) $
+               resultBS 200 (L.fromChunks [S.drop (fromInteger offset) body])
+              )
+    in case mModTime of
+         Nothing -> res
+         (Just (modTime, request)) -> ifModifiedSince modTime request res
+
+-- | Send the specified file with the specified mime-type using sendFile()
+--
+-- NOTE: assumes file exists and is readable by the server. See 'serveFileUsing'.
+--
+-- WARNING: No security checks are performed.
+filePathSendFile :: (ServerMonad m, MonadIO m)
+                 => String   -- ^ content-type string
+                 -> FilePath -- ^ path to file on disk
+                 -> m Response
+filePathSendFile contentType fp =
+    do handle  <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
+       modtime <- liftIO $ getModificationTime fp
+       count   <- liftIO $ hFileSize handle
+       rq      <- askRq
+       return $ sendFileResponse contentType handle (Just (toUTCTime modtime, rq)) 0 count
+
+-- | Send the specified file with the specified mime-type using Lazy ByteStrings
+--
+-- NOTE: assumes file exists and is readable by the server. See 'serveFileUsing'.
+--
+-- WARNING: No security checks are performed.
+filePathLazy :: (ServerMonad m, MonadIO m)
+                 => String   -- ^ content-type string
+                 -> FilePath -- ^ path to file on disk
+                 -> m Response
+filePathLazy contentType fp =
+    do handle  <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
+       contents <- liftIO $ L.hGetContents handle
+       modtime  <- liftIO $ getModificationTime fp
+       count    <- liftIO $ hFileSize handle
+       rq       <- askRq
+       return $ lazyByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
+
+-- | Send the specified file with the specified mime-type using Lazy ByteStrings
+--
+-- NOTE: assumes file exists and is readable by the server. See 'serveFileUsing'.
+--
+-- WARNING: No security checks are performed.
+filePathStrict :: (ServerMonad m, MonadIO m)
+                 => String   -- ^ content-type string
+                 -> FilePath -- ^ path to file on disk
+                 -> m Response
+filePathStrict contentType fp =
+    do contents <- liftIO $ S.readFile fp
+       modtime  <- liftIO $ getModificationTime fp
+       count    <- liftIO $ bracket (openBinaryFile fp ReadMode) hClose hFileSize
+       rq       <- askRq
+       return $ strictByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
+
+-- * High-level functions for serving files
+
+
+-- ** Serve a single file
+
+-- | Serve a single, specified file.
+-- 
+-- example 1:
+-- 
+--  Serve using sendfile() and the specified content-type
+--
+-- > serveFileUsing filePathSendFile (asContentType "image/jpeg") "/srv/data/image.jpg"
+--
+--
+-- example 2:
+-- 
+--  Serve using a lazy ByteString and the guess the content-type from the extension
+-- 
+-- > serveFileUsing filePathLazy (guessContentTypeM mimeTypes) "/srv/data/image.jpg"
+-- 
+-- WARNING: No security checks are performed.
+serveFileUsing :: (ServerMonad m, FilterMonad Response m, MonadIO m) 
+               => (String -> FilePath -> m Response) -- ^ typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict'
+               -> (FilePath -> m String)  -- ^ function for determining content-type of file. Typically 'asContentType' or 'guessContentTypeM'
+               -> FilePath -- ^ path to the file to serve
+               -> m Response
+serveFileUsing serveFn mimeFn fp = 
+    do fe <- liftIO $ doesFileExist fp
+       if fe
+          then do mt <- mimeFn fp
+                  serveFn mt fp
+          else fileNotFound fp
+
+-- | Alias for 'serveFileUsing' 'filePathSendFile'
+serveFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) => (FilePath -> m String) -> FilePath -> m Response
+serveFile = serveFileUsing filePathSendFile
+
+-- ** Serve files from a directory
+
+-- | Serve files from a directory and it's subdirectories (parameterizable version)
+-- 
+-- Parameterize this function to create functions like, 'fileServe', 'fileServeLazy', and 'fileServeStrict'
+--
+-- You supply:
+--
+--  1. a low-level function which takes a content-type and 'FilePath' and generates a Response
+--  2. a function which determines the content-type from the 'FilePath'
+--  3. a list of all the default index files
+--
+-- NOTE: unlike fileServe, there are no index files by default. See 'defaultIxFiles'.
+fileServe' :: ( WebMonad Response m
+              , ServerMonad m
+              , FilterMonad Response m
+              , MonadIO m
+              ) 
+           => (String -> FilePath -> m Response) -- ^ function which takes a content-type and filepath and generates a response (typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict')
+           -> (FilePath -> m String) -- ^ function which returns the mime-type for FilePath
+           -> [FilePath]         -- ^ index files if the path is a directory
+           -> FilePath           -- ^ file/directory to serve
+           -> m Response
+fileServe' serveFn mimeFn ixFiles localpath = do
+    rq <- askRq
+    let safepath = filter (\x->not (null x) && head x /= '.') (rqPaths rq)
+        fp = joinPath  (localpath:safepath)
+    fe <- liftIO $ doesFileExist fp
+    de <- liftIO $ doesDirectoryExist fp
+    let status | de   = "DIR"
+               | fe   = "file"
+               | True = "NOT FOUND"
+    liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
+    if de
+        then doIndex' serveFn mimeFn (ixFiles++defaultIxFiles) fp
+        else if fe 
+                then serveFileUsing serveFn mimeFn fp
+                else fileNotFound fp
+
+
+-- | Serve files from a directory and it's subdirectories (sendFile version). Should perform much better than its predecessors.
+fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+             [FilePath]         -- ^ index files if the path is a directory
+          -> FilePath           -- ^ file/directory to serve
+          -> m Response
+fileServe ixFiles localPath = fileServe' filePathSendFile (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
+
+-- | Serve files from a directory and it's subdirectories (lazy ByteString version).
+-- 
+-- May leak file handles.
+fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+             [FilePath]         -- ^ index files if the path is a directory
+          -> FilePath           -- ^ file/directory to serve
+          -> m Response
+fileServeLazy ixFiles localPath = fileServe' filePathLazy (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
+
+-- | Serve files from a directory and it's subdirectories (strict ByteString version). 
+fileServeStrict :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+             [FilePath]         -- ^ index files if the path is a directory
+          -> FilePath           -- ^ file/directory to serve
+          -> m Response
+fileServeStrict ixFiles localPath = fileServe' filePathStrict (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
+
+-- * Index
+
+doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+        => [String]
+        -> MimeMap
+        -> String
+        -> m Response
+doIndex ixFiles mimeMap localPath = doIndex' filePathSendFile (guessContentTypeM mimeMap) ixFiles localPath
+
+doIndexLazy :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+        => [String]
+        -> MimeMap
+        -> String
+        -> m Response
+doIndexLazy ixFiles mimeMap localPath = doIndex' filePathLazy (guessContentTypeM mimeMap) ixFiles localPath
+
+doIndexStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+        => [String]
+        -> MimeMap
+        -> String
+        -> m Response
+doIndexStrict ixFiles mimeMap localPath = doIndex' filePathStrict (guessContentTypeM mimeMap) ixFiles localPath
+
+doIndex' :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+        => (String -> FilePath -> m Response)
+        -> (FilePath -> m String)
+        -> [String]
+        -> String
+        -> m Response
+doIndex' _serveFn _mime  []          _fp = forbidden $ toResponse "Directory index forbidden"
+doIndex'  serveFn mimeFn (index:rest) fp =
+    do let path = fp </> index
+       fe <- liftIO $ doesFileExist path
+       if fe 
+          then serveFileUsing serveFn mimeFn path 
+          else doIndex' serveFn mimeFn rest fp

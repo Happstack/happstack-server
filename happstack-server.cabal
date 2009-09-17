@@ -62,6 +62,7 @@ Library
                        containers,
                        directory,
                        extensible-exceptions,
+                       filepath,
                        HaXml >= 1.13 && < 1.14,
                        hslogger >= 1.0.2,
                        happstack-data >= 0.4 && < 0.5,
