@@ -108,6 +108,7 @@ module Happstack.Server.SimpleHTTP
     -- * SimpleHTTP
     , simpleHTTP
     , simpleHTTP'
+    , simpleHTTP''
     , parseConfig
     -- * ServerPartT
     , ServerPartT(..)
@@ -681,7 +682,7 @@ parseConfig args
 simpleHTTP :: (ToMessage a) => Conf -> ServerPartT IO a -> IO ()
 simpleHTTP = simpleHTTP' id
 
--- | a combination of simpleHTTP and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
+-- | a combination of simpleHTTP'' and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
 -- of the first argument of this function.
 simpleHTTP' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
             -> Conf -> ServerPartT m a -> IO ()
@@ -694,7 +695,7 @@ simpleHTTP' toIO conf hs =
 simpleHTTP'' :: (ToMessage b, Monad m, Functor m) => ServerPartT m b -> Request -> m Response
 simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe standardNotFound id))
     where
-        standardNotFound = setHeader "Content-Type" "text/html" $ toResponse notFoundHtml
+        standardNotFound = setHeader "Content-Type" "text/html" $ (toResponse notFoundHtml){rsCode=404}
 
 
 -- | This class is used by 'path' to parse a path component into a value.
