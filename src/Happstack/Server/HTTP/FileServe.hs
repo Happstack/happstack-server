@@ -158,9 +158,8 @@ lazyByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plain;
                        -> Integer -- ^ number of bytes to send (offset + count must be less than or equal to the length of the bytestring)
                        -> Response
 lazyByteStringResponse ct body mModTime offset count =
-    let res = ((setHeader "Content-Length" (show count)) .
-               (setHeader "Content-Type" ct) $
-               resultBS 200 (L.drop (fromInteger offset)  body)
+    let res = ((setHeader "Content-Type" ct) $
+               resultBS 200 (L.take (fromInteger count) $ (L.drop (fromInteger offset))  body)
               )
     in case mModTime of
          Nothing -> res
@@ -174,9 +173,8 @@ strictByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plai
                          -> Integer -- ^ number of bytes to send (offset + count must be less than or equal to the length of the bytestring)
                          -> Response
 strictByteStringResponse ct body mModTime offset count =
-    let res = ((setHeader "Content-Length" (show count)) .
-               (setHeader "Content-Type" ct) $
-               resultBS 200 (L.fromChunks [S.drop (fromInteger offset) body])
+    let res = ((setHeader "Content-Type" ct) $
+               resultBS 200 (L.fromChunks [S.take (fromInteger count) $ S.drop (fromInteger offset) body])
               )
     in case mModTime of
          Nothing -> res
