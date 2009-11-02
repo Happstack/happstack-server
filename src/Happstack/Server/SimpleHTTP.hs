@@ -178,6 +178,7 @@ module Happstack.Server.SimpleHTTP
     , path
     , anyPath
     , anyPath'
+    , trailingSlash
     , withData
     , withDataFn
     , getDataFn
@@ -876,7 +877,7 @@ dir staticPath handle =
             (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
             _ -> mzero
 
--- |Gaurd against the host
+-- | Guard against the host
 host :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
 host desiredHost handle =
     do rq <- askRq
@@ -884,7 +885,7 @@ host desiredHost handle =
          (Just hostBS) | desiredHost == B.unpack hostBS -> handle
          _ -> mzero
 
--- |lookup the host header and pass it to the handler
+-- | Lookup the host header and pass it to the handler
 withHost :: (ServerMonad m, MonadPlus m) => (String -> m a) -> m a
 withHost handle =
     do rq <- askRq
@@ -916,6 +917,11 @@ anyPath x = path $ (\(_::String) -> x)
 anyPath' :: (ServerMonad m, MonadPlus m) => m r -> m r
 anyPath' = anyPath
 {-# DEPRECATED anyPath' "Use anyPath" #-}
+
+-- | guard which checks that the Request URI ends in '\/'. 
+-- Useful for distinguishing between @foo@ and @foo/@
+trailingSlash :: (ServerMonad m, MonadPlus m) => m ()
+trailingSlash = guardRq $ \rq -> (last (rqUri rq)) == '/'
 
 -- | used to read parse your request with a RqData (a ReaderT, basically)
 -- For example here is a simple GET or POST variable based authentication
