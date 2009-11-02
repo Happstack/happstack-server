@@ -291,7 +291,7 @@ fileServe' :: ( WebMonad Response m
            -> m Response
 fileServe' serveFn mimeFn ixFiles localpath = do
     rq <- askRq
-    let safepath = filter (\x->not (null x) && head x /= '.') (rqPaths rq)
+    let safepath = filter (\x->not (null x) && x /= ".." && x /= ".") (rqPaths rq)
         fp = joinPath  (localpath:safepath)
     fe <- liftIO $ doesFileExist fp
     de <- liftIO $ doesDirectoryExist fp
