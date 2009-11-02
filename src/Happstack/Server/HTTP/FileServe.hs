@@ -43,10 +43,10 @@ import qualified Data.ByteString.Char8 as S
 import Data.Maybe (fromMaybe)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, getHeader, nullRsFlags, result, require, rsfContentLength, ifModifiedSince )
+import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, getHeader, nullRsFlags, result, require, rsfContentLength, seeOther, ifModifiedSince )
 import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
 import System.IO (Handle, IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
-import System.FilePath ((</>), joinPath, takeExtension)
+import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)
 import System.Log.Logger (Priority(DEBUG), logM)
 import System.Time (CalendarTime, toUTCTime)
 
@@ -300,11 +300,13 @@ fileServe' serveFn mimeFn ixFiles localpath = do
                | True = "NOT FOUND"
     liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
     if de
-        then doIndex' serveFn mimeFn (ixFiles++defaultIxFiles) fp
+        then if last (rqUri rq) == '/'
+             then doIndex' serveFn mimeFn (ixFiles++defaultIxFiles) fp
+             else do let path' = addTrailingPathSeparator (rqUri rq)
+                     seeOther path' (toResponse path')
         else if fe 
                 then serveFileUsing serveFn mimeFn fp
                 else fileNotFound fp
-
 
 -- | Serve files from a directory and it's subdirectories (sendFile version). Should perform much better than its predecessors.
 fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
