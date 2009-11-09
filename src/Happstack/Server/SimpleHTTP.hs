@@ -419,7 +419,7 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
 -- @
 --
 -- A simple way of sumerizing this is, if the right side is Append, then the
--- right is appended to the left.  If the right side is Set, then the right side
+-- right is appended to the left.  If the right side is Set, then the left side
 -- is ignored.
 
 data SetAppend a = Set a | Append a
