@@ -1188,10 +1188,9 @@ basicAuth realmName authMap xs = basicAuthImpl `mplus` xs
     parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
     headerName  = "WWW-Authenticate"
     headerValue = "Basic realm=\"" ++ realmName ++ "\""
-    err = do
-        unauthorized ()
-        setHeaderM headerName headerValue
-        escape' $ toResponse "Not authorized"
+    err = escape $ do
+            setHeaderM headerName headerValue
+            unauthorized $ toResponse "Not authorized"
 
 --------------------------------------------------------------
 -- Query/Post data validating
