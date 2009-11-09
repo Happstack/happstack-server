@@ -36,6 +36,14 @@ cookieParserTest =
 acceptEncodingParserTest :: Test
 acceptEncodingParserTest =
     "acceptEncodingParserTest" ~:
-    [either (Left . show) Right (parse encodings "" " gzip;q=1,*, compress ; q = 0.5 ")
-        @?= (Right [("gzip", Just 1),("*", Nothing),("compress", Just 0.5)])
-    ]
+    map (\(string, result) -> either (Left . show) Right (parse encodings "" string) @?= (Right result)) acceptEncodings
+    where
+      acceptEncodings =
+       [ (" gzip;q=1,*, compress ; q = 0.5 ", [("gzip", Just 1),("*", Nothing),("compress", Just 0.5)])
+       , (" compress , gzip", [ ("compress", Nothing), ("gzip", Nothing)])
+       , (" ", [])
+       , (" *", [("*", Nothing)])
+       , (" compress;q=0.5, gzip;q=1.0", [("compress", Just 0.5), ("gzip", Just 1.0)])
+       , (" gzip;q=1.0, identity; q=0.5, *;q=0", [("gzip", Just 1.0), ("identity",Just 0.5), ("*", Just 0)])
+       , (" x-gzip",[("x-gzip", Nothing)])
+       ]

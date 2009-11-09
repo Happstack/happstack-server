@@ -137,7 +137,7 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
         
         encoding1 :: GenParser Char st ([Char], Maybe Double)
         encoding1 = do
-            encoding <- many1 alphaNum <|> string "*"
+            encoding <- many1 (alphaNum <|> char '-') <|> string "*"
             ws
             quality<-optionMaybe qual
             return (encoding, fmap read quality)

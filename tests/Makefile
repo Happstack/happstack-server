@@ -3,7 +3,8 @@ help:
 	@echo "run 'make installed' to test against installed libraries (installed libraries must be configured with -f tests)"
 
 local:
-	runhaskell -i../src Test.hs
+	(cd .. ; cabal configure)
+	runhaskell -i../src -i../dist/build/autogen Test.hs
 
 installed:
 	runhaskell Test.hs
