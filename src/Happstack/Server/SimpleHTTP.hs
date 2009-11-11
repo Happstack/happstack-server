@@ -702,7 +702,7 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
     where
         standardNotFound = setHeader "Content-Type" "text/html" $ (toResponse notFoundHtml){rsCode=404}
 
--- | Run simpleHTTP with a previously bound socket. Usefull if you want to run
+-- | Run simpleHTTP with a previously bound socket. Useful if you want to run
 -- happstack as user on port 80. Use something like this:
 --
 -- > import System.Posix.User (setUserID, UserEntry(..), getUserEntryForName)
