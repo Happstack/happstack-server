@@ -109,6 +109,9 @@ module Happstack.Server.SimpleHTTP
     , simpleHTTP
     , simpleHTTP'
     , simpleHTTP''
+    , simpleHTTPWithSocket
+    , simpleHTTPWithSocket'
+    , bindPort
     , parseConfig
     -- * ServerPartT
     , ServerPartT(..)
@@ -229,11 +232,12 @@ import qualified Data.Version                    as DV
 import Happstack.Server.HTTP.Client              (getResponse, unproxify, unrproxify)
 import Happstack.Data.Xml.HaXml                  (toHaXmlEl)
 import qualified Happstack.Server.MinHaXML       as H
-import qualified Happstack.Server.HTTP.Listen    as Listen (listen) -- So that we can disambiguate 'Writer.listen'
+import qualified Happstack.Server.HTTP.Listen    as Listen (listen, listen') -- So that we can disambiguate 'Writer.listen'
 import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
 import Happstack.Server.SURI                     (ToSURI)
 import Happstack.Util.Common                     (Seconds, readM)
 import Happstack.Data                            (Xml, normalize, fromPairs, Element, toXml, toPublicXml) -- used by default implementation of fromData
+import Network                                   (listenOn, PortNumber, PortID(..), Socket)
 import Control.Applicative                       (Applicative, pure, (<*>))
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)
@@ -698,6 +702,29 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
     where
         standardNotFound = setHeader "Content-Type" "text/html" $ (toResponse notFoundHtml){rsCode=404}
 
+-- | Run simpleHTTP with a previously bound socket. Usefull if you want to run
+-- happstack as user on port 80. Use something like this:
+--
+-- > import System.Posix.User (setUserID, UserEntry(..), getUserEntryForName)
+-- >
+-- > main = do
+-- >     socket <- bindPort $ nullConf { port = 80 }
+-- >     -- do other stuff as root here
+-- >     getUserEntryForName "www" >>= setUserID . userID
+-- >     -- finally start handling incoming requests
+-- >     tid <- forkIO $ socketSimpleHTTP socket conf impl
+simpleHTTPWithSocket :: (ToMessage a) => Socket -> Conf -> ServerPartT IO a -> IO ()
+simpleHTTPWithSocket = simpleHTTPWithSocket' id
+
+-- | 'simpleHTTP'' with a socket
+simpleHTTPWithSocket' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
+                      -> Socket -> Conf -> ServerPartT m a -> IO ()
+simpleHTTPWithSocket' toIO socket conf hs =
+    Listen.listen' socket conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
+
+-- | Bind port and return the socket for 'simpleHTTPWithSocket'
+bindPort :: Conf -> IO Socket
+bindPort conf = listenOn (PortNumber . toEnum . port $ conf)
 
 -- | This class is used by 'path' to parse a path component into a value.
 -- At present, the instances for number types (Int, Float, etc) just
