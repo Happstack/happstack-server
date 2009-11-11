@@ -708,11 +708,15 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
 -- > import System.Posix.User (setUserID, UserEntry(..), getUserEntryForName)
 -- >
 -- > main = do
--- >     socket <- bindPort $ nullConf { port = 80 }
+-- >     let conf = nullConf { port = 80 }
+-- >     socket <- bindPort conf
 -- >     -- do other stuff as root here
 -- >     getUserEntryForName "www" >>= setUserID . userID
 -- >     -- finally start handling incoming requests
 -- >     tid <- forkIO $ socketSimpleHTTP socket conf impl
+--
+-- Note: It's important to use the same conf (or at least the same port) for
+-- 'bindPort' and 'simpleHTTPWithSocket'.
 simpleHTTPWithSocket :: (ToMessage a) => Socket -> Conf -> ServerPartT IO a -> IO ()
 simpleHTTPWithSocket = simpleHTTPWithSocket' id
 
