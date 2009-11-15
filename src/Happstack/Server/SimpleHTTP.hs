@@ -237,7 +237,7 @@ import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
 import Happstack.Server.SURI                     (ToSURI)
 import Happstack.Util.Common                     (Seconds, readM)
 import Happstack.Data                            (Xml, normalize, fromPairs, Element, toXml, toPublicXml) -- used by default implementation of fromData
-import Network                                   (listenOn, PortNumber, PortID(..), Socket)
+import Network                                   (listenOn, PortID(..), Socket)
 import Control.Applicative                       (Applicative, pure, (<*>))
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)
@@ -291,7 +291,7 @@ import System.Console.GetOpt                     ( OptDescr(Option)
                                                  )
 import System.Locale                             (defaultTimeLocale)
 import System.Process                            (runInteractiveProcess, waitForProcess)
-import System.Time                               (CalendarTime, formatCalendarTime, toUTCTime)
+import System.Time                               (CalendarTime, formatCalendarTime)
 import System.Exit                               (ExitCode(ExitSuccess, ExitFailure))
 
 -- | An alias for WebT when using IO

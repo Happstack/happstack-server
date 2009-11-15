@@ -25,8 +25,6 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import Happstack.Server.SURI
 import Data.Char (toLower)
 
-import Network (PortNumber)
-
 import Happstack.Server.HTTP.Multipart ( ContentType(..) )
 import Happstack.Server.Cookie
 import Data.List
