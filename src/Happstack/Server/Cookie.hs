@@ -28,11 +28,12 @@ data Cookie = Cookie
     , cookieDomain  :: String
     , cookieName    :: String
     , cookieValue   :: String
+    , secure        :: Bool
     } deriving(Show,Eq,Read,Typeable,Data)
 
 -- | Creates a cookie with a default version of 1 and path of "/"
 mkCookie :: String -> String -> Cookie
-mkCookie key val = Cookie "1" "/" "" key val
+mkCookie key val = Cookie "1" "/" "" key val False
 
 -- | Set a Cookie in the Result.
 -- The values are escaped as per RFC 2109, but some browsers may
@@ -47,7 +48,7 @@ mkCookieHeader sec cookie =
         s f   = '\"' : concatMap e (f cookie) ++ "\""
         e c | fctl c || c == '"' = ['\\',c]
             | otherwise          = [c]
-    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ])
+    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ] ++ if secure cookie then ["Secure"] else [])
 
 fctl :: Char -> Bool
 fctl ch = ch == chr 127 || ch <= chr 31
@@ -74,7 +75,7 @@ cookiesParser = cookies
             val<-value
             path<-option "" $ try (cookieSep >> cookie_path)
             domain<-option "" $ try (cookieSep >> cookie_domain)
-            return $ Cookie ver path domain (low name) val
+            return $ Cookie ver path domain (low name) val False
           cookie_version = cookie_special "$Version"
           cookie_path = cookie_special "$Path"
           cookie_domain = cookie_special "$Domain"
