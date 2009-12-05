@@ -45,7 +45,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, nullRsFlags, result, require, rsfContentLength, seeOther, ifModifiedSince )
 import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
-import System.IO (Handle, IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
+import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
 import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)
 import System.Log.Logger (Priority(DEBUG), logM)
 import System.Time (CalendarTime, toUTCTime)
@@ -118,15 +118,15 @@ isDot = isD . reverse
 
 -- | Use sendFile to send the contents of a Handle
 sendFileResponse :: String  -- ^ content-type string
-                 -> Handle  -- ^ file handle for content to send
+                 -> FilePath  -- ^ file path for content to send
                  -> Maybe (CalendarTime, Request) -- ^ mod-time for the handle (MUST NOT be later than server's time of message origination), incoming request (used to check for if-modified-since header)
                  -> Integer -- ^ offset into Handle
                  -> Integer -- ^ number of bytes to send
                  -> Response
-sendFileResponse ct handle mModTime _offset count =
+sendFileResponse ct filePath mModTime _offset count =
     let res = ((setHeader "Content-Length" (show count)) .
                (setHeader "Content-Type" ct) $ 
-               (SendFile 200 Map.empty nullRsFlags{rsfContentLength=False} Nothing handle 0 count)
+               (SendFile 200 Map.empty nullRsFlags{rsfContentLength=False} Nothing filePath 0 count)
               )
     in case mModTime of
          Nothing -> res
@@ -176,7 +176,7 @@ filePathSendFile contentType fp =
        modtime <- liftIO $ getModificationTime fp
        count   <- liftIO $ hFileSize handle
        rq      <- askRq
-       return $ sendFileResponse contentType handle (Just (toUTCTime modtime, rq)) 0 count
+       return $ sendFileResponse contentType fp (Just (toUTCTime modtime, rq)) 0 count
 
 -- | Send the specified file with the specified mime-type using Lazy ByteStrings
 --

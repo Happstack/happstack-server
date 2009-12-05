@@ -101,7 +101,7 @@ data Response  = Response  { rsCode      :: Int,
                              rsHeaders   :: Headers,
                              rsFlags     :: RsFlags,
                              rsValidator :: Maybe (Response -> IO Response),
-                             sfHandle    :: Handle,  -- file handle to send from
+                             sfFilePath  :: FilePath,  -- file handle to send from
                              sfOffset    :: Integer, -- offset to start at
                              sfCount     :: Integer  -- number of bytes to send
                            }
