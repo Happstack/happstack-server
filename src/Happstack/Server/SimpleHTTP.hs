@@ -1047,7 +1047,7 @@ proxyServe' rq = liftIO (getResponse (unproxify rq)) >>=
 --
 -- TODO: this would be more useful if it didn\'t call "escape", just like
 -- proxyServe'
-rproxyServe :: (MonadIO m, WebMonad Response m) =>
+rproxyServe :: (MonadIO m) =>
     String -- ^ defaultHost
     -> [(String, String)] -- ^ map to look up hostname mappings.  For the reverse proxy
     -> ServerPartT m Response -- ^ the result is a ServerPartT that will reverse proxy for you.
