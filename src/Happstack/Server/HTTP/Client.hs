@@ -4,6 +4,7 @@ module Happstack.Server.HTTP.Client where
 import Happstack.Server.HTTP.Handler
 import Happstack.Server.HTTP.Types
 import Data.Maybe
+import Control.Monad
 import qualified Data.ByteString.Lazy.Char8 as L 
 
 import System.IO
@@ -43,10 +44,10 @@ unproxify rq = rq {rqPaths = tail $ rqPaths rq,
   csv v x = x++", " ++ v
 
 unrproxify :: String -> [(String, String)] -> Request -> Request
-unrproxify defaultHost list rq = unproxify rq {rqPaths = host: rqPaths rq}
-  where
-  host::String
-  host = maybe defaultHost (f .B.unpack) $
-         getHeader "host" rq
-  f = maybe defaultHost id . flip lookup list
+unrproxify defaultHost list rq = 
+  let host::String
+      host = fromMaybe defaultHost $ flip lookup list =<< B.unpack `liftM` getHeader "host" rq 
+      newrq = rq {rqPaths = host: rqPaths rq}
+  in  unproxify newrq
+
 
