@@ -16,20 +16,20 @@ cookieParserTest =
     "cookieParserTest" ~:
     [parseCookies "$Version=1;Cookie1=value1;$Path=\"/testpath\";$Domain=example.com;cookie2=value2"
         @?= (Right [
-            Cookie "1" "/testpath" "example.com" "cookie1" "value1"
-          , Cookie "1" "" "" "cookie2" "value2"
+            Cookie "1" "/testpath" "example.com" "cookie1" "value1" False
+          , Cookie "1" "" "" "cookie2" "value2" False
           ])
     ,parseCookies "  \t $Version = \"1\" ; cookie1 = \"randomcrap!@#%^&*()-_+={}[]:;'<>,.?/\\|\" , $Path=/  "
         @?= (Right [
-            Cookie "1" "/" "" "cookie1" "randomcrap!@#%^&*()-_+={}[]:;'<>,.?/\\|"
+            Cookie "1" "/" "" "cookie1" "randomcrap!@#%^&*()-_+={}[]:;'<>,.?/\\|" False
           ])
     ,parseCookies " cookie1 = value1  "
         @?= (Right [
-            Cookie "" "" "" "cookie1" "value1"
+            Cookie "" "" "" "cookie1" "value1" False
           ])
     ,parseCookies " $Version=\"1\";buggygooglecookie = valuewith=whereitshouldnotbe  "
         @?= (Right [
-            Cookie "1" "" "" "buggygooglecookie" "valuewith=whereitshouldnotbe"
+            Cookie "1" "" "" "buggygooglecookie" "valuewith=whereitshouldnotbe" False
           ])
     ]
 
