@@ -261,6 +261,7 @@ import Control.Monad.State                       (MonadState, get, put)
 import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
                                                  , Error, strMsg
                                                  , MonadError, throwError, catchError
+                                                 , mapErrorT
                                                  )
 import Control.Monad.Maybe                       (MaybeT(MaybeT), runMaybeT)
 import Data.Char                                 (ord)
@@ -394,6 +395,10 @@ instance Monad m => FilterMonad Response (ServerPartT m) where
 
 instance Monad m => WebMonad Response (ServerPartT m) where
     finishWith r = anyRequest $ finishWith r
+
+instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
+    askRq     = lift askRq
+    localRq f = mapErrorT $ localRq f
 
 -- | yes, this is exactly like 'ReaderT' with new names.
 -- Why you ask? Because ServerT can lift up a ReaderT.
