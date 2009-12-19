@@ -36,7 +36,6 @@ import Data.Time.Clock (getCurrentTime)
 import Network.Socket (Socket, fdSocket)
 import Network.Socket.SendFile (unsafeSendFile')
 import System.Log.Logger (Priority(..), logM)
-import System.Posix.IO (handleToFd)
 
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request conf h host handler = rloop conf h host handler =<< L.hGetContents h
