@@ -28,7 +28,7 @@
 -- like CGI\/FastCGI can used if so desired.
 --
 -- So the general nature of 'simpleHTTP' is no different than what you'd expect
--- from a web application container.  First you figure out when function is
+-- from a web application container.  First you figure out which function is
 -- going to process your request, process the request to generate a response,
 -- then return that response to the client. The web application container is
 -- started with 'simpleHTTP', which takes a configuration and a
@@ -396,10 +396,6 @@ instance Monad m => FilterMonad Response (ServerPartT m) where
 instance Monad m => WebMonad Response (ServerPartT m) where
     finishWith r = anyRequest $ finishWith r
 
-instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
-    askRq     = lift askRq
-    localRq f = mapErrorT $ localRq f
-
 -- | yes, this is exactly like 'ReaderT' with new names.
 -- Why you ask? Because ServerT can lift up a ReaderT.
 -- If you did that, it would shadow ServerT's behavior
@@ -414,6 +410,10 @@ class Monad m => ServerMonad m where
 instance (Monad m) => ServerMonad (ServerPartT m) where
     askRq = ServerPartT $ ask
     localRq f m = ServerPartT $ local f (unServerPartT m)
+
+instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
+    askRq     = lift askRq
+    localRq f = mapErrorT $ localRq f
 
 -------------------------------
 -- HERE BEGINS WebT definitions
