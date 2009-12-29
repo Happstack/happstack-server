@@ -70,7 +70,7 @@ cookiesParser = cookies
             eof
             return cookieList
           cookie_value ver = do
-            name<-attr
+            name<-name_parser
             cookieEq
             val<-value
             path<-option "" $ try (cookieSep >> cookie_path)
@@ -86,23 +86,21 @@ cookiesParser = cookies
           cookieSep = ws >> oneOf ",;" >> ws
           cookieEq = ws >> char '=' >> ws
           ws = spaces
-          attr          = token
           value         = word
           word          = try (quoted_string) <|> incomp_token
 
           -- Parsers based on RFC 2068
-          token         = many1 $ oneOf ((chars \\ ctl) \\ tspecials)
           quoted_string = do
             char '"'
             r <-many (oneOf qdtext)
             char '"'
             return r
 
-          -- Custom parser, incompatible with RFC 2068, but very  forgiving ;)
+          -- Custom parsers, incompatible with RFC 2068, but more forgiving ;)
           incomp_token  = many1 $ oneOf ((chars \\ ctl) \\ " \t\";")
+          name_parser   = many1 $ oneOf ((chars \\ ctl) \\ "= ;,")
 
           -- Primitives from RFC 2068
-          tspecials     = "()<>@,;:\\\"/[]?={} \t"
           ctl           = map chr (127:[0..31])
           chars         = map chr [0..127]
           octet         = map chr [0..255]
