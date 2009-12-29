@@ -294,6 +294,7 @@ import System.Locale                             (defaultTimeLocale)
 import System.Process                            (runInteractiveProcess, waitForProcess)
 import System.Time                               (CalendarTime, formatCalendarTime)
 import System.Exit                               (ExitCode(ExitSuccess, ExitFailure))
+import System.FilePath                           (makeRelative, splitDirectories)
 
 -- | An alias for WebT when using IO
 type Web a = WebT IO a
@@ -905,6 +906,8 @@ nullDir :: (ServerMonad m, MonadPlus m) => m ()
 nullDir = guardRq $ \rq -> null (rqPaths rq)
 
 -- | Pop a path element and run the @ServerPartT@ if it matches the given string.
+-- 
+-- The path element can not contain '/'. See also 'dirs'.
 dir :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
 dir staticPath handle =
     do
@@ -912,6 +915,18 @@ dir staticPath handle =
         case rqPaths rq of
             (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
             _ -> mzero
+            
+-- | guard against a 'FilePath'. Unlike 'dir' the 'FilePath' may
+-- contain '/'. If the guard succeeds, the matched elements will be
+-- popped from the directory stack.
+--
+-- @ dirs "foo/bar" $ ... @
+--          
+-- see also: 'dir'
+dirs :: (ServerMonad m, MonadPlus m) => FilePath -> m a -> m a 
+dirs fp m = 
+     do let parts = splitDirectories (makeRelative "/" fp) 
+        foldr dir m parts
 
 -- | Guard against the host
 host :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
