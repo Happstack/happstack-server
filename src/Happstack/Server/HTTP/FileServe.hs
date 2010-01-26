@@ -36,7 +36,7 @@ module Happstack.Server.HTTP.FileServe
     ) where
 
 import Control.Exception.Extensible (IOException, SomeException, Exception(fromException), bracket, handleJust)
-import Control.Monad (MonadPlus)
+import Control.Monad (MonadPlus(mzero))
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as S
@@ -232,7 +232,7 @@ filePathStrict contentType fp =
 -- > serveFileUsing filePathLazy (guessContentTypeM mimeTypes) "/srv/data/image.jpg"
 -- 
 -- WARNING: No security checks are performed.
-serveFileUsing :: (ServerMonad m, FilterMonad Response m, MonadIO m) 
+serveFileUsing :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) 
                => (String -> FilePath -> m Response) -- ^ typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict'
                -> (FilePath -> m String)  -- ^ function for determining content-type of file. Typically 'asContentType' or 'guessContentTypeM'
                -> FilePath -- ^ path to the file to serve
@@ -242,10 +242,10 @@ serveFileUsing serveFn mimeFn fp =
        if fe
           then do mt <- mimeFn fp
                   serveFn mt fp
-          else fileNotFound fp
+          else mzero
 
 -- | Alias for 'serveFileUsing' 'filePathSendFile'
-serveFile :: (ServerMonad m, FilterMonad Response m, MonadIO m) => (FilePath -> m String) -> FilePath -> m Response
+serveFile :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) => (FilePath -> m String) -> FilePath -> m Response
 serveFile = serveFileUsing filePathSendFile
 
 -- ** Serve files from a directory
@@ -265,6 +265,7 @@ fileServe' :: ( WebMonad Response m
               , ServerMonad m
               , FilterMonad Response m
               , MonadIO m
+              , MonadPlus m
               ) 
            => (String -> FilePath -> m Response) -- ^ function which takes a content-type and filepath and generates a response (typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict')
            -> (FilePath -> m String) -- ^ function which returns the mime-type for FilePath
@@ -288,10 +289,10 @@ fileServe' serveFn mimeFn ixFiles localpath = do
                      seeOther path' (toResponse path')
         else if fe 
                 then serveFileUsing serveFn mimeFn fp
-                else fileNotFound fp
+                else mzero
 
 -- | Serve files from a directory and it's subdirectories (sendFile version). Should perform much better than its predecessors.
-fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index files if the path is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
@@ -300,14 +301,14 @@ fileServe ixFiles localPath = fileServe' filePathSendFile (guessContentTypeM mim
 -- | Serve files from a directory and it's subdirectories (lazy ByteString version).
 -- 
 -- May leak file handles.
-fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index files if the path is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
 fileServeLazy ixFiles localPath = fileServe' filePathLazy (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
 
 -- | Serve files from a directory and it's subdirectories (strict ByteString version). 
-fileServeStrict :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m) =>
+fileServeStrict :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index files if the path is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
@@ -315,28 +316,28 @@ fileServeStrict ixFiles localPath = fileServe' filePathStrict (guessContentTypeM
 
 -- * Index
 
-doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
         => [String]
         -> MimeMap
         -> String
         -> m Response
 doIndex ixFiles mimeMap localPath = doIndex' filePathSendFile (guessContentTypeM mimeMap) ixFiles localPath
 
-doIndexLazy :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+doIndexLazy :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
         => [String]
         -> MimeMap
         -> String
         -> m Response
 doIndexLazy ixFiles mimeMap localPath = doIndex' filePathLazy (guessContentTypeM mimeMap) ixFiles localPath
 
-doIndexStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+doIndexStrict :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
         => [String]
         -> MimeMap
         -> String
         -> m Response
 doIndexStrict ixFiles mimeMap localPath = doIndex' filePathStrict (guessContentTypeM mimeMap) ixFiles localPath
 
-doIndex' :: (ServerMonad m, FilterMonad Response m, MonadIO m)
+doIndex' :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
         => (String -> FilePath -> m Response)
         -> (FilePath -> m String)
         -> [String]
