@@ -25,16 +25,16 @@
 -- SimpleHTTP provides a back-end independent API for handling HTTP requests.
 --
 -- By default, the built-in HTTP server will be used. However, other back-ends
--- like CGI\/FastCGI can used if so desired.
+-- like CGI\/FastCGI can be used if so desired.
 --
--- So the general nature of 'simpleHTTP' is no different than what you'd expect
+-- So the general nature of 'simpleHTTP' is just what you'd expect
 -- from a web application container.  First you figure out which function is
 -- going to process your request, process the request to generate a response,
 -- then return that response to the client. The web application container is
 -- started with 'simpleHTTP', which takes a configuration and a
--- response-building structure ('ServerPartT' which I'll return too in a
--- moment), and picks the first handler that is willing to accept the request,
--- passes the request into the handler.  A simple "hello world" style HAppS
+-- response-building structure ('ServerPartT' which I'll return to in a
+-- moment), picks the first handler that is willing to accept the request, and
+-- passes the request in to the handler.  A simple "hello world" style HAppS
 -- simpleHTTP server looks like:
 --
 -- @
@@ -45,19 +45,19 @@
 -- return \"Hello World!\" creates a serverPartT that just returns that text.
 --
 -- 'ServerPartT' is the basic response builder.  As you might expect, it's a
--- container for a function that takes a Request and converts it a response
+-- container for a function that takes a Request and converts it to a response
 -- suitable for sending back to the server.  Most of the time though you don't
 -- even need to worry about that as ServerPartT hides almost all the machinery
 -- for building your response by exposing a few type classes.
 --
 -- 'ServerPartT' is a pretty rich monad.  You can interact with your request,
 -- your response, do IO, etc.  Here is a do block that validates basic
--- authentication It takes a realm name as a string, a Map of username to
+-- authentication.  It takes a realm name as a string, a Map of username to
 -- password and a server part to run if authentication fails.
 --
 -- @basicAuth'@ acts like a guard, and only produces a response when
--- authentication fails.  So put it before any ServerPartT you want to demand
--- authentication for in any collection of ServerPartTs.
+-- authentication fails.  So put it before any ServerPartT for which you want to demand
+-- authentication, in any collection of ServerPartTs.
 --
 -- @
 --
@@ -358,7 +358,7 @@ mapServerPartT :: (     UnWebT m a ->      UnWebT n b)
                -> (ServerPartT m a -> ServerPartT n b)
 mapServerPartT f ma = withRequest $ \rq -> mapWebT f (runServerPartT ma rq)
 
--- | A varient of mapServerPartT where the first argument, also takes a request.
+-- | A variant of mapServerPartT where the first argument, also takes a request.
 -- useful if you want to runServerPartT on a different ServerPartT inside your
 -- monad (see spUnwrapErrorT)
 mapServerPartT' :: (Request -> UnWebT m a ->      UnWebT n b)
@@ -719,7 +719,7 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
 -- >     -- do other stuff as root here
 -- >     getUserEntryForName "www" >>= setUserID . userID
 -- >     -- finally start handling incoming requests
--- >     tid <- forkIO $ socketSimpleHTTP socket conf impl
+-- >     tid <- forkIO $ simpleHTTPWithSocket socket conf impl
 --
 -- Note: It's important to use the same conf (or at least the same port) for
 -- 'bindPort' and 'simpleHTTPWithSocket'.

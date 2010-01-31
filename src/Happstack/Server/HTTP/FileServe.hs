@@ -250,7 +250,7 @@ serveFile = serveFileUsing filePathSendFile
 
 -- ** Serve files from a directory
 
--- | Serve files from a directory and it's subdirectories (parameterizable version)
+-- | Serve files from a directory and its subdirectories (parameterizable version)
 -- 
 -- Parameterize this function to create functions like, 'fileServe', 'fileServeLazy', and 'fileServeStrict'
 --
@@ -269,7 +269,7 @@ fileServe' :: ( WebMonad Response m
               ) 
            => (String -> FilePath -> m Response) -- ^ function which takes a content-type and filepath and generates a response (typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict')
            -> (FilePath -> m String) -- ^ function which returns the mime-type for FilePath
-           -> [FilePath]         -- ^ index files if the path is a directory
+           -> [FilePath]         -- ^ index file names, in case the next argument is a directory
            -> FilePath           -- ^ file/directory to serve
            -> m Response
 fileServe' serveFn mimeFn ixFiles localpath = do
@@ -291,25 +291,25 @@ fileServe' serveFn mimeFn ixFiles localpath = do
                 then serveFileUsing serveFn mimeFn fp
                 else mzero
 
--- | Serve files from a directory and it's subdirectories (sendFile version). Should perform much better than its predecessors.
+-- | Serve files from a directory and its subdirectories (sendFile version). Should perform much better than its predecessors.
 fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
-             [FilePath]         -- ^ index files if the path is a directory
+             [FilePath]         -- ^ index file names, in case the next argument is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
 fileServe ixFiles localPath = fileServe' filePathSendFile (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
 
--- | Serve files from a directory and it's subdirectories (lazy ByteString version).
+-- | Serve files from a directory and its subdirectories (lazy ByteString version).
 -- 
 -- May leak file handles.
 fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
-             [FilePath]         -- ^ index files if the path is a directory
+             [FilePath]         -- ^ index file names, in case the next argument is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
 fileServeLazy ixFiles localPath = fileServe' filePathLazy (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
 
--- | Serve files from a directory and it's subdirectories (strict ByteString version). 
+-- | Serve files from a directory and its subdirectories (strict ByteString version). 
 fileServeStrict :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
-             [FilePath]         -- ^ index files if the path is a directory
+             [FilePath]         -- ^ index file names, in case the next argument is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
 fileServeStrict ixFiles localPath = fileServe' filePathStrict (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
