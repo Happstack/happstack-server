@@ -326,12 +326,12 @@ withRequest = ServerPartT . ReaderT
 -- that demands a @ServerPartT IO a@ (e.g. 'simpleHTTP').  You
 -- can provide the function:
 --
--- >   unpackErrorT:: (Monad m, Show e) => UnWebT (ErrorT e m) a -> UnWebT m a
--- >   unpackErrorT handler et = do
+-- >   unpackErrorT :: (Monad m, Show e) => UnWebT (ErrorT e m) a -> UnWebT m a
+-- >   unpackErrorT et = do
 -- >      eitherV <- runErrorT et
 -- >      return $ case eitherV of
--- >          Left err -> Just (Left "Catastrophic failure " ++ show e
--- >                           , Set $ Endo $ \r -> r{rsCode = 500})
+-- >          Left err -> Just (Left $ toResponse $ "Catastrophic failure " ++ show err
+-- >                           , Set $ Dual $ Endo $ \r -> r{rsCode = 500})
 -- >          Right x -> x
 --
 -- With @unpackErrorT@ you can now call 'simpleHTTP'. Just wrap your @ServerPartT@ list.
