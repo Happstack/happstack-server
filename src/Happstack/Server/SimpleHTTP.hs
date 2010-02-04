@@ -37,9 +37,7 @@
 -- passes the request in to the handler.  A simple "hello world" style HAppS
 -- simpleHTTP server looks like:
 --
--- @
---   main = simpleHTTP nullConf $ return \"Hello World!\"
--- @
+-- >  main = simpleHTTP nullConf $ return "Hello World!"
 --
 -- @simpleHTTP nullConf@ creates a HTTP server on port 8000.
 -- return \"Hello World!\" creates a serverPartT that just returns that text.
@@ -59,44 +57,39 @@
 -- authentication fails.  So put it before any ServerPartT for which you want to demand
 -- authentication, in any collection of ServerPartTs.
 --
--- @
+-- > main = simpleHTTP nullConf $ myAuth, return "Hello World!"
+-- >     where
+-- >         myAuth = basicAuth' "Test"
+-- >             (M.fromList [("hello", "world")]) (return "Login Failed")
 --
--- main = simpleHTTP nullConf $ myAuth, return \"Hello World!\"
---     where
---         myAuth = basicAuth\' \"Test\"
---             (M.fromList [(\"hello\", \"world\")]) (return \"Login Failed\")
---
--- basicAuth\' realmName authMap unauthorizedPart =
---    do
---        let validLogin name pass = M.lookup name authMap == Just pass
---        let parseHeader = break (\':\'==) . Base64.decode . B.unpack . B.drop 6
---        authHeader <- getHeaderM \"authorization\"
---        case authHeader of
---            Nothing -> err
---            Just x  -> case parseHeader x of
---                (name, \':\':pass) | validLogin name pass -> mzero
---                                   | otherwise -> err
---                _                                       -> err
---    where
---        err = do
---            unauthorized ()
---            setHeaderM headerName headerValue
---            unauthorizedPart
---        headerValue = \"Basic realm=\\\"\" ++ realmName ++ \"\\\"\"
---        headerName  = \"WWW-Authenticate\"
--- @
+-- > basicAuth' realmName authMap unauthorizedPart =
+-- >    do
+-- >        let validLogin name pass = M.lookup name authMap == Just pass
+-- >        let parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
+-- >        authHeader <- getHeaderM "authorization"
+-- >        case authHeader of
+-- >            Nothing -> err
+-- >            Just x  -> case parseHeader x of
+-- >                (name, ':':pass) | validLogin name pass -> mzero
+-- >                                   | otherwise -> err
+-- >                _                                       -> err
+-- >    where
+-- >        err = do
+-- >            unauthorized ()
+-- >            setHeaderM headerName headerValue
+-- >            unauthorizedPart
+-- >        headerValue = "Basic realm=\"" ++ realmName ++ "\""
+-- >        headerName  = "WWW-Authenticate"
 --
 -- Here is another example that uses liftIO to embed IO in a request process
 --
--- @
---   main = simpleHTTP nullConf $ myPart
---   myPart = do
---     line <- liftIO $ do -- IO
---         putStr \"return? \"
---         getLine
---     when (take 2 line \/= \"ok\") $ (notfound () >> return \"refused\")
---     return \"Hello World!\"
--- @
+-- >  main = simpleHTTP nullConf $ myPart
+-- >  myPart = do
+-- >    line <- liftIO $ do -- IO
+-- >        putStr "return? "
+-- >        getLine
+-- >    when (take 2 line /= "ok") $ (notfound () >> return "refused")
+-- >    return "Hello World!"
 --
 -- This example will ask in the console \"return? \" if you type \"ok\" it will
 -- show \"Hello World!\" and if you type anything else it will return a 404.
@@ -323,34 +316,27 @@ withRequest = ServerPartT . ReaderT
 -- Here is an example.  Suppose you want to embed an ErrorT into your
 -- ServerPartT to enable throwError and catchError in your Monad.
 --
--- @
---   type MyServerPartT e m a = ServerPartT (ErrorT e m) a
--- @
+-- > type MyServerPartT e m a = ServerPartT (ErrorT e m) a
 --
 -- Now suppose you want to pass MyServerPartT into a function
 -- that demands a @ServerPartT IO a@ (e.g. simpleHTTP).  You
 -- can provide the function:
 --
--- @
---   unpackErrorT:: (Monad m, Show e) => UnWebT (ErrorT e m) a -> UnWebT m a
---   unpackErrorT handler et = do
---      eitherV <- runErrorT et
---      case eitherV of
---          Left err -> return $ Just (Left "Catastrophic failure " ++ show e, Set $ Endo \r -> r{rsCode = 500})
---          Right x -> return x
--- @
+-- >   unpackErrorT:: (Monad m, Show e) => UnWebT (ErrorT e m) a -> UnWebT m a
+-- >   unpackErrorT handler et = do
+-- >      eitherV <- runErrorT et
+-- >      return $ case eitherV of
+-- >          Left err -> Just (Left "Catastrophic failure " ++ show e
+-- >                           , Set $ Endo $ \r -> r{rsCode = 500})
+-- >          Right x -> x
 --
 -- With @unpackErrorT@ you can now call simpleHTTP.  Just wrap your @ServerPartT@ list.
 --
--- @
---   simpleHTTP nullConf $ mapServerPartT unpackErrorT (myPart \`catchError\` myHandler)
--- @
+-- >  simpleHTTP nullConf $ mapServerPartT unpackErrorT (myPart `catchError` myHandler)
 --
 -- Or alternatively:
 --
--- @
---   simpleHTTP' unpackErrorT nullConf (myPart \`catchError\` myHandler)
--- @
+-- >  simpleHTTP' unpackErrorT nullConf (myPart `catchError` myHandler)
 --
 -- Also see 'spUnwrapErrorT' for a more sophisticated version of this function
 --
@@ -422,11 +408,9 @@ instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
 -- | A monoid operation container.
 -- If a is a monoid, then SetAppend is a monoid with the following behaviors:
 --
--- @
---   Set    x `mappend` Append y = Set    (x `mappend` y)
---   Append x `mappend` Append y = Append (x `mappend` y)
---   \_       `mappend` Set y    = Set y
--- @
+-- >  Set    x `mappend` Append y = Set    (x `mappend` y)
+-- >  Append x `mappend` Append y = Append (x `mappend` y)
+-- >  _        `mappend` Set y    = Set y
 --
 -- A simple way of sumerizing this is, if the right side is Append, then the
 -- right is appended to the left.  If the right side is Set, then the left side
@@ -473,12 +457,10 @@ class Monad m => FilterMonad a m | m->a where
     --
     -- As an example:
     --
-    -- @
-    --   do
-    --     composeFilter f
-    --     setFilter g
-    --     return \"Hello World\"
-    -- @
+    -- > do
+    -- >   composeFilter f
+    -- >   setFilter g
+    -- >   return "Hello World"
     --
     -- setFilter g will cause the first composeFilter to be
     -- ignored.
@@ -505,9 +487,7 @@ newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT 
 --
 --  A fully unpacked WebT has a structure that looks like:
 --
---  @
---    ununWebT $ WebT m a :: m (Maybe (Either Response a, FilterFun Response))
---  @
+--  > ununWebT $ WebT m a :: m (Maybe (Either Response a, FilterFun Response))
 --
 --  So, ignoring m, as it is just the containing Monad, the outermost layer is
 --  a Maybe.  This is 'Nothing' if 'mzero' was called or @Just (Either Response
@@ -517,15 +497,11 @@ newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT 
 --  (Dual (Endo Response))@.  This is just a wrapper for a @Response->Response@
 --  function with a particular Monoid behavior.  The value
 --
---  @
---      Append (Dual (Endo f))
---  @
+--  >  Append (Dual (Endo f))
 --
 --  Causes f to be composed with the previous filter.
 --
---  @
---      Set (Dual (Endo f))
---  @
+--  >  Set (Dual (Endo f))
 --
 --  Causes f to not be composed with the previous filter.
 --
@@ -537,16 +513,15 @@ newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT 
 --  get when you call "finishWith" and @Right a@ is the normal exit.
 --
 --  An example case statement looks like:
---  @
---    ex1 webt = do
---      val <- ununWebT webt
---      case val of
---          Nothing -> Nothing  -- this is the interior value when mzero was used
---          Just (Left r, f) -> Just (Left r, f) -- r is the value that was passed into "finishWith"
---                                               -- f is our filter function
---          Just (Right a, f) -> Just (Right a, f) -- a is our normal monadic value
---                                                 -- f is still our filter function
---  @
+--
+--  >  ex1 webt = do
+--  >    val <- ununWebT webt
+--  >    case val of
+--  >        Nothing -> Nothing  -- this is the interior value when mzero was used
+--  >        Just (Left r, f) -> Just (Left r, f) -- r is the value that was passed into "finishWith"
+--  >                                             -- f is our filter function
+--  >        Just (Right a, f) -> Just (Right a, f) -- a is our normal monadic value
+--  >                                               -- f is still our filter function
 --
 type UnWebT m a = m (Maybe (Either Response a, FilterFun Response))
 
@@ -920,7 +895,7 @@ dir staticPath handle =
 -- contain '/'. If the guard succeeds, the matched elements will be
 -- popped from the directory stack.
 --
--- @ dirs "foo/bar" $ ... @
+-- > dirs "foo/bar" $ ...
 --          
 -- see also: 'dir'
 dirs :: (ServerMonad m, MonadPlus m) => FilePath -> m a -> m a 
@@ -978,18 +953,16 @@ trailingSlash = guardRq $ \rq -> (last (rqUri rq)) == '/'
 -- For example here is a simple GET or POST variable based authentication
 -- guard.  It handles the request with errorHandler if authentication fails.
 --
--- @
---   myRqData = do
---      username <- lookInput \"username\"
---      password <- lookInput \"password\"
---      return (username, password)
---  checkAuth errorHandler = do
---      d <- getData myRqDataA
---      case d of
---          Nothing -> errorHandler
---          Just a | isValid a -> mzero
---          Just a | otherwise -> errorHandler
---  @
+-- >  myRqData = do
+-- >     username <- lookInput "username"
+-- >     password <- lookInput "password"
+-- >     return (username, password)
+-- > checkAuth errorHandler = do
+-- >     d <- getData myRqDataA
+-- >     case d of
+-- >         Nothing -> errorHandler
+-- >         Just a | isValid a -> mzero
+-- >         Just a | otherwise -> errorHandler
 getDataFn :: (ServerMonad m) => RqData a -> m (Maybe a)
 getDataFn rqData = do
     rq <- askRq
@@ -998,20 +971,19 @@ getDataFn rqData = do
 -- | An varient of getData that uses FromData to chose your
 -- RqData for you.  The example from 'getData' becomes:
 --
--- @
---   myRqData = do
---      username <- lookInput \"username\"
---      password <- lookInput \"password\"
---      return (username, password)
---   instance FromData (String,String) where
---      fromData = myRqData
---   checkAuth errorHandler = do
---      d <- getData\'
---      case d of
---          Nothing -> errorHandler
---          Just a | isValid a -> mzero
---          Just a | otherwise -> errorHandler
--- @
+-- >  myRqData = do
+-- >     username <- lookInput "username"
+-- >     password <- lookInput "password"
+-- >     return (username, password)
+-- >  instance FromData (String,String) where
+-- >     fromData = myRqData
+-- >  checkAuth errorHandler = do
+-- >     d <- getData'
+-- >     case d of
+-- >         Nothing -> errorHandler
+-- >         Just a | isValid a -> mzero
+-- >         Just a | otherwise -> errorHandler
+--
 getData :: (ServerMonad m, FromData a) => m (Maybe a)
 getData = getDataFn fromData
 
@@ -1322,9 +1294,7 @@ simpleErrorHandler err = ok $ toResponse $ ("An error occured: " ++ err)
 -- mapServerPartT\' to allow throwError and catchError inside your
 -- monad.  Eg.
 --
--- @
---   simpleHTTP conf $ mapServerPartT\' (spUnWrapErrorT failurePart)  $ myPart \`catchError\` errorPart
--- @
+-- > simpleHTTP conf $ mapServerPartT' (spUnWrapErrorT failurePart)  $ myPart `catchError` errorPart
 --
 -- Note that @failurePart@ will only be run if errorPart threw an error
 -- so it doesn\'t have to be very complex.
@@ -1354,9 +1324,7 @@ spUnwrapErrorT handler rq = \x -> do
 --
 -- Example: (use 'noopValidator' instead of the default supplied by 'validateConf')
 --
--- @
---  simpleHTTP validateConf . anyRequest $ ok . setValidator noopValidator =<< htmlPage
--- @
+-- > simpleHTTP validateConf . anyRequest $ ok . setValidator noopValidator =<< htmlPage
 --
 -- See also: 'validateConf', 'wdgHTMLValidator', 'noopValidator', 'lazyProcValidator'
 setValidator :: (Response -> IO Response) -> Response -> Response
@@ -1366,9 +1334,7 @@ setValidator v r = r { rsValidator = Just v }
 --
 -- Example: (Set validator to 'noopValidator')
 --
--- @
---   simpleHTTP validateConf $ setValidatorSP noopValidator (dir "ajax" ... )
--- @
+-- >  simpleHTTP validateConf $ setValidatorSP noopValidator (dir "ajax" ... )
 --
 -- See also: 'setValidator'
 setValidatorSP :: (Monad m, ToMessage r) => (Response -> IO Response) -> m r -> m Response
@@ -1379,9 +1345,8 @@ setValidatorSP v sp = return . setValidator v . toResponse =<< sp
 --
 -- Example:
 --
--- @
---  simpleHTTP validateConf . anyRequest $ ok htmlPage
--- @
+-- > simpleHTTP validateConf . anyRequest $ ok htmlPage
+--
 validateConf :: Conf
 validateConf = nullConf { validator = Just wdgHTMLValidator }
 
