@@ -412,7 +412,7 @@ instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
 -- >  Append x `mappend` Append y = Append (x `mappend` y)
 -- >  _        `mappend` Set y    = Set y
 --
--- A simple way of sumerizing this is, if the right side is Append, then the
+-- A simple way of summarizing this is, if the right side is Append, then the
 -- right is appended to the left.  If the right side is Set, then the left side
 -- is ignored.
 
@@ -563,7 +563,7 @@ instance (Monad m) => MonadPlus (WebT m) where
     mplus x y =  WebT $ ErrorT $ FilterT $ (lower x) `mplus` (lower y)
         where lower = (unFilterT . runErrorT . unWebT)
 
--- | deprecated.  use mzero
+-- | deprecated.  use 'mzero'
 noHandle :: (MonadPlus m) => m a
 noHandle = mzero
 {-# DEPRECATED noHandle "Use mzero" #-}
