@@ -7,6 +7,7 @@ import Happstack.Server.HTTP.Socket (acceptLite)
 import Control.Exception.Extensible as E
 import Control.Concurrent
 import Network(PortID(..), listenOn, sClose, Socket)
+import Network.Socket(SocketOption(KeepAlive), setSocketOption)
 import System.IO
 {-
 #ifndef mingw32_HOST_OS
@@ -24,6 +25,7 @@ listen :: Conf -> (Request -> IO Response) -> IO ()
 listen conf hand = do
     let port' = port conf
     socket <- listenOn (PortNumber $ toEnum port')
+    setSocketOption socket KeepAlive 1
     listen' socket conf hand
 
 -- | Use a previously bind port and listen
