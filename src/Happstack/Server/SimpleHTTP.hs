@@ -164,6 +164,7 @@ module Happstack.Server.SimpleHTTP
      -- * guards and building blocks
     , guardRq
     , dir
+    , dirs
     , host
     , withHost
     , method
