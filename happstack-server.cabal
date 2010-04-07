@@ -100,7 +100,7 @@ Library
                        FlexibleInstances, UndecidableInstances, ScopedTypeVariables,
                        TypeSynonymInstances, PatternGuards
                        CPP, ForeignFunctionInterface
-  ghc-options:         -Wall
+  ghc-options:         -Wall -fno-warn-unused-do-bind
   GHC-Prof-Options:    -auto-all
 
 Executable happstack-server-tests
