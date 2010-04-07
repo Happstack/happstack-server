@@ -13,7 +13,6 @@ import Text.XML.HaXml.Escape
 import Text.XML.HaXml.Pretty as Pretty
 import Text.XML.HaXml.Verbatim as Verbatim
 import Happstack.Util.Common
-import Data.Maybe
 import System.Time
 
 import Happstack.Data.Xml as Xml

@@ -23,7 +23,6 @@ import Numeric
 import Data.Int (Int64)
 import Happstack.Server.Cookie
 import Happstack.Server.HTTP.Clock
-import Happstack.Server.HTTP.LazyLiner
 import Happstack.Server.HTTP.Types
 import Happstack.Server.HTTP.Multipart
 import Happstack.Server.HTTP.RFC822Headers
@@ -33,7 +32,6 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Util.TimeOut
 import Happstack.Util.LogFormat (formatRequestCombined)
 import Data.Time.Clock (getCurrentTime)
-import Network.Socket (Socket, fdSocket)
 import Network.Socket.SendFile (unsafeSendFile')
 import System.Log.Logger (Priority(..), logM)
 

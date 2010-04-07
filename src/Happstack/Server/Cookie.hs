@@ -15,7 +15,6 @@ module Happstack.Server.Cookie
     where
 
 import qualified Data.ByteString.Char8 as C
-import Data.Either
 import Data.Char
 import Data.List
 import Data.Generics

@@ -35,7 +35,6 @@ import Happstack.Server.HTTPClient.Stream
 import Data.List (elemIndex)
 import Data.Char
 import Data.IORef
-import System.IO
 
 -----------------------------------------------------------------
 ------------------ TCP Connections ------------------------------

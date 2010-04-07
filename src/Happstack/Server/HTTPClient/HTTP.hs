@@ -141,11 +141,9 @@ import Happstack.Server.HTTPClient.TCP
 import Data.Bits ((.&.))
 import Data.Char
 import Data.List (partition,elemIndex,intersperse)
-import Data.Maybe
 import Control.Monad (when,forM)
 import Numeric (readHex)
 import Text.ParserCombinators.ReadP
-import System.IO
 
 
 

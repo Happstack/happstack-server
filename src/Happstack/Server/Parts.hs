@@ -8,7 +8,6 @@ module Happstack.Server.Parts(
 import Happstack.Server.SimpleHTTP
 import Text.ParserCombinators.Parsec
 import Control.Monad
-import Data.Char
 import Data.Maybe
 import Data.List
 import qualified Data.ByteString.Char8 as BS

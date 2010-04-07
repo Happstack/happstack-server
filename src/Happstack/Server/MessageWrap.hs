@@ -2,10 +2,8 @@
 
 module Happstack.Server.MessageWrap where
 
-import Control.Monad.Identity
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.List as List
 import Data.Maybe
 import Happstack.Server.HTTP.Types as H
 import Happstack.Server.HTTP.Multipart

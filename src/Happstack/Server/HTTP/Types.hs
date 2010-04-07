@@ -29,7 +29,6 @@ import Happstack.Server.HTTP.Multipart ( ContentType(..) )
 import Happstack.Server.Cookie
 import Data.List
 import Text.Show.Functions ()
-import System.IO (Handle)
 
 -- | HTTP version
 data Version = Version Int Int
