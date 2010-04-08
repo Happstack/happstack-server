@@ -6,8 +6,14 @@ import Happstack.Server.HTTP.Handler
 import Happstack.Server.HTTP.Socket (acceptLite)
 import Control.Exception.Extensible as E
 import Control.Concurrent
-import Network(PortID(..), listenOn, sClose, Socket)
-import Network.Socket(SocketOption(KeepAlive), setSocketOption)
+import Network.BSD (getProtocolNumber)
+import Network(sClose, Socket)
+import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption, 
+                                 socket, Family(..), SockAddr, 
+                                 SocketOption(..), SockAddr(..), 
+                                 iNADDR_ANY, maxListenQueue, SocketType(..), 
+                                 bindSocket)
+import qualified Network.Socket as Socket (listen)
 import System.IO
 {-
 #ifndef mingw32_HOST_OS
@@ -20,13 +26,34 @@ import System.Log.Logger (Priority(..), logM)
 log':: Priority -> String -> IO ()
 log' = logM "Happstack.Server.HTTP.Listen"
 
+
+{-
+   Network.listenOn binds randomly to IPv4 or IPv6 or both,
+   depending on system and local settings.
+   Lets make it use IPv4 only for now.
+-}
+
+listenOn :: Int -> IO Socket
+listenOn portm = do
+    proto <- getProtocolNumber "tcp"
+    E.bracketOnError
+        (socket AF_INET Stream proto)
+        (sClose)
+        (\sock -> do
+            setSocketOption sock ReuseAddr 1
+            bindSocket sock (SockAddrInet (fromIntegral portm) iNADDR_ANY)
+            Socket.listen sock maxListenQueue
+            return sock
+        )
+
+
 -- | Bind and listen port
 listen :: Conf -> (Request -> IO Response) -> IO ()
 listen conf hand = do
     let port' = port conf
-    socket <- listenOn (PortNumber $ toEnum port')
-    setSocketOption socket KeepAlive 1
-    listen' socket conf hand
+    socketm <- listenOn port'
+    setSocketOption socketm KeepAlive 1
+    listen' socketm conf hand
 
 -- | Use a previously bind port and listen
 listen' :: Socket -> Conf -> (Request -> IO Response) -> IO ()

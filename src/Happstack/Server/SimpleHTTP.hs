@@ -226,12 +226,12 @@ import qualified Data.Version                    as DV
 import Happstack.Server.HTTP.Client              (getResponse, unproxify, unrproxify)
 import Happstack.Data.Xml.HaXml                  (toHaXmlEl)
 import qualified Happstack.Server.MinHaXML       as H
-import qualified Happstack.Server.HTTP.Listen    as Listen (listen, listen') -- So that we can disambiguate 'Writer.listen'
+import qualified Happstack.Server.HTTP.Listen    as Listen (listen, listen',listenOn) -- So that we can disambiguate 'Writer.listen'
 import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
 import Happstack.Server.SURI                     (ToSURI)
 import Happstack.Util.Common                     (Seconds, readM)
 import Happstack.Data                            (Xml, normalize, fromPairs, Element, toXml, toPublicXml) -- used by default implementation of fromData
-import Network                                   (listenOn, PortID(..), Socket)
+import Network                                   (PortID(..), Socket)
 import Control.Applicative                       (Applicative, pure, (<*>))
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)
@@ -663,14 +663,21 @@ parseConfig args
         (flags,_,[]) -> Right $ foldr ($) nullConf flags
         (_,_,errs)   -> Left errs
 
--- | Use the built-in web-server to serve requests according to a 'ServerPartT'.
--- Use msum to pick the first handler from a list of handlers that doesn't call
--- noHandle.
+-- | Use the built-in web-server to serve requests according to a
+-- 'ServerPartT'.  Use msum to pick the first handler from a list of
+-- handlers that doesn't call noHandle. This function always binds o
+-- IPv4 ports until Network module is fixed to support IPv6 in a
+-- portable way. Use 'simpleHTTPWithSocket' with custom socket if you
+-- want different behaviour.
 simpleHTTP :: (ToMessage a) => Conf -> ServerPartT IO a -> IO ()
 simpleHTTP = simpleHTTP' id
 
--- | a combination of simpleHTTP'' and 'mapServerPartT'.  See 'mapServerPartT' for a discussion
--- of the first argument of this function.
+-- | a combination of simpleHTTP'' and 'mapServerPartT'.  See
+-- 'mapServerPartT' for a discussion of the first argument of this
+-- function. This function always binds to IPv4 ports until Network
+-- module is fixed to support IPv6 in a portable way. Use
+-- 'simpleHTTPWithSocket' with custom socket if you want different
+-- behaviour.
 simpleHTTP' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
             -> Conf -> ServerPartT m a -> IO ()
 simpleHTTP' toIO conf hs =
@@ -708,7 +715,9 @@ simpleHTTPWithSocket' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnW
 simpleHTTPWithSocket' toIO socket conf hs =
     Listen.listen' socket conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
 
--- | Bind port and return the socket for 'simpleHTTPWithSocket'
+-- | Bind port and return the socket for 'simpleHTTPWithSocket'. This
+-- function always binds to IPv4 ports until Network module is fixed to
+-- support IPv6 in a portable way.
 bindPort :: Conf -> IO Socket
 bindPort conf = listenOn (PortNumber . toEnum . port $ conf)
 
@@ -722,7 +731,7 @@ bindPort conf = listenOn (PortNumber . toEnum . port $ conf)
 --
 -- instead of requiring the path component to look like:
 --
--- \/"somestring"\/
+-- \/\"somestring\"\/
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
