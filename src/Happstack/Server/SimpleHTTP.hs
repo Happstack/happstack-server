@@ -719,7 +719,7 @@ simpleHTTPWithSocket' toIO socket conf hs =
 -- function always binds to IPv4 ports until Network module is fixed to
 -- support IPv6 in a portable way.
 bindPort :: Conf -> IO Socket
-bindPort conf = listenOn (PortNumber . toEnum . port $ conf)
+bindPort conf = Listen.listenOn (port conf)
 
 -- | This class is used by 'path' to parse a path component into a value.
 -- At present, the instances for number types (Int, Float, etc) just
