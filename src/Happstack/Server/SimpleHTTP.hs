@@ -157,6 +157,7 @@ module Happstack.Server.SimpleHTTP
     , tempRedirect
     , addCookie
     , addCookies
+    , expireCookie
     , addHeaderM
     , setHeaderM
     , ifModifiedSince
@@ -1111,6 +1112,10 @@ addCookie sec = (addHeaderM "Set-Cookie") . mkCookieHeader sec
 -- | adds the list of cookie timeout pairs to the response
 addCookies :: (FilterMonad Response m) => [(Seconds, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
+
+-- | expire a cookie immediately
+expireCookie :: (FilterMonad Response m) => String -> m () 
+expireCookie cookieName = addCookie 0 (mkCookie cookieName "")
 
 -- |honor if-modified-since header in Request
 -- If the 'Request' includes the if-modified-since header and the
