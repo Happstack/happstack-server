@@ -73,7 +73,7 @@ Library
                        network,
                        old-locale,
                        old-time,
-                       parsec < 3,
+                       parsec < 4,
                        process,
                        sendfile >= 0.6.1 && < 0.7,
                        template-haskell,
