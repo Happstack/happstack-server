@@ -278,7 +278,7 @@ import qualified Text.XHtml                      as XHtml (Html, renderHtml)
 
 import qualified Happstack.Crypto.Base64         as Base64
 import Data.Char                                 (toLower)
-import Data.List                                 (isPrefixOf)
+import Data.List                                 (isPrefixOf,stripPrefix,tails,inits)
 import System.IO                                 (hGetContents, hClose)
 import System.Console.GetOpt                     ( OptDescr(Option)
                                                  , ArgDescr(ReqArg)
@@ -290,6 +290,7 @@ import System.Process                            (runInteractiveProcess, waitFor
 import System.Time                               (CalendarTime, formatCalendarTime)
 import System.Exit                               (ExitCode(ExitSuccess, ExitFailure))
 import System.FilePath                           (makeRelative, splitDirectories)
+import Debug.Trace                               (trace)
 
 -- | An alias for WebT when using IO.
 type Web a = WebT IO a
@@ -528,7 +529,7 @@ type UnWebT m a = m (Maybe (Either Response a, FilterFun Response))
 instance Monad m => Monad (WebT m) where
     m >>= f = WebT $ unWebT m >>= unWebT . f
     return a = WebT $ return a
-    fail s = mkFailMessage s
+    fail s = outputTraceMessage s (mkFailMessage s)
 
 instance Error Response where
     strMsg = toResponse
@@ -1438,6 +1439,18 @@ lazyProcValidator exec args wd env mimeTypePred response
       column = "  " ++ (take 120 $ concatMap  (\n -> "         " ++ show n) (drop 1 $ cycle [0..9::Int]))
       showLines :: L.ByteString -> [String]
       showLines string = column : zipWith (\n -> \l  -> show n ++ " " ++ (L.unpack l)) [1::Integer ..] (L.lines string)
+
+-- "Pattern match failure in do expression at src\AppControl.hs:43:24"
+-- is converted to:
+-- "src\AppControl.hs:43:24: Pattern match failure in do expression"
+-- Then we output this to stderr. Help debugging under Emacs console when using GHCi.
+-- This is GHC specific, but you may add your favourite compiler here also.
+outputTraceMessage s c | "Pattern match failure " `isPrefixOf` s = 
+    let w = [(k,p) | (i,p) <- zip (tails s) (inits s), Just k <- [stripPrefix " at " i]]
+        v = concatMap (\(k,p) -> k ++ ": " ++ p) w
+    in trace v c
+outputTraceMessage _ c = trace "some error" c
+
 
 mkFailMessage :: (FilterMonad Response m, WebMonad Response m) => String -> m b
 mkFailMessage s = do
