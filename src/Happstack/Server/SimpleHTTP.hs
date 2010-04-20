@@ -144,6 +144,7 @@ module Happstack.Server.SimpleHTTP
     , WebMonad(..)
     , ok
     , modifyResponse
+    , toResponseBS
     , setResponseCode
     , badGateway
     , internalServerError
@@ -760,6 +761,19 @@ instance (FromData a, FromData b, FromData c, FromData d) => FromData (a,b,c,d) 
     fromData = liftM4 (,,,) fromData fromData fromData fromData
 instance FromData a => FromData (Maybe a) where
     fromData = fmap Just fromData `mplus` return Nothing
+
+-- |low-level function to build a 'Response' from a content-type and a
+-- 'ByteString'
+--
+-- Creates a 'Response' in a manner similar to the 'ToMessage' class,
+-- but with out requiring an instance declaration.
+toResponseBS :: B.ByteString -- ^ content-type
+             -> L.ByteString -- ^ response body
+             -> Response
+toResponseBS contentType message =
+    let res = Response 200 M.empty nullRsFlags message Nothing
+    in setHeaderBS (B.pack "Content-Type") contentType res
+
 
 -- |
 --  Used to convert arbitrary types into an HTTP response.  You need to implement
