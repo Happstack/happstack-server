@@ -5,7 +5,7 @@ module Happstack.Server.HTTP.Handler(request-- version,required
 -- ,unchunkBody,val,testChunk,pack
 ) where
 --    ,fsepC,crlfC,pversion
-import qualified Paths_happstack_server as Paths
+--import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
 import Control.Exception.Extensible as E
 import Control.Monad
@@ -17,6 +17,11 @@ import qualified Data.List as List
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Lazy.Internal as L
+import qualified Data.ByteString.Internal as S
+import qualified Data.ByteString.Unsafe as S
+import qualified Data.ByteString as S
+import System.IO.Unsafe
 import qualified Data.Map as M
 import System.IO
 import Numeric
@@ -35,8 +40,29 @@ import Data.Time.Clock (getCurrentTime)
 import Network.Socket.SendFile (unsafeSendFile')
 import System.Log.Logger (Priority(..), logM)
 
+
+hGetContentsN :: Int -> Handle -> IO L.ByteString
+hGetContentsN k h = lazyRead -- TODO close on exceptions
+  where
+    lazyRead = unsafeInterleaveIO loop
+
+    loop = do
+        c <- S.hGetNonBlocking h k
+        if S.null c
+          then do eof <- hIsEOF h
+                  if eof then hClose h >> return L.Empty
+                         else hWaitForInput h (-1)
+                            >> loop
+
+          --then hClose h >> return Empty
+          else do cs <- lazyRead
+                  return (L.Chunk c cs)
+
+hGetContents' :: Handle -> IO L.ByteString
+hGetContents' = hGetContentsN L.defaultChunkSize
+
 request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
-request conf h host handler = rloop conf h host handler =<< L.hGetContents h
+request conf h host handler = rloop conf h host handler =<< hGetContents' h
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
@@ -55,7 +81,8 @@ rloop conf h host handler inputStr
     | otherwise
     = join $ withTimeOut (30 * second) $
       do let parseRequest
-                 = do (topStr, restStr) <- required "failed to separate request" $ splitAtEmptyLine inputStr
+                 = do
+                      (topStr, restStr) <- required "failed to separate request" $ splitAtEmptyLine inputStr
                       (rql, headerStr) <- required "failed to separate headers/body" $ splitAtCRLF topStr
                       let (m,u,v) = requestLine rql
                       headers' <- parseHeaders "host" (L.unpack headerStr)
@@ -67,7 +94,7 @@ rloop conf h host handler inputStr
                                  return $ consumeChunks restStr
                              | otherwise                       -> return (L.splitAt (fromIntegral contentLength) restStr)
                       let cookies = [ (cookieName c, c) | cl <- fromMaybe [] (fmap getCookies (getHeader "Cookie" headers)), c <- cl ] -- Ugle
-                          rqTmp = Request m (pathEls (path u)) (path u) (query u) 
+                          rqTmp = Request m (pathEls (path u)) (path u) (query u)
                                   [] cookies v headers (Body body) host
                           rq = rqTmp{rqInputs = queryInput u ++ bodyInput rqTmp}
                       return (rq, nextRequest)
@@ -77,7 +104,7 @@ rloop conf h host handler inputStr
                -> return $
                   do let ioseq act = act >>= \x -> x `seq` return x
                      res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
-                     
+
                      -- combined log format
                      time <- getCurrentTime
                      let host' = fst host
@@ -96,7 +123,7 @@ rloop conf h host handler inputStr
 -- error it will return @Left msg@.
 parseResponse :: L.ByteString -> Either String Response
 parseResponse inputStr =
-    do (topStr,restStr) <- required "failed to separate response" $ 
+    do (topStr,restStr) <- required "failed to separate response" $
                            splitAtEmptyLine inputStr
        (rsl,headerStr) <- required "failed to separate headers/body" $
                           splitAtCRLF topStr
@@ -105,8 +132,8 @@ parseResponse inputStr =
        let headers = mkHeaders headers'
        let mbCL = fmap fst (B.readInt =<< getHeader "content-length" headers)
        (body,_) <-
-           maybe (if (isNothing $ getHeader "transfer-encoding" headers) 
-                       then  return (restStr,L.pack "") 
+           maybe (if (isNothing $ getHeader "transfer-encoding" headers)
+                       then  return (restStr,L.pack "")
                        else  return $ consumeChunks restStr)
                  (\cl->return (L.splitAt (fromIntegral cl) restStr))
                  mbCL
@@ -121,11 +148,11 @@ consumeChunksImpl :: L.ByteString -> ([(Int64, L.ByteString)], L.ByteString, L.B
 consumeChunksImpl str
     | L.null str = ([],L.empty,str)
     | chunkLen == 0 = let (last,rest') = L.splitAt lenLine1 str
-                          (tr',rest'') = getTrailer rest' 
+                          (tr',rest'') = getTrailer rest'
                       in ([(0,last)],tr',rest'')
     | otherwise = ((chunkLen,part):crest,tr,rest2)
     where
-      line1 = head $ lazylines str 
+      line1 = head $ lazylines str
       lenLine1 = (L.length line1) + 1 -- endchar
       chunkLen = (fst $ head $ readHex $ L.unpack line1)
       len = chunkLen + lenLine1 + 2
@@ -156,7 +183,7 @@ requestLine l = case P.words ((P.concat . L.toChunks) l) of
                   x -> error $ "requestLine cannot handle input:  " ++ (show x)
 
 responseLine :: L.ByteString -> (B.ByteString, Int)
-responseLine l = case B.words ((B.concat . L.toChunks) l) of 
+responseLine l = case B.words ((B.concat . L.toChunks) l) of
                    (v:c:_) -> version v `seq` (v,fst (fromJust (B.readInt c)))
                    x -> error $ "responseLine cannot handle input: " ++ (show x)
 
@@ -223,7 +250,7 @@ augmentHeaders req res cl = do
 
 -- | Serializes the request to the given handle
 putRequest :: Handle -> Request -> IO ()
-putRequest h rq = do 
+putRequest h rq = do
     let put = B.hPut h
         ph (HeaderPair k vs) = map (\v -> B.concat [k, fsepC, v, crlfC]) vs
         sp = [B.pack " "]
@@ -287,7 +314,7 @@ dateCLower       = P.map toLower dateC
 serverC :: B.ByteString
 serverC          = P.pack "Server"
 happsC :: B.ByteString
-happsC           = P.pack $ "Happstack/" ++ DV.showVersion Paths.version
+happsC           = P.pack $ "Happstack/" -- ++ DV.showVersion Paths.version
 textHtmlC :: B.ByteString
 textHtmlC        = P.pack "text/html; charset=utf-8"
 
