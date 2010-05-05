@@ -106,9 +106,9 @@ Library
 Executable happstack-server-tests
   Main-Is: Test.hs
   GHC-Options: -threaded
-  Build-depends: HUnit, parsec < 4
   hs-source-dirs: tests, src
   if flag(tests)
     Buildable: True
+    Build-depends: HUnit, parsec < 4
   else
     Buildable: False
