@@ -1,15 +1,20 @@
 -- |HUnit tests and QuickQuick properties for Happstack.Server.*
 module Happstack.Server.Tests (allTests) where
 
-import Test.HUnit as HU (Test(..),(~:),(~?),(@?=))
+import Test.HUnit as HU (Test(..),(~:),(~?),(@?=),(@=?))
 import Happstack.Server.Cookie
 import Happstack.Server.Parts
 import Text.ParserCombinators.Parsec
+import Data.ByteString.Lazy.Char8 (pack)
+import Happstack.Server.HTTP.Multipart
 
 -- |All of the tests for happstack-util should be listed here. 
 allTests :: Test
 allTests = 
-    "happstack-server tests" ~: [cookieParserTest, acceptEncodingParserTest]
+    "happstack-server tests" ~: [ cookieParserTest
+                                , acceptEncodingParserTest
+                                , splitMultipart 
+                                ]
 
 cookieParserTest :: Test
 cookieParserTest = 
@@ -47,3 +52,25 @@ acceptEncodingParserTest =
        , (" gzip;q=1.0, identity; q=0.5, *;q=0", [("gzip", Just 1.0), ("identity",Just 0.5), ("*", Just 0)])
        , (" x-gzip",[("x-gzip", Nothing)])
        ]
+
+splitMultipart :: Test
+splitMultipart =
+    "split multipart" ~: 
+    [ Just [pack "1"] @=? 
+           splitParts (pack "boundary")
+                      (pack "beg\r\n--boundary\r\n1\r\n--boundary--\r\nend")
+    , Just [pack "1\n"] @=? 
+           splitParts (pack "boundary")
+                      (pack "beg\r\n--boundary\r\n1\n\r\n--boundary--\r\nend")
+    , Just [pack "1\r\n"] @=? 
+           splitParts (pack "boundary")
+                      (pack "beg\r\n--boundary\r\n1\r\n\r\n--boundary--\r\nend")
+    , Just [pack "1\n\r"] @=? 
+           splitParts (pack "boundary")
+                      (pack "beg\r\n--boundary\r\n1\n\r\r\n--boundary--\r\nend")
+    , Just [pack "\r\n1\n\r"] @=? 
+           splitParts (pack "boundary")
+                      (pack "beg\r\n--boundary\r\n\r\n1\n\r\r\n--boundary--\r\nend")
+    ]
+
+

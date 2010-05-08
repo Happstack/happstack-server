@@ -10,7 +10,7 @@
 --
 -- Maintainer  :  lemmih@vo.com
 -- Stability   :  experimental
--- Portability :  xbnon-portable
+-- Portability :  non-portable
 --
 -- Parsing of the multipart format from RFC2046.
 -- Partly based on code from WASHMail.
@@ -33,6 +33,7 @@ module Happstack.Server.HTTP.Multipart
 
     , splitAtEmptyLine
     , splitAtCRLF
+    , splitParts
     ) where
 
 import Control.Monad
@@ -192,7 +193,6 @@ findCRLF s =
               Nothing -> Nothing
               Just j | BS.null (BS.drop (j+1) s) -> Just (j,1)
               Just j -> case (BS.index s j, BS.index s (j+1)) of
-                           ('\n','\r') -> Just (j,2)
                            ('\r','\n') -> Just (j,2)
                            _           -> Just (j,1)
 
@@ -209,7 +209,6 @@ startsWithCRLF s = not (BS.null s) && (c == '\n' || c == '\r')
 dropCRLF :: ByteString -> ByteString
 dropCRLF s | BS.null s = BS.empty
            | BS.null (BS.drop 1 s) = BS.empty
-           | c0 == '\n' && c1 == '\r' = BS.drop 2 s
            | c0 == '\r' && c1 == '\n' = BS.drop 2 s
            | otherwise = BS.drop 1 s
   where c0 = BS.index s 0
