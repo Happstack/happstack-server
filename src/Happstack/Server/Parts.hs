@@ -128,10 +128,10 @@ handlers =
 encodings :: GenParser Char st [([Char], Maybe Double)]
 encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
     where
-        ws = many space
+        ws = many space >> return ()
         sep = do
             ws
-            char ','
+            _ <- char ','
             ws
         
         encoding1 :: GenParser Char st ([Char], Maybe Double)
@@ -155,7 +155,7 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
                 return fractionalPart
         fraction :: GenParser Char st String
         fraction = do
-            char '.'
+            _ <- char '.'
             fractionalPart<-option "" int
             return $ '.':fractionalPart
 
