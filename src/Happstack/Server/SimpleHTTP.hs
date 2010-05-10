@@ -126,7 +126,7 @@ module Happstack.Server.SimpleHTTP
     -- * Type Classes
     , FromReqURI(..)
     , ToMessage(..)
-
+    , toResponseBS
       -- * Manipulating requests
     , FromData(..)
     , ServerMonad(..)
@@ -142,10 +142,18 @@ module Happstack.Server.SimpleHTTP
     , SetAppend(..)
     , FilterT(..)
     , WebMonad(..)
-    , ok
+    , addCookie
+    , addCookies
+    , expireCookie
+    , addHeaderM
+    , setHeaderM
+    , ifModifiedSince
     , modifyResponse
-    , toResponseBS
     , setResponseCode
+    , resp
+
+      -- * Respond Codes
+    , ok
     , badGateway
     , internalServerError
     , badRequest
@@ -156,12 +164,6 @@ module Happstack.Server.SimpleHTTP
     , found
     , movedPermanently
     , tempRedirect
-    , addCookie
-    , addCookies
-    , expireCookie
-    , addHeaderM
-    , setHeaderM
-    , ifModifiedSince
 
      -- * guards and building blocks
     , guardRq
@@ -1104,16 +1106,6 @@ doXslt cmd xslPath res =
               setHeader "Content-Length" (show $ L.length new) $
               res { rsBody = new }
 
--- | Deprecated:  use 'composeFilter'.
-modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
-modifyResponse = composeFilter
-{-# DEPRECATED modifyResponse "Use composeFilter" #-}
-
--- | Set the return code in your response.
-setResponseCode :: FilterMonad Response m => Int -> m ()
-setResponseCode code
-    = composeFilter $ \r -> r{rsCode = code}
-
 -- | Add the cookie with a timeout to the response.
 addCookie :: (FilterMonad Response m) => Seconds -> Cookie -> m ()
 addCookie sec = (addHeaderM "Set-Cookie") . mkCookieHeader sec
@@ -1140,6 +1132,16 @@ ifModifiedSince modTime request response =
     in if notmodified
           then result 304 "" -- Not Modified
           else setHeader "Last-modified" repr response
+
+-- | Deprecated:  use 'composeFilter'.
+modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
+modifyResponse = composeFilter
+{-# DEPRECATED modifyResponse "Use composeFilter" #-}
+
+-- | Set the return code in your response.
+setResponseCode :: FilterMonad Response m => Int -> m ()
+setResponseCode code
+    = composeFilter $ \r -> r{rsCode = code}
 
 -- | Same as @'setResponseCode' status >> return val@.
 resp :: (FilterMonad Response m) => Int -> b -> m b
@@ -1199,7 +1201,7 @@ multi = msum
 {-# DEPRECATED multi "Use msum instead" #-}
 
 -- | What is this for, exactly?  I don't understand why @Show a@ is even in the context
--- This appears to do nothing at all.
+-- Deprecated: This function appears to do nothing at all. If it use it, let us know why.
 debugFilter :: (MonadIO m, Show a) => ServerPartT m a -> ServerPartT m a
 debugFilter handle =
     withRequest $ \rq -> do
@@ -1211,6 +1213,7 @@ anyRequest :: Monad m => WebT m a -> ServerPartT m a
 anyRequest x = withRequest $ \_ -> x
 
 -- | Again, why is this useful?
+-- Deprecated: No idea why this function would be useful. If you use it, please tell us.
 applyRequest :: (ToMessage a, Monad m, Functor m) =>
                 ServerPartT m a -> Request -> Either (m Response) b
 applyRequest hs = simpleHTTP'' hs >>= return . Left
