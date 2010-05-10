@@ -37,9 +37,13 @@ mkCookie key val = Cookie "1" "/" "" key val False
 -- | Set a Cookie in the Result.
 -- The values are escaped as per RFC 2109, but some browsers may
 -- have buggy support for cookies containing e.g. @\'\"\'@ or @\' \'@.
+--
+-- Also, it seems that chrome, safari, and other webkit browsers do
+-- not like cookies which have double quotes around the domain and
+-- reject/ignore the cookie. So, we no longer quote the domain.
 mkCookieHeader :: Seconds -> Cookie -> String
 mkCookieHeader sec cookie =
-    let l = [("Domain=",s cookieDomain)
+    let l = [("Domain=", cookieDomain cookie)
             ,("Max-Age=",if sec < 0 then "" else show sec)
             ,("Path=", cookiePath cookie)
             ,("Version=", s cookieVersion)]
