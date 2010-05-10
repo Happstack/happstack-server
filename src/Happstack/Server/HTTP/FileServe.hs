@@ -32,6 +32,7 @@ module Happstack.Server.HTTP.FileServe
      doIndexLazy,
      doIndexStrict,
      errorwrapper,
+     fileNotFound,
      isDot
     ) where
 
@@ -90,6 +91,7 @@ asContentType = const . return
 defaultIxFiles :: [String]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
+-- | return a simple "File not found 404 page."
 fileNotFound :: (Monad m, FilterMonad Response m) => FilePath -> m Response
 fileNotFound fp = return $ result 404 $ "File not found " ++ fp
 
