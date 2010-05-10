@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ScopedTypeVariables, PatternSignatures #-}
+{-# LANGUAGE CPP, ScopedTypeVariables, ScopedTypeVariables #-}
 module Happstack.Server.HTTP.Listen(listen, listen',listenOn) where
 
 import Happstack.Server.HTTP.Types
