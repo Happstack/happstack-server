@@ -126,9 +126,8 @@ sendFileResponse :: String  -- ^ content-type string
                  -> Integer -- ^ number of bytes to send
                  -> Response
 sendFileResponse ct filePath mModTime _offset count =
-    let res = ((setHeader "Content-Length" (show count)) .
-               (setHeader "Content-Type" ct) $ 
-               (SendFile 200 Map.empty nullRsFlags{rsfContentLength=False} Nothing filePath 0 count)
+    let res = ((setHeader "Content-Type" ct) $ 
+               (SendFile 200 Map.empty nullRsFlags Nothing filePath 0 count)
               )
     in case mModTime of
          Nothing -> res
