@@ -242,7 +242,7 @@ import Happstack.Server.SURI                     (ToSURI)
 import Happstack.Util.Common                     (Seconds, readM)
 import Happstack.Data                            (Xml, normalize, fromPairs, Element, toXml, toPublicXml) -- used by default implementation of fromData
 import Network                                   (PortID(..), Socket)
-import Control.Applicative                       (Applicative, pure, (<*>))
+import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)
 import Control.Monad                             ( MonadPlus, mzero, mplus
@@ -377,6 +377,10 @@ instance (Monad m) => Monoid (ServerPartT m a) where
 instance (Monad m, Functor m) => Applicative (ServerPartT m) where
     pure = return
     (<*>) = ap
+
+instance (Functor m, MonadPlus m) => Alternative (ServerPartT m) where
+    empty = mzero
+    (<|>) = mplus
 
 instance (Monad m, MonadWriter w m) => MonadWriter w (ServerPartT m) where
     tell = lift . tell
@@ -623,6 +627,10 @@ mapWebT f ma = mkWebT $ f (ununWebT ma)
 instance (Monad m, Functor m) => Applicative (WebT m) where
     pure = return
     (<*>) = ap
+
+instance (Functor m, MonadPlus m) => Alternative (WebT m) where
+    empty = mzero
+    (<|>) = mplus
 
 instance MonadReader r m => MonadReader r (WebT m) where
     ask = lift ask
