@@ -241,7 +241,7 @@ import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
 import Happstack.Server.SURI                     (ToSURI)
 import Happstack.Util.Common                     (Seconds, readM)
 import Happstack.Data                            (Xml, normalize, fromPairs, Element, toXml, toPublicXml) -- used by default implementation of fromData
-import Network                                   (PortID(..), Socket)
+import Network                                   (Socket)
 import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)

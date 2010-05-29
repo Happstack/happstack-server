@@ -13,13 +13,10 @@ import Data.List(elemIndex)
 import Data.Char(toLower)
 import Data.Maybe ( fromMaybe, fromJust, isJust, isNothing )
 import Prelude hiding (last)
-import qualified Data.List as List
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.Internal as L
-import qualified Data.ByteString.Internal as S
-import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString as S
 import System.IO.Unsafe
 import qualified Data.Map as M
