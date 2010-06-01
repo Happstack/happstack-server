@@ -844,10 +844,15 @@ instance ToMessage XHtml.Html where
 
 instance ToMessage Response where
     toResponse = id
+{-
+
+-- This instances causes awful error messages. I am removing it and
+-- seeing if anyone complains. I doubt they will.
 
 instance (Xml a)=>ToMessage a where
     toContentType = toContentType . toXml
     toMessage = toMessage . toPublicXml
+-}
 
 --    toMessageM = toMessageM . toPublicXml
 
