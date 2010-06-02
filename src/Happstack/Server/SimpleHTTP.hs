@@ -1016,7 +1016,7 @@ getDataFn rqData = do
     rq <- askRq
     return $ runReaderT rqData (rqInputs rq, rqCookies rq)
 
--- | An variant of 'getData' that uses 'FromData' to chose your
+-- | A variant of 'getData' that uses 'FromData' to chose your
 -- 'RqData' for you.  The example from 'getData' becomes:
 --
 -- >  myRqData = do

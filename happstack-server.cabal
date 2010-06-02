@@ -37,6 +37,7 @@ Library
                        Happstack.Server.MinHaXML
                        Happstack.Server.SURI
                        Happstack.Server.XSLT
+                       Happstack.Server.RqData
                        Happstack.Server.StdConfig
                        Happstack.Server.Parts
   if flag(tests)
