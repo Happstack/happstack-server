@@ -17,6 +17,7 @@ module Happstack.Server.HTTP.Types
 
 
 import qualified Data.Map as M
+import Data.Data (Data)
 import Data.Typeable(Typeable)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as P
@@ -62,7 +63,7 @@ nullConf = Conf { port      = 8000
 
 -- | HTTP request method
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
-               deriving(Show,Read,Eq)
+               deriving(Show,Read,Eq,Ord,Typeable,Data)
 
 data HeaderPair = HeaderPair { hName :: ByteString, hValue :: [ByteString] } deriving (Read,Show)
 -- | Combined headers.
