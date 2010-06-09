@@ -27,6 +27,7 @@ Library
 
   Exposed-modules:
                        Happstack.Server
+                       Happstack.Server.Base
                        Happstack.Server.Cookie
                        Happstack.Server.HTTP.Client
                        Happstack.Server.HTTP.Types

@@ -16,6 +16,7 @@ module Happstack.Server.HTTP.Types
     ) where
 
 
+import Control.Monad.Error (Error(strMsg))
 import qualified Data.Map as M
 import Data.Data (Data)
 import Data.Typeable(Typeable)
@@ -105,18 +106,25 @@ data Response  = Response  { rsCode      :: Int,
                              sfOffset    :: Integer, -- offset to start at
                              sfCount     :: Integer  -- number of bytes to send
                            }
-               deriving (Show,Typeable) 
+               deriving (Show,Typeable)
 
-data Request = Request { rqMethod  :: Method,
-                         rqPaths   :: [String],
-			 rqUri	   :: String,
-                         rqQuery   :: String,
-                         rqInputs  :: [(String,Input)],
-                         rqCookies :: [(String,Cookie)],
-                         rqVersion :: Version,
-                         rqHeaders :: Headers,
-                         rqBody    :: RqBody,
-                         rqPeer    :: Host
+-- what should the status code be ?
+instance Error Response where
+  strMsg str = 
+      setHeader "Content-Type" "text/plain; charset=UTF-8" $ 
+       result 500 str
+
+data Request = Request { rqMethod      :: Method,
+                         rqPaths       :: [String],
+                         rqUri         :: String,
+                         rqQuery       :: String,
+                         rqInputsQuery :: [(String,Input)],
+                         rqInputsBody  :: [(String,Input)],
+                         rqCookies     :: [(String,Cookie)],
+                         rqVersion     :: Version,
+                         rqHeaders     :: Headers,
+                         rqBody        :: RqBody,
+                         rqPeer        :: Host
                        } deriving(Show,Read,Typeable)
 
 -- | Converts a Request into a String representing the corresponding URL

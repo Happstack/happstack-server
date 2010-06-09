@@ -72,8 +72,10 @@ rloop tid tedits conf h host handler inputStr
                              | otherwise                       -> return (L.splitAt (fromIntegral contentLength) restStr)
                       let cookies = [ (cookieName c, c) | cl <- fromMaybe [] (fmap getCookies (getHeader "Cookie" headers)), c <- cl ] -- Ugle
                           rqTmp = Request m (pathEls (path u)) (path u) (query u)
-                                  [] cookies v headers (Body body) host
-                          rq = rqTmp{rqInputs = queryInput u ++ bodyInput rqTmp}
+                                  [] [] cookies v headers (Body body) host
+                          rq = rqTmp{ rqInputsQuery = queryInput u
+                                    , rqInputsBody  = bodyInput rqTmp
+                                    }
                       return (rq, nextRequest)
          case parseRequest of
            Left err -> error $ "failed to parse HTTP request: " ++ err
