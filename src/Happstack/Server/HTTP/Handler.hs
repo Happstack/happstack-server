@@ -7,18 +7,17 @@ module Happstack.Server.HTTP.Handler(request-- version,required
 --    ,fsepC,crlfC,pversion
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
+import Control.Concurrent
 import Control.Exception.Extensible as E
 import Control.Monad
 import Data.List(elemIndex)
 import Data.Char(toLower)
 import Data.Maybe ( fromMaybe, fromJust, isJust, isNothing )
+import Data.Time.Clock
 import Prelude hiding (last)
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString.Lazy.Internal as L
-import qualified Data.ByteString as S
-import System.IO.Unsafe
 import qualified Data.Map as M
 import System.IO
 import Numeric
@@ -31,35 +30,14 @@ import Happstack.Server.HTTP.RFC822Headers
 import Happstack.Server.MessageWrap
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
-import Happstack.Util.TimeOut
+import Happstack.Server.HTTP.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout)
 import Happstack.Util.LogFormat (formatRequestCombined)
-import Data.Time.Clock (getCurrentTime)
 import Network.Socket.SendFile (unsafeSendFile')
 import System.Log.Logger (Priority(..), logM)
 
 
-hGetContentsN :: Int -> Handle -> IO L.ByteString
-hGetContentsN k h = lazyRead -- TODO close on exceptions
-  where
-    lazyRead = unsafeInterleaveIO loop
-
-    loop = do
-        c <- S.hGetNonBlocking h k
-        if S.null c
-          then do eof <- hIsEOF h
-                  if eof then hClose h >> return L.Empty
-                         else hWaitForInput h (-1)
-                            >> loop
-
-          --then hClose h >> return Empty
-          else do cs <- lazyRead
-                  return (L.Chunk c cs)
-
-hGetContents' :: Handle -> IO L.ByteString
-hGetContents' = hGetContentsN L.defaultChunkSize
-
-request :: Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
-request conf h host handler = rloop conf h host handler =<< hGetContents' h
+request :: ThreadId -> TimeoutEdits -> Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
+request tid tedits conf h host handler = rloop tid tedits conf h host handler =<< hGetContents' tid tedits h
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
@@ -67,16 +45,18 @@ required _   (Just a) = Right a
 
 transferEncodingC :: [Char]
 transferEncodingC = "transfer-encoding"
-rloop :: t
+rloop :: ThreadId
+         -> TimeoutEdits
+         -> Conf
          -> Handle
          -> Host
          -> (Request -> IO Response)
          -> L.ByteString
          -> IO ()
-rloop conf h host handler inputStr
+rloop tid tedits conf h host handler inputStr
     | L.null inputStr = return ()
     | otherwise
-    = join $ withTimeOut (30 * second) $
+    = join $ -- withTimeOut (30 * second) $
       do let parseRequest
                  = do
                       (topStr, restStr) <- required "failed to separate request" $ splitAtEmptyLine inputStr
@@ -113,8 +93,8 @@ rloop conf h host handler inputStr
                          userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                      logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
 
-                     putAugmentedResult h req res
-                     when (continueHTTP req res) $ rloop conf h host handler rest
+                     putAugmentedResult tid tedits h req res
+                     when (continueHTTP req res) $ rloop tid tedits conf h host handler rest
 
 -- | Unserializes the bytestring into a response.  If there is an
 -- error it will return @Left msg@.
@@ -207,13 +187,14 @@ staticHeaders =
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
-putAugmentedResult :: Handle -> Request -> Response -> IO ()
-putAugmentedResult outp req res = do
+putAugmentedResult :: ThreadId -> TimeoutEdits -> Handle -> Request -> Response -> IO ()
+putAugmentedResult tid tedits outp req res = do
     case res of
         -- standard bytestring response
         Response {} -> do
             sendTop (fromIntegral (L.length (rsBody res)))
-            when (rqMethod req /= HEAD) (L.hPut outp $ rsBody res)
+            tickleTimeout tid tedits
+            when (rqMethod req /= HEAD) (hPutTickle tid tedits outp $ rsBody res)
         -- zero-copy sendfile response
         -- the handle *should* be closed by the garbage collector
         SendFile {} -> do
@@ -221,17 +202,18 @@ putAugmentedResult outp req res = do
                 off = sfOffset res
                 count = sfCount res
             sendTop count
-            unsafeSendFile' outp infp off count
+            tickleTimeout tid tedits
+            unsafeSendFile' outp infp off count -- TODO: this needs to tickle the timeout somehow
     hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl = do
               allHeaders <- augmentHeaders req res cl
               mapM_ (P.hPut outp) $ concat
-                [ (pversion $ rqVersion req)          -- Print HTTP version
-                , [responseMessage $ rsCode res]      -- Print responseCode
-                , concatMap ph (M.elems allHeaders)   -- Print all headers
-                , [crlfC]
-                ]
+                 [ (pversion $ rqVersion req)          -- Print HTTP version
+                 , [responseMessage $ rsCode res]      -- Print responseCode
+                 , concatMap ph (M.elems allHeaders)   -- Print all headers
+                 , [crlfC]
+                 ]
 
 augmentHeaders :: Request -> Response -> Integer -> IO Headers
 augmentHeaders req res cl = do
@@ -360,3 +342,35 @@ responseMessage 504 = P.pack " 504 Gateway Time-out\r\n"
 responseMessage 505 = P.pack " 505 HTTP Version not supported\r\n"
 responseMessage x   = P.pack (show x ++ "\r\n")
 
+{-
+tickleTimeout :: ThreadId -> MVar (PSQ ThreadId POSIXTime) -> IO ()
+tickleTimeout tid ttmvar =
+    modifyMVar_ ttmvar $ \t ->
+        do now <- getPOSIXTime
+           let !t' = PSQ.insert tid now t
+           return t'
+-}
+{-
+tickleTimeout conn = modifyMVar_ ttmvar $ \t -> do
+    now <- getCurrentDateTime
+    tid <- readMVar $ _connTid conn
+    let !t' = PSQ.insert tid now t
+    return t'
+
+  where
+    ttmvar = _timeoutTable $ _backend conn
+
+
+hPutTO :: Int -> Handle -> L.ByteString -> IO ()
+hPutTO tout h cs = 
+    do L.foldrChunks (\c rest -> watchDogBracket 120 (B.hPut h c) >> rest) (return ()) cs
+
+watchDogBracket :: Int -> IO a -> IO a
+watchDogBracket tout action =
+          do thisThreadId <- myThreadId
+             watchDogTid <- forkIO $ threadDelay (1000000)
+             r <- action
+             killThread watchDogTid
+             return r
+
+-}

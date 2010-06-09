@@ -32,6 +32,7 @@ Library
                        Happstack.Server.HTTP.Types
                        Happstack.Server.HTTP.LowLevel
                        Happstack.Server.HTTP.FileServe
+                       Happstack.Server.HTTP.Timeout
                        Happstack.Server.SimpleHTTP
                        Happstack.Server.MessageWrap
                        Happstack.Server.MinHaXML
@@ -62,6 +63,7 @@ Library
                        bytestring,
                        containers,
                        directory,
+                       dlist,
                        extensible-exceptions,
                        filepath,
                        HaXml >= 1.13 && < 1.14,
@@ -76,6 +78,7 @@ Library
                        old-time,
                        parsec < 4,
                        process,
+                       PSQueue,
                        sendfile >= 0.6.1 && < 0.7,
                        template-haskell,
                        time,

@@ -1,11 +1,16 @@
-{-# LANGUAGE CPP, ScopedTypeVariables, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, ScopedTypeVariables #-}
 module Happstack.Server.HTTP.Listen(listen, listen',listenOn) where
 
 import Happstack.Server.HTTP.Types
 import Happstack.Server.HTTP.Handler
 import Happstack.Server.HTTP.Socket (acceptLite)
+import Happstack.Server.HTTP.Timeout (timeoutThread, cancelTimeout)
 import Control.Exception.Extensible as E
-import Control.Concurrent
+import Control.Concurrent (forkIO, killThread, myThreadId)
+import qualified Data.DList as D
+import           Data.IORef (atomicModifyIORef, newIORef)
+import qualified Data.PSQueue as PSQ
+import Data.Time.Clock.POSIX(getPOSIXTime)
 import Network.BSD (getProtocolNumber)
 import Network(sClose, Socket)
 import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption, 
@@ -67,16 +72,22 @@ listen' s conf hand = do
 -}
   let port' = port conf
   log' NOTICE ("Listening on port " ++ show port')
+  tedits <- newIORef D.empty
+  ttid <- timeoutThread tedits PSQ.empty
   let work (h,hn,p) = do -- hSetBuffering h NoBuffering
                          let eh (x::SomeException) = log' ERROR ("HTTP request failed with: "++show x)
-                         request conf h (hn,fromIntegral p) hand `E.catch` eh
+                         tid <- myThreadId
+                         now <- getPOSIXTime
+                         atomicModifyIORef tedits $ \es -> (D.snoc es (PSQ.insert tid now), ())
+                         request tid tedits conf h (hn,fromIntegral p) hand `E.catch` eh
+                         -- remove thread from timeout table
+                         cancelTimeout tid tedits
                          hClose h
   let loop = do acceptLite s >>= forkIO . work
                 loop
-  let pe e = log' ERROR ("ERROR in accept thread: "++
-                                                    show e)
+  let pe e = log' ERROR ("ERROR in accept thread: " ++ show e)
   let infi = loop `catchSome` pe >> infi -- loop `E.catch` pe >> infi
-  infi `finally` sClose s
+  infi `finally` (sClose s >> killThread ttid)
 {--
 #ifndef mingw32_HOST_OS
 -}
@@ -91,4 +102,3 @@ listen' s conf hand = do
             Handler $ \(e :: ArithException) -> h (toException e),
             Handler $ \(e :: ArrayException) -> h (toException e)
           ]
-
