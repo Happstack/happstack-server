@@ -78,7 +78,7 @@ hGetContentsN k tid tedits h = lazyRead -- TODO close on exceptions
         c <- S.hGetNonBlocking h k
         if S.null c
           then do eof <- hIsEOF h
-                  if eof then hClose h >> return L.Empty
+                  if eof then hClose h >> cancelTimeout tid tedits >> return L.Empty
                          else hWaitForInput h (-1)
                             >> loop
 
