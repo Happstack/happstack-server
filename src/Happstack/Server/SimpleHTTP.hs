@@ -164,7 +164,6 @@ module Happstack.Server.SimpleHTTP
     , basicAuth
     , uriRest
     , flatten
-    , localContext
       -- * proxying
     , proxyServe
     , rproxyServe
@@ -445,13 +444,6 @@ instance MatchMethod () where matchMethod () _ = True
 -- too a @m 'Response'@ with 'toResponse'.
 flatten :: (ToMessage a, Functor f) => f a -> f Response
 flatten = fmap toResponse
-
--- | This is kinda like a very oddly shaped 'mapServerPartT' or 'mapWebT'.
--- You probably want one or the other of those.
-localContext :: Monad m => (WebT m a -> WebT m' a) -> ServerPartT m a -> ServerPartT m' a
-localContext fn hs
-    = withRequest $ \rq -> fn (runServerPartT hs rq)
-
 
 -- | Get a header out of the request.
 getHeaderM :: (ServerMonad m) => String -> m (Maybe B.ByteString)
@@ -766,6 +758,8 @@ debugFilter handle =
     withRequest $ \rq -> do
                     r <- runServerPartT handle rq
                     return r
+{-# DEPRECATED debugFilter "This function appears to do nothing." #-}
+
 {-
 -- | A constructor for a 'ServerPartT' when you don't care about the
 -- request.

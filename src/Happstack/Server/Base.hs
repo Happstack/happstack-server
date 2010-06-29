@@ -380,6 +380,12 @@ mapWebT :: (UnWebT m a -> UnWebT n b)
         -> (  WebT m a ->   WebT n b)
 mapWebT f ma = mkWebT $ f (ununWebT ma)
 
+-- | This is kinda like a very oddly shaped 'mapServerPartT' or 'mapWebT'.
+-- You probably want one or the other of those.
+localContext :: Monad m => (WebT m a -> WebT m' a) -> ServerPartT m a -> ServerPartT m' a
+localContext fn hs
+    = withRequest $ \rq -> fn (runServerPartT hs rq)
+
 instance (Monad m, Functor m) => Applicative (WebT m) where
     pure = return
     (<*>) = ap
