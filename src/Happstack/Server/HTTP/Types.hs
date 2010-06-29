@@ -2,6 +2,7 @@
 
 module Happstack.Server.HTTP.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
+     takeRequestBody,
      rqURL, mkHeaders,
      getHeader, getHeaderBS, getHeaderUnsafe,
      hasHeader, hasHeaderBS, hasHeaderUnsafe,
@@ -17,8 +18,10 @@ module Happstack.Server.HTTP.Types
 
 
 import Control.Monad.Error (Error(strMsg))
+import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Data.Data (Data)
+import Data.IORef (IORef, atomicModifyIORef, readIORef)
 import Data.Typeable(Typeable)
 import Data.Maybe
 import qualified Data.ByteString.Char8 as P
@@ -27,7 +30,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import Happstack.Server.SURI
 import Data.Char (toLower)
 
-import Happstack.Server.HTTP.Multipart ( ContentType(..) )
+import Happstack.Server.HTTP.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Cookie
 import Data.List
 import Text.Show.Functions ()
@@ -85,7 +88,7 @@ noContentLength :: Response -> Response
 noContentLength res = res { rsFlags = upd } where upd = (rsFlags res) { rsfContentLength = False }
 
 data Input = Input
-    { inputValue :: L.ByteString
+    { inputValue :: Either FilePath L.ByteString
     , inputFilename :: Maybe String
     , inputContentType :: ContentType
     } deriving (Show,Read,Typeable)
@@ -119,14 +122,28 @@ data Request = Request { rqMethod      :: Method,
                          rqUri         :: String,
                          rqQuery       :: String,
                          rqInputsQuery :: [(String,Input)],
-                         rqInputsBody  :: [(String,Input)],
+                         rqInputsBody  :: MVar [(String,Input)],
                          rqCookies     :: [(String,Cookie)],
                          rqVersion     :: Version,
                          rqHeaders     :: Headers,
-                         rqBody        :: RqBody,
+                         rqBody        :: MVar RqBody,
                          rqPeer        :: Host
-                       } deriving(Show,Read,Typeable)
+                       } deriving(Typeable)
 
+-- | get the request body from the Request and replace it with Nothing
+--
+-- IMPORTANT: You can really only call this function once. Subsequent
+-- calls will return 'Nothing'.
+takeRequestBody :: Request -> IO (Maybe RqBody)
+takeRequestBody rq = tryTakeMVar (rqBody rq) 
+-- takeRequestBody rq = return (rqBody rq)
+{-
+takeRequestBody rq = 
+    do body <- atomicModifyIORef (rqBody rq) (\bdy -> (Nothing, bdy))
+       newBD <- readIORef (rqBody rq)
+       print newBD
+       newBD `seq` return body
+-}
 -- | Converts a Request into a String representing the corresponding URL
 rqURL :: Request -> String
 rqURL rq = '/':intercalate "/" (rqPaths rq) ++ (rqQuery rq)
@@ -143,7 +160,7 @@ instance HasHeaders Request where updateHeaders f rq = rq{rqHeaders = f $ rqHead
 instance HasHeaders Headers where updateHeaders f = f
                                   headers = id
 
-newtype RqBody = Body L.ByteString deriving (Read,Show,Typeable)
+newtype RqBody = Body { unBody :: L.ByteString } deriving (Read,Show,Typeable)
 
 -- | Sets the Response status code to the provided Int and lifts the computation
 -- into a Monad.

@@ -8,6 +8,7 @@ module Happstack.Server.HTTP.Handler(request-- version,required
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
 import Control.Concurrent
+import Control.Concurrent.MVar (newMVar)
 import Control.Exception.Extensible as E
 import Control.Monad
 import Data.List(elemIndex)
@@ -20,6 +21,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.Map as M
 import System.IO
+import System.IO.Error (isDoesNotExistError)
 import Numeric
 import Data.Int (Int64)
 import Happstack.Server.Cookie
@@ -33,8 +35,8 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Server.HTTP.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout)
 import Happstack.Util.LogFormat (formatRequestCombined)
 import Network.Socket.SendFile (unsafeSendFile')
+import System.Directory (removeFile)
 import System.Log.Logger (Priority(..), logM)
-
 
 request :: ThreadId -> TimeoutEdits -> Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request tid tedits conf h host handler = rloop tid tedits conf h host handler =<< hGetContents' tid tedits h
@@ -71,17 +73,19 @@ rloop tid tedits conf h host handler inputStr
                                  return $ consumeChunks restStr
                              | otherwise                       -> return (L.splitAt (fromIntegral contentLength) restStr)
                       let cookies = [ (cookieName c, c) | cl <- fromMaybe [] (fmap getCookies (getHeader "Cookie" headers)), c <- cl ] -- Ugle
-                          rqTmp = Request m (pathEls (path u)) (path u) (query u)
-                                  [] [] cookies v headers (Body body) host
-                          rq = rqTmp{ rqInputsQuery = queryInput u
-                                    , rqInputsBody  = bodyInput rqTmp
-                                    }
-                      return (rq, nextRequest)
+                      return (m, u, cookies, v, headers, body, host, nextRequest)
+
          case parseRequest of
            Left err -> error $ "failed to parse HTTP request: " ++ err
-           Right (req, rest)
+           Right (m, u, cookies, v, headers, body, host, nextRequest)
                -> return $
-                  do let ioseq act = act >>= \x -> x `seq` return x
+                  do bodyRef        <- newMVar (Body body) -- newIORef (Just (Body body)) -- 
+                     bodyInputRef   <- newEmptyMVar -- newIORef Nothing
+                     let req = Request m (pathEls (path u)) (path u) (query u)
+                                  (queryInput u) bodyInputRef cookies v headers bodyRef host
+
+                     let ioseq act = act >>= \x -> x `seq` return x
+
                      res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
 
                      -- combined log format
@@ -96,7 +100,23 @@ rloop tid tedits conf h host handler inputStr
                      logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
 
                      putAugmentedResult tid tedits h req res
-                     when (continueHTTP req res) $ rloop tid tedits conf h host handler rest
+                     -- clean up tmp files
+                     cleanupTempFiles req
+                     when (continueHTTP req res) $ rloop tid tedits conf h host handler nextRequest
+
+-- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
+cleanupTempFiles :: Request -> IO ()
+cleanupTempFiles req = 
+    do mInputs <- tryTakeMVar (rqInputsBody req)
+       case mInputs of
+         Nothing -> return ()
+         (Just inputs) -> mapM_ deleteTmpFile inputs
+    where
+      deleteTmpFile :: (String, Input) -> IO ()
+      deleteTmpFile (_, input) =
+          case inputValue input of
+            (Left fp) -> E.catchJust (guard . isDoesNotExistError) (removeFile fp)  (const $ return ())
+            _         -> return ()
 
 -- | Unserializes the bytestring into a response.  If there is an
 -- error it will return @Left msg@.
@@ -242,8 +262,8 @@ putRequest h rq = do
       ,concatMap ph (M.elems $ rqHeaders rq)
       ,[crlfC]
       ]
-    let Body body = rqBody rq
-    L.hPut h  body
+    mBody <- takeRequestBody rq -- tryTakeMVar (rqBody rq)
+    L.hPut h (maybe L.empty unBody mBody) -- FIXME: should this actually be an error if the body is null?
     hFlush h
 
 
@@ -343,36 +363,3 @@ responseMessage 503 = P.pack " 503 Service Unavailable\r\n"
 responseMessage 504 = P.pack " 504 Gateway Time-out\r\n"
 responseMessage 505 = P.pack " 505 HTTP Version not supported\r\n"
 responseMessage x   = P.pack (show x ++ "\r\n")
-
-{-
-tickleTimeout :: ThreadId -> MVar (PSQ ThreadId POSIXTime) -> IO ()
-tickleTimeout tid ttmvar =
-    modifyMVar_ ttmvar $ \t ->
-        do now <- getPOSIXTime
-           let !t' = PSQ.insert tid now t
-           return t'
--}
-{-
-tickleTimeout conn = modifyMVar_ ttmvar $ \t -> do
-    now <- getCurrentDateTime
-    tid <- readMVar $ _connTid conn
-    let !t' = PSQ.insert tid now t
-    return t'
-
-  where
-    ttmvar = _timeoutTable $ _backend conn
-
-
-hPutTO :: Int -> Handle -> L.ByteString -> IO ()
-hPutTO tout h cs = 
-    do L.foldrChunks (\c rest -> watchDogBracket 120 (B.hPut h c) >> rest) (return ()) cs
-
-watchDogBracket :: Int -> IO a -> IO a
-watchDogBracket tout action =
-          do thisThreadId <- myThreadId
-             watchDogTid <- forkIO $ threadDelay (1000000)
-             r <- action
-             killThread watchDogTid
-             return r
-
--}

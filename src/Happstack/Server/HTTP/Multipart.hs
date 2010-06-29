@@ -1,215 +1,245 @@
--- #hide
+module Happstack.Server.HTTP.Multipart where
 
------------------------------------------------------------------------------
--- |
--- Module      :  Happstack.Server.HTTP.Multipart
--- Copyright   :  (c) Peter Thiemann 2001,2002
---                (c) Bjorn Bringert 2005-2006
---                (c) Lemmih 2007
--- License     :  BSD-style
+import           Control.Monad (MonadPlus(mplus), foldM)
+import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Internal   as B
+import           Data.ByteString.Lazy.Internal (ByteString(Chunk, Empty))
+import           Data.ByteString.Lazy.Internal as L
+import qualified Data.ByteString.Char8      as S
+import           Data.List (intercalate)
+import           Data.Maybe (fromMaybe)
+import           Data.Int (Int64)
+import           Text.ParserCombinators.Parsec (ParseError, parse)
+import           Happstack.Server.HTTP.Types (Input(..))
+import           Happstack.Server.HTTP.RFC822Headers ( ContentType(..), ContentDisposition(..), Header
+                                                     , getContentDisposition, getContentType, pHeaders)
+import           System.IO (Handle, hClose, openBinaryTempFile)
+
+-- | similar to the normal 'span' function, except the predicate gets the whole rest of the lazy bytestring, not just one character.
 --
--- Maintainer  :  lemmih@vo.com
--- Stability   :  experimental
--- Portability :  non-portable
---
--- Parsing of the multipart format from RFC2046.
--- Partly based on code from WASHMail.
---
------------------------------------------------------------------------------
-module Happstack.Server.HTTP.Multipart
-    (
-     -- * Multi-part messages
-     MultiPart(..), BodyPart(..), Header
-    , parseMultipartBody, hGetMultipartBody
-     -- * Headers
-    , ContentType(..), ContentTransferEncoding(..)
-    , ContentDisposition(..)
-    , parseContentType
-    , parseContentTransferEncoding
-    , parseContentDisposition
-    , getContentType
-    , getContentTransferEncoding
-    , getContentDisposition
+-- TODO: this function has not been profiled.
+spanS :: (L.ByteString -> Bool) -> L.ByteString -> (L.ByteString, L.ByteString)
+spanS f cs0 = spanS' 0 cs0
+  where spanS' n Empty = (Empty, Empty)
+        spanS' n bs@(Chunk c cs)
+            | n >= S.length c = 
+                let (x, y) = spanS' 0 cs
+                in (Chunk c x, y)
+            | not (f (Chunk (S.drop n c) cs)) = L.splitAt (fromIntegral n) bs
+            | otherwise = (spanS' (n + 1) bs)
+{-# INLINE spanS #-}
 
-    , splitAtEmptyLine
-    , splitAtCRLF
-    , splitParts
-    ) where
+takeWhileS :: (L.ByteString -> Bool) -> L.ByteString -> L.ByteString
+takeWhileS f cs0 = takeWhile' 0 cs0
+  where takeWhile' n Empty = Empty
+        takeWhile' n bs@(Chunk c cs)
+            | n >= S.length c = Chunk c (takeWhile' 0 cs)
+            | not (f (Chunk (S.drop n c) cs)) = (Chunk (S.take n c) Empty)
+            | otherwise = takeWhile' (n + 1) bs
 
-import Control.Monad
-import Data.Int (Int64)
-import Data.Maybe
-import System.IO (Handle)
+crlf :: L.ByteString
+crlf = L.pack "\r\n"
 
-import Happstack.Server.HTTP.RFC822Headers
+crlfcrlf :: L.ByteString
+crlfcrlf = L.pack "\r\n\r\n"
 
-import qualified Data.ByteString.Lazy.Char8 as BS
-import Data.ByteString.Lazy.Char8 (ByteString)
+blankLine :: L.ByteString
+blankLine = L.pack "\r\n\r\n"
 
---
--- * Multi-part stuff.
---
+dropWhileS :: (L.ByteString -> Bool) -> L.ByteString -> L.ByteString
+dropWhileS f cs0 = dropWhile' cs0
+    where dropWhile' bs 
+              | L.null bs  = bs
+              | f bs       = dropWhile' (L.drop 1 bs)
+              | otherwise  = bs
 
-data MultiPart = MultiPart [BodyPart]
-               deriving (Show, Read, Eq, Ord)
+data BodyPart = BodyPart L.ByteString L.ByteString  -- ^ headers body
+    deriving (Eq, Ord, Read, Show)
 
-data BodyPart = BodyPart [Header] ByteString
-                deriving (Show, Read, Eq, Ord)
+data Work 
+    = BodyWork ContentType [(String, String)] L.ByteString
+    | HeaderWork L.ByteString 
 
--- | Read a multi-part message from a 'ByteString'.
-parseMultipartBody :: String -- ^ Boundary
-                   -> ByteString -> Maybe MultiPart
-parseMultipartBody b s = 
-    do
-    ps <- splitParts (BS.pack b) s
-    liftM MultiPart $ mapM parseBodyPart ps
+type InputWorker = Work -> IO InputIter
 
--- | Read a multi-part message from a 'Handle'.
---   Fails on parse errors.
-hGetMultipartBody :: String -- ^ Boundary
-                  -> Handle
-                  -> IO MultiPart
-hGetMultipartBody b h = 
-    do
-    s <- BS.hGetContents h
-    case parseMultipartBody b s of
-        Nothing -> fail "Error parsing multi-part message"
-        Just m  -> return m
+data InputIter 
+    = Failed (Maybe (String, Input)) String
+    | BodyResult (String, Input) InputWorker
+    | HeaderResult [Header] InputWorker
 
+defaultInputIter :: FilePath -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Work -> IO InputIter
+defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (BodyWork ctype ps b)
+    | diskCount > maxDisk = return $ Failed Nothing ("diskCount (" ++ show diskCount ++ ") is greater than maxDisk (" ++ show maxDisk  ++ ")")
+    | ramCount  > maxRAM  = return $ Failed Nothing ("ramCount ("  ++ show ramCount  ++ ") is greater than maxRAM ("  ++ show maxRAM   ++ ")")
+    | otherwise =
+        case lookup "filename" ps of
+          Nothing -> 
+              let (b',rest) = L.splitAt (maxRAM - ramCount) b
+                  input = (fromMaybe "" $ lookup "name" ps
+                          , Input { inputValue       = (Right b')
+                                  , inputFilename    = Nothing
+                                  , inputContentType = ctype })
+              in if L.null rest
+                  then return $ BodyResult input (defaultInputIter tmpDir diskCount (ramCount + L.length b) headerCount maxDisk maxRAM maxHeader)
+                  else return $ Failed (Just input) ("Reached RAM quota of " ++ show maxRAM ++ " bytes.")
 
+          (Just filename) ->
+              do (fn, h) <- openBinaryTempFile tmpDir filename
+                 (trunc, len) <- hPutLimit (maxDisk - diskCount) h b
+                 hClose h
+                 let input = ( fromMaybe "" $ lookup "name" ps
+                             , Input { inputValue       = Left fn
+                                     , inputFilename    = (Just filename)
+                                     , inputContentType = ctype })
+                 if trunc
+                    then return $ Failed (Just input) ("Reached disk quota of " ++ show maxDisk ++ " bytes.")
+                    else return $ BodyResult input (defaultInputIter tmpDir (diskCount + len) ramCount headerCount maxDisk maxRAM maxHeader)
+defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (HeaderWork bs) =
+    case L.splitAt (maxHeader - headerCount) bs of
+      (_hs, rest)
+          | not (L.null rest) -> return $ Failed Nothing ("Reached header quote of " ++ show maxHeader ++ " bytes.")
+          | otherwise ->
+              case parse pHeaders (L.unpack bs) (L.unpack bs) of
+                (Left e) -> return $ Failed Nothing (show e)
+                (Right hs) ->
+                    return $ HeaderResult hs
+                               (defaultInputIter tmpDir diskCount ramCount (headerCount + (L.length bs)) maxDisk maxRAM maxHeader)
+{-# INLINE defaultInputIter #-}
 
-parseBodyPart :: ByteString -> Maybe BodyPart
-parseBodyPart s =
-    do
-    (hdr,bdy) <- splitAtEmptyLine s
-    hs <- parseM pHeaders "<input>" (BS.unpack hdr)
-    return $ BodyPart hs bdy
+hPutLimit :: Int64 -> Handle -> L.ByteString -> IO (Bool, Int64)
+hPutLimit maxCount h bs = hPutLimit' maxCount h 0 bs
+{-# INLINE hPutLimit #-}
 
---
--- * Splitting into multipart parts.
---
+hPutLimit' :: Int64 -> Handle -> Int64 -> L.ByteString -> IO (Bool, Int64)
+hPutLimit' _maxCount h count Empty = return (False, count)
+hPutLimit'  maxCount h count (Chunk c cs)
+    | (count + fromIntegral (S.length c)) > maxCount =
+        do S.hPut h (S.take (fromIntegral (maxCount - count)) c)
+           return (True, maxCount)
+    | otherwise =
+        do S.hPut h c
+           hPutLimit' maxCount h (count + fromIntegral (S.length c)) cs
+{-# INLINE hPutLimit' #-}
 
--- | Split a multipart message into the multipart parts.
-splitParts :: ByteString -- ^ The boundary, without the initial dashes
-           -> ByteString 
-           -> Maybe [ByteString]
-splitParts b s = dropPreamble b s >>= spl
-  where
-  spl x = case splitAtBoundary b x of
-            Nothing -> Nothing
-            Just (s1,d,s2) | isClose b d -> Just [s1]
-                           | otherwise -> spl s2 >>= Just . (s1:)
+-- FIXME: can we safely use L.unpack, or do we need to worry about encoding issues in the headers?
+bodyPartToInput :: InputWorker -> BodyPart -> IO InputIter -- (Either String (String,Input))
+bodyPartToInput inputWorker (BodyPart rawHS b) =
+    do r <- inputWorker (HeaderWork rawHS)
+       case r of
+         (Failed i e) -> return $ Failed i e
+         (HeaderResult hs cont) ->
+          let ctype = fromMaybe defaultInputType (getContentType hs) in
+          case getContentDisposition hs of
+              Just (ContentDisposition "form-data" ps) ->
+                  cont (BodyWork ctype ps b)
 
--- | Drop everything up to and including the first line starting 
---   with the boundary. Returns 'Nothing' if there is no 
---   line starting with a boundary.
-dropPreamble :: ByteString -- ^ The boundary, without the initial dashes
-             -> ByteString 
-             -> Maybe ByteString
-dropPreamble b s | isBoundary b s = fmap snd (splitAtCRLF s)
-                 | otherwise = dropLine s >>= dropPreamble b
+              cd -> return $ Failed Nothing ("Expected content-disposition: form-data but got " ++ show cd)
 
--- | Split a string at the first boundary line.
-splitAtBoundary :: ByteString -- ^ The boundary, without the initial dashes
-                -> ByteString -- ^ String to split.
-                -> Maybe (ByteString,ByteString,ByteString)
-                   -- ^ The part before the boundary, the boundary line,
-                   --   and the part after the boundary line. The CRLF
-                   --   before and the CRLF (if any) after the boundary line
-                   --   are not included in any of the strings returned.
-                   --   Returns 'Nothing' if there is no boundary.
-splitAtBoundary b s = spl 0
-  where
-  spl i = case findCRLF (BS.drop i s) of
-              Nothing -> Nothing
-              Just (j,l) | isBoundary b s2 -> Just (s1,d,s3)
-                         | otherwise -> spl (i+j+l)
-                  where 
-                  s1 = BS.take (i+j) s
-                  s2 = BS.drop (i+j+l) s
-                  (d,s3) = splitAtCRLF_ s2
+bodyPartsToInputs :: InputWorker -> [BodyPart] -> IO ([(String,Input)], Maybe String)
+bodyPartsToInputs _ [] = 
+    return ([], Nothing)
+bodyPartsToInputs inputWorker (b:bs) =
+    do r <- bodyPartToInput inputWorker b
+       case r of
+         (Failed mInput e) ->
+             case mInput of
+               Nothing  -> return ([], Just e)
+               (Just i) -> return ([i], Just e)
+         (BodyResult i cont) ->
+             do (is, err) <- bodyPartsToInputs cont bs
+                return (i:is, err)
+         (HeaderResult _ _) ->
+             return ([], Just "InputWorker is broken. Returned a HeaderResult when a BodyResult was required.")
+
+multipartBody :: InputWorker -> L.ByteString -> L.ByteString -> IO ([(String, Input)], Maybe String)
+multipartBody inputWorker boundary s =
+    do let (bodyParts, mErr) = parseMultipartBody boundary s
+       (inputs, mErr2) <- bodyPartsToInputs inputWorker bodyParts
+       return (inputs, mErr2 `mplus` mErr)
+
+-- | Packs a string into an Input of type "text/plain"
+simpleInput :: String -> Input
+simpleInput v
+    = Input { inputValue       = Right (L.pack v)
+            , inputFilename    = Nothing
+            , inputContentType = defaultInputType
+            }
+
+-- | The default content-type for variables.
+defaultInputType :: ContentType
+defaultInputType = ContentType "text" "plain" [] -- FIXME: use some default encoding?
+
+parseMultipartBody :: L.ByteString -> L.ByteString -> ([BodyPart], Maybe String)
+parseMultipartBody boundary s =
+    case dropPreamble boundary s of
+      (partData, Just e)  -> ([], Just e)
+      (partData, Nothing) -> splitParts boundary partData
+
+dropPreamble :: L.ByteString -> L.ByteString -> (L.ByteString, Maybe String)
+dropPreamble b s | isBoundary b s = (dropLine s, Nothing)
+                 | L.null s = (s, Just $ "Boundary " ++ L.unpack b ++ " not found.")
+                 | otherwise = dropPreamble b (dropLine s)
+
+dropLine :: L.ByteString -> L.ByteString
+dropLine = L.drop 2 . dropWhileS (not . L.isPrefixOf crlf)
 
 -- | Check whether a string starts with two dashes followed by
 --   the given boundary string.
-isBoundary :: ByteString -- ^ The boundary, without the initial dashes
-           -> ByteString
+isBoundary :: L.ByteString -- ^ The boundary, without the initial dashes
+           -> L.ByteString
            -> Bool
-isBoundary b s = startsWithDashes s && b `BS.isPrefixOf` BS.drop 2 s
-
--- | Check whether a string for which 'isBoundary' returns true
---   has two dashes after the boudary string.
-isClose :: ByteString -- ^ The boundary, without the initial dashes
-        -> ByteString 
-        -> Bool
-isClose b = startsWithDashes . BS.drop (2+BS.length b)
+isBoundary b s = startsWithDashes s && b `L.isPrefixOf` L.drop 2 s
 
 -- | Checks whether a string starts with two dashes.
-startsWithDashes :: ByteString -> Bool
-startsWithDashes s = BS.pack "--" `BS.isPrefixOf` s
+startsWithDashes :: L.ByteString -> Bool
+startsWithDashes s = L.pack "--" `L.isPrefixOf` s
+
+splitParts :: L.ByteString -> L.ByteString -> ([BodyPart], Maybe String)
+splitParts boundary s =
+--    | not (isBoundary boundary s) = ([], Just $ "Missing boundary: " ++ L.unpack boundary ++ "\n" ++ L.unpack s)
+    case L.null s of
+      True -> ([], Nothing)
+      False ->
+          case splitPart boundary s of
+            (p, s') ->
+                let (ps,e) = splitParts boundary s'
+                in (p:ps, e)
+{-# INLINE splitParts #-}
+
+splitPart :: L.ByteString -> L.ByteString -> (BodyPart, L.ByteString)
+splitPart boundary s =
+    case splitBlank s of
+      (headers, rest) ->
+          case splitBoundary boundary (L.drop 4 rest) of
+            (body, rest') -> (BodyPart (L.append headers crlf) body, rest')
+{-# INLINE splitPart #-}
 
 
---
--- * RFC 2046 CRLF
---
+splitBlank :: L.ByteString -> (L.ByteString, L.ByteString)
+splitBlank s = spanS (not . L.isPrefixOf crlfcrlf) s
+{-# INLINE splitBlank #-}
 
--- | Drop everything up to and including the first CRLF.
-dropLine :: ByteString -> Maybe ByteString
-dropLine = fmap snd . splitAtCRLF
 
--- | Split a string at the first empty line. The CRLF (if any) before the
---   empty line is included in the first result. The CRLF after the
---   empty line is not included in the result.
---   'Nothing' is returned if there is no empty line.
-splitAtEmptyLine :: ByteString -> Maybe (ByteString, ByteString)
-splitAtEmptyLine s | startsWithCRLF s = Just (BS.empty, dropCRLF s)
-                   | otherwise = spl 0
-  where
-  spl i = case findCRLF (BS.drop i s) of
-              Nothing -> Nothing
-              Just (j,l) | startsWithCRLF s2 -> Just (s1, dropCRLF s2)
-                         | otherwise -> spl (i+j+l)
-                where (s1,s2) = BS.splitAt (i+j+l) s
+splitBoundary :: L.ByteString -> L.ByteString -> (L.ByteString, L.ByteString)
+splitBoundary boundary s =
+    case spanS (not . L.isPrefixOf (L.pack "\r\n--" `L.append` boundary)) s of
+      (x,y) -> (x, dropLine (L.drop 2 y))
+{-# INLINE splitBoundary #-}
 
+splitAtEmptyLine :: L.ByteString -> Maybe (L.ByteString, L.ByteString)
+splitAtEmptyLine s =
+    case splitBlank s of
+      (before, after) | L.null after -> Nothing
+                      | otherwise    -> Just (L.append before crlf, L.drop 4 after)
+{-# INLINE splitAtEmptyLine #-}
+      
 -- | Split a string at the first CRLF. The CRLF is not included
 --   in any of the returned strings.
 splitAtCRLF :: ByteString -- ^ String to split.
             -> Maybe (ByteString,ByteString)
             -- ^  Returns 'Nothing' if there is no CRLF.
-splitAtCRLF s = case findCRLF s of
-                  Nothing -> Nothing
-                  Just (i,l) -> Just (s1, BS.drop l s2)
-                      where (s1,s2) = BS.splitAt i s
-
--- | Like 'splitAtCRLF', but if no CRLF is found, the first
---   result is the argument string, and the second result is empty.
-splitAtCRLF_ :: ByteString -> (ByteString,ByteString)
-splitAtCRLF_ s = fromMaybe (s,BS.empty) (splitAtCRLF s)
-
--- | Get the index and length of the first CRLF, if any.
-findCRLF :: ByteString -- ^ String to split.
-         -> Maybe (Int64,Int64)
-findCRLF s = 
-    case findCRorLF s of
-              Nothing -> Nothing
-              Just j | BS.null (BS.drop (j+1) s) -> Just (j,1)
-              Just j -> case (BS.index s j, BS.index s (j+1)) of
-                           ('\r','\n') -> Just (j,2)
-                           _           -> Just (j,1)
-
-findCRorLF :: ByteString -> Maybe Int64
-findCRorLF = BS.findIndex (\c -> c == '\n' || c == '\r')
-
-startsWithCRLF :: ByteString -> Bool
-startsWithCRLF s = not (BS.null s) && (c == '\n' || c == '\r')
-  where c = BS.index s 0
-
--- | Drop an initial CRLF, if any. If the string is empty, 
---   nothing is done. If the string does not start with CRLF,
---   the first character is dropped.
-dropCRLF :: ByteString -> ByteString
-dropCRLF s | BS.null s = BS.empty
-           | BS.null (BS.drop 1 s) = BS.empty
-           | c0 == '\r' && c1 == '\n' = BS.drop 2 s
-           | otherwise = BS.drop 1 s
-  where c0 = BS.index s 0
-        c1 = BS.index s 1
+splitAtCRLF s =
+    case spanS (not . L.isPrefixOf crlf) s of
+      (before, after) | L.null after -> Nothing
+                      | otherwise    -> Just (before, L.drop 2 after)
+{-# INLINE splitAtCRLF #-}

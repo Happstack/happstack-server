@@ -32,14 +32,17 @@ import Control.Applicative 			(Applicative((<*>), pure), Alternative((<|>), empt
 import Control.Monad 				(MonadPlus(mzero))
 import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), asks, mapReaderT)
 import Control.Monad.Error 			(Error(noMsg, strMsg))
+import Control.Monad.Trans                      (MonadIO(..))
 import qualified Data.ByteString.Lazy.Char8     as L
 import qualified Data.ByteString.Lazy.UTF8      as LU
 import Data.Char 				(toLower)
+import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
 import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Base 			(ServerMonad(askRq))
 import Happstack.Server.HTTP.Types              (Input(inputValue), Request(rqInputsQuery, rqInputsBody, rqCookies))
+import Happstack.Server.MessageWrap             (BodyPolicy(..), bodyInput)
 import Happstack.Util.Common                    (readM)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
@@ -176,7 +179,11 @@ lookInputs name
 --
 -- see also: 'lookBSs'
 lookBS :: String -> RqData L.ByteString
-lookBS = fmap inputValue . lookInput
+lookBS n = 
+    do i <- fmap inputValue (lookInput n)
+       case i of
+         (Left fp)  -> RqData $ readerError $ (strMsg $ "lookBS: " ++ n ++ " is a file.")
+         (Right bs) -> return bs
 
 -- | Gets all matches for the named input parameter as lazy 'ByteString's
 --
@@ -184,7 +191,11 @@ lookBS = fmap inputValue . lookInput
 --
 -- see also: 'lookBS'
 lookBSs :: String -> RqData [L.ByteString]
-lookBSs = fmap (map inputValue) . lookInputs
+lookBSs n = 
+    do is <- fmap (map inputValue) (lookInputs n)
+       case partitionEithers is of
+         ([], bs) -> return bs
+         (fp, _) -> RqData $ readerError $ (strMsg $ "lookBSs: " ++ n ++ " is a file.")
 
 -- | Gets the first matching named input parameter as a 'String'
 --
@@ -251,10 +262,10 @@ lookReads name = mapM readM =<< looks name
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookPairsBS'
-lookPairs :: RqData [(String,String)]
+lookPairs :: RqData [(String, Either FilePath String)]
 lookPairs = 
     do (query, body, _cookies) <- ask
-       return $ map (\(n,vbs)->(n,LU.toString $ inputValue vbs)) (query ++ body)
+       return $ map (\(n,vbs)->(n, (\e -> case e of Left fp -> Left fp ; Right bs -> Right (LU.toString bs)) $ inputValue vbs)) (query ++ body)
 
 -- | gets all the input parameters
 --
@@ -262,10 +273,10 @@ lookPairs =
 -- body.
 --
 -- see also: 'lookPairs'
-lookPairsBS :: RqData [(String,L.ByteString)]
+lookPairsBS :: RqData [(String, Either FilePath L.ByteString)]
 lookPairsBS = 
     do (query, body, _cookies) <- ask
-       return $ map (\(n,vbs)->(n, inputValue vbs)) (query ++ body)
+       return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ body)
 
 
 -- | Parse your request with a 'RqData' (a 'ReaderT', basically) For
@@ -283,10 +294,15 @@ lookPairsBS =
 -- >         Nothing -> errorHandler
 -- >         Just a | isValid a -> mzero
 -- >         Just a | otherwise -> errorHandler
-getDataFn :: (ServerMonad m) => RqData a -> m (Either [String] a)
-getDataFn rqData = do
-    rq <- askRq
-    return $ runRqData rqData (rqInputsQuery rq, rqInputsBody rq, rqCookies rq)
+
+getDataFn :: (ServerMonad m, MonadIO m) => BodyPolicy -> RqData a -> m (Either [String] a)
+getDataFn bp rqData = 
+    do rq <- askRq
+       (bi, me) <- bodyInput bp rq
+       case me of
+         Nothing  -> return $ runRqData rqData (rqInputsQuery rq, bi, rqCookies rq)         
+         (Just e) -> return (Left [e])
+
 
 -- | A variant of 'getData' that uses 'FromData' to chose your
 -- 'RqData' for you.  The example from 'getData' becomes:
@@ -304,8 +320,8 @@ getDataFn rqData = do
 -- >         Just a | isValid a -> mzero
 -- >         Just a | otherwise -> errorHandler
 --
-withDataFn :: (MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
-withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
+withDataFn :: (MonadIO m, MonadPlus m, ServerMonad m) => BodyPolicy -> RqData a -> (a -> m r) -> m r
+withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
 
 -- | A variant of 'getDataFn' that uses 'FromData' to chose your
 -- 'RqData' for you.  The example from 'getData' becomes:
@@ -323,12 +339,12 @@ withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 -- >         Just a | isValid a -> mzero
 -- >         Just a | otherwise -> errorHandler
 --
-getData :: (ServerMonad m, FromData a) => m (Either [String] a)
-getData = getDataFn fromData
+getData :: (MonadIO m, ServerMonad m, FromData a) => BodyPolicy -> m (Either [String] a)
+getData bodyPolicy = getDataFn bodyPolicy fromData
 
 -- | Retrieve data from the input query or the cookies.
-withData :: (FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
-withData = withDataFn fromData
+withData :: (MonadIO m, FromData a, MonadPlus m, ServerMonad m) => BodyPolicy -> (a -> m r) -> m r
+withData bodyPolicy = withDataFn bodyPolicy fromData
 
 {- | Request filters
 
@@ -348,3 +364,16 @@ queryString :: RqData a -> RqData a
 queryString rqData = localRqEnv f rqData
     where
       f (query, _body, _cookies) = (query, [], [])
+
+right :: Either a b -> RqData b
+right (Right a) = pure a
+right (Left e) = mzero
+
+bytestring :: RqData a -> RqData a
+bytestring rqData = localRqEnv f rqData
+    where
+      f (query, body, cookies) = (filter bsf query, filter bsf body, cookies)
+      bsf (_, i) =
+          case inputValue i of
+            (Left  _fp) -> False
+            (Right _bs) -> True
