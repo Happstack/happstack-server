@@ -43,7 +43,11 @@ type ServerPart a = ServerPartT IO a
 
 -- | 'ServerPartT' is a container for processing requests and returning results.
 newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
-    deriving (Monad, MonadIO, MonadPlus, Functor)
+    deriving (Monad, MonadPlus, Functor)
+
+instance (MonadIO m) => MonadIO (ServerPartT m) where
+    liftIO = ServerPartT . liftIO
+    {-# INLINE liftIO #-}
 
 -- | Particularly useful when combined with 'runWebT' to produce
 -- a @m ('Maybe' 'Response')@ from a 'Request'.
@@ -201,7 +205,11 @@ unFilterFun :: FilterFun a -> (a -> a)
 unFilterFun = appEndo . getDual . extract
 
 newtype FilterT a m b = FilterT { unFilterT :: WriterT (FilterFun a) m b }
-   deriving (Monad, MonadTrans, Functor, MonadIO)
+   deriving (Monad, MonadTrans, Functor)
+
+instance (MonadIO m) => MonadIO (FilterT a m) where
+    liftIO = FilterT . liftIO
+    {-# INLINE liftIO #-}
 
 -- | A set of functions for manipulating filters.  A 'ServerPartT'
 -- implements 'FilterMonad' 'Response' so these methods are the
@@ -233,7 +241,11 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 
 -- | The basic 'Response' building object.
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
-    deriving (MonadIO, Functor)
+    deriving (Functor)
+
+instance (MonadIO m) => MonadIO (WebT m) where
+    liftIO = WebT . liftIO
+    {-# INLINE liftIO #-}
 
 -- | It is worth discussing the unpacked structure of 'WebT' a bit as
 --  it's exposed in 'mapServerPartT' and 'mapWebT'.
@@ -285,8 +297,25 @@ type UnWebT m a = m (Maybe (Either Response a, FilterFun Response))
 
 instance Monad m => Monad (WebT m) where
     m >>= f = WebT $ unWebT m >>= unWebT . f
+    {-# INLINE (>>=) #-}
     return a = WebT $ return a
+    {-# INLINE return #-}
+    fail s = finishWith (result 500 s)
 --    fail s = outputTraceMessage s (mkFailMessage s) -- FIXME
+
+
+newtype MyWebT m a = MyWebT { unMyWebT :: ErrorT Response (WriterT [Response] {- (MaybeT -} m {-) -}) a }
+    deriving (Functor)
+
+instance (MonadIO m) => MonadIO (MyWebT m) where
+    liftIO = MyWebT . liftIO
+    {-# INLINE liftIO #-}
+
+instance Monad m => Monad (MyWebT m) where
+    m >>= f = MyWebT $ unMyWebT m >>= unMyWebT . f
+    {-# INLINE (>>=) #-}
+    return a = MyWebT $ return a
+    {-# INLINE return #-}
 
 class Monad m => WebMonad a m | m->a where
     -- | A control structure.  It ends the computation and returns the
