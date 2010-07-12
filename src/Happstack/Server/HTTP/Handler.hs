@@ -205,7 +205,7 @@ method r = fj $ lookup r mtable
 staticHeaders :: Headers
 staticHeaders =
     foldr (uncurry setHeaderBS) (mkHeaders [])
-    [ (serverC, happsC), (contentTypeC, textHtmlC) ]
+    [ (serverC, happsC) ]
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
