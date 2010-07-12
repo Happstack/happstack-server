@@ -32,7 +32,7 @@ import Happstack.Server.HTTP.RFC822Headers
 import Happstack.Server.MessageWrap
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
-import Happstack.Server.HTTP.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout)
+import Happstack.Server.HTTP.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)
 import Happstack.Util.LogFormat (formatRequestCombined)
 import Network.Socket.SendFile (unsafeSendFile')
 import System.Directory (removeFile)
@@ -225,7 +225,7 @@ putAugmentedResult tid tedits outp req res = do
                 count = sfCount res
             sendTop count
             tickleTimeout tid tedits
-            unsafeSendFile' outp infp off count -- TODO: this needs to tickle the timeout somehow
+            unsafeSendFileTickle tid tedits outp infp off count
     hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl = do

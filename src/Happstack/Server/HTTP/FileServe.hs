@@ -44,7 +44,7 @@ import qualified Data.ByteString.Char8 as S
 import Data.Maybe (fromMaybe)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, nullRsFlags, result, require, seeOther, ifModifiedSince )
+import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, nullRsFlags, result, require, seeOther, ifModifiedSince)
 import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
 import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
 import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)

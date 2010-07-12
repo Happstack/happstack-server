@@ -4,7 +4,7 @@
 -}
 module Happstack.Server.HTTP.Timeout where
 
-import           Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
+import           Control.Concurrent            (ThreadId, forkIO, killThread, threadDelay, threadWaitWrite)
 import qualified Data.ByteString.Char8         as B
 import qualified Data.ByteString.Lazy.Char8    as L
 import qualified Data.ByteString.Lazy.Internal as L
@@ -16,6 +16,7 @@ import           Data.List (foldl')
 import qualified Data.PSQueue as PSQ
 import           Data.PSQueue (PSQ)
 import           Data.Time.Clock.POSIX(POSIXTime, getPOSIXTime)
+import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, unsafeSendFileIterWith')
 import           System.IO (Handle, hClose, hIsEOF, hWaitForInput)
 import           System.IO.Unsafe (unsafeInterleaveIO)
 
@@ -90,3 +91,23 @@ hGetContentsN k tid tedits h = lazyRead -- TODO close on exceptions
 hGetContents' :: ThreadId -> TimeoutEdits -> Handle -> IO L.ByteString
 hGetContents' tid tedits h = hGetContentsN L.defaultChunkSize tid tedits h
 
+unsafeSendFileTickle :: ThreadId -> TimeoutEdits -> Handle -> FilePath -> Offset -> ByteCount -> IO ()
+unsafeSendFileTickle tid tedits outp fp offset count =
+    unsafeSendFileIterWith' (iterTickle tid tedits) outp fp 65536 offset count
+
+iterTickle :: ThreadId -> TimeoutEdits -> IO Iter -> IO ()
+iterTickle tid tedits = 
+    iterTickle' 
+    where
+      iterTickle' :: (IO Iter -> IO ())
+      iterTickle' iter =
+          do r <- iter
+             tickleTimeout tid tedits
+             case r of
+               (Done _) ->
+                      return ()
+               (WouldBlock _ fd cont) ->
+                   do threadWaitWrite fd
+                      iterTickle' cont
+               (Sent _ cont) ->
+                   do iterTickle' cont

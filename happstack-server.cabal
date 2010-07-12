@@ -80,7 +80,7 @@ Library
                        parsec < 4,
                        process,
                        PSQueue,
-                       sendfile >= 0.6.1 && < 0.7,
+                       sendfile >= 0.7.1 && < 0.8,
                        template-haskell,
                        time,
                        utf8-string >= 0.3.4 && < 0.4,
