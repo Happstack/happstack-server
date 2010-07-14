@@ -88,8 +88,8 @@ noContentLength :: Response -> Response
 noContentLength res = res { rsFlags = upd } where upd = (rsFlags res) { rsfContentLength = False }
 
 data Input = Input
-    { inputValue :: Either FilePath L.ByteString
-    , inputFilename :: Maybe String -- P.ByteString -- do we know the proper encoding from the form data ?
+    { inputValue       :: Either FilePath L.ByteString
+    , inputFilename    :: Maybe FilePath
     , inputContentType :: ContentType
     } deriving (Show,Read,Typeable)
 

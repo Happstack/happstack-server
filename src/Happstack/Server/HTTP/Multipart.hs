@@ -1,11 +1,12 @@
 module Happstack.Server.HTTP.Multipart where
 
 import           Control.Monad (MonadPlus(mplus), foldM)
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString.Internal   as B
+import qualified Data.ByteString.Lazy.Char8    as L
+import qualified Data.ByteString.Internal      as B
 import           Data.ByteString.Lazy.Internal (ByteString(Chunk, Empty))
 import           Data.ByteString.Lazy.Internal as L
-import qualified Data.ByteString.Char8      as S
+import qualified Data.ByteString.Lazy.UTF8     as LU
+import qualified Data.ByteString.Char8         as S
 import           Data.List (intercalate)
 import           Data.Maybe (fromMaybe)
 import           Data.Int (Int64)
@@ -99,7 +100,7 @@ defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader 
       (_hs, rest)
           | not (L.null rest) -> return $ Failed Nothing ("Reached header quote of " ++ show maxHeader ++ " bytes.")
           | otherwise ->
-              case parse pHeaders (L.unpack bs) (L.unpack bs) of
+              case parse pHeaders (LU.toString bs) (LU.toString bs) of
                 (Left e) -> return $ Failed Nothing (show e)
                 (Right hs) ->
                     return $ HeaderResult hs
