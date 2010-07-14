@@ -245,6 +245,7 @@ import qualified Data.ByteString.Lazy.UTF8       as LU (toString, fromString)
 import qualified Data.Generics                   as G
 import qualified Data.Map                        as M
 
+import qualified Text.Blaze                      as Blaze
 import Text.Html                                 (Html, renderHtml)
 import qualified Text.XHtml                      as XHtml (Html, renderHtml)
 
@@ -418,6 +419,10 @@ instance ToMessage Html where
 instance ToMessage XHtml.Html where
     toContentType _ = B.pack "text/html; charset=UTF-8"
     toMessage = LU.fromString . XHtml.renderHtml
+
+instance ToMessage Blaze.Html where
+    toContentType _ = B.pack "text/html: charset=UTF-8"
+    toMessage       = Blaze.renderHtml 
 
 instance ToMessage Response where
     toResponse = id
