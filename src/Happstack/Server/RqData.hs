@@ -24,6 +24,7 @@ module Happstack.Server.RqData
     , lookReads
     , lookFile
     , lookPairs
+    , checkRq
      -- * Integration with ServerMonad
     , getDataFn
     , withDataFn
@@ -50,7 +51,6 @@ import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Base 			(ServerMonad(askRq))
 import Happstack.Server.HTTP.Types              (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies))
 import Happstack.Server.MessageWrap             (BodyPolicy(..), bodyInput, defaultBodyPolicy)
-import Happstack.Util.Common                    (readM)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad, MonadPlus)
@@ -130,6 +130,30 @@ mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 rqDataError :: Errors String -> RqData a
 rqDataError e = mapRqData ((Left e) `apEither`) (return ())
 
+readRq :: (Read a) => String -> RqData a
+readRq str =
+    case reads str of
+      [(a,[])] -> return a
+      _        -> rqDataError (strMsg $ "Read failed while parsing: " ++ str)
+
+-- | apply a possibly failing function to value inside the 'RqData'
+--
+-- This is similar to 'fmap' except that the function can fail by
+-- returning Left and an error message. The error will be propogated
+-- via the normal 'RqData' error handling.
+--
+-- This function is useful for a number of things including:
+-- 
+--  (1) Parsing a 'String' into another type
+--
+--  (2) Checking that a value meets some requirements (for example, that is an Int between 1 and 10).
+checkRq :: RqData a -> (a -> Either String b) -> RqData b
+checkRq rq f =
+    do a <- rq
+       case f a of
+         (Left e)  -> rqDataError (strMsg e)
+         (Right b) -> return b
+
 -- | Used by 'withData' and 'getData'. Make your preferred data
 -- type an instance of 'FromData' to use those functions.
 class FromData a where
@@ -143,13 +167,13 @@ instance (Eq a,Show a,Xml a,G.Data a) => FromData a where
 --    fromData = lookPairs >>= return . normalize . fromPairs
 -}
 instance (FromData a, FromData b) => FromData (a,b) where
-    fromData = (,) <$> fromData <*> fromData
+    fromData = (,)   <$> fromData <*> fromData
 
 instance (FromData a, FromData b, FromData c) => FromData (a,b,c) where
-    fromData = (,,) <$> fromData <*> fromData <*> fromData
+    fromData = (,,)  <$> fromData <*> fromData <*> fromData
 
 instance (FromData a, FromData b, FromData c, FromData d) => FromData (a,b,c,d) where
-    fromData = (,,,) <$>fromData <*> fromData <*> fromData <*> fromData
+    fromData = (,,,) <$> fromData <*> fromData <*> fromData <*> fromData
 
 instance FromData a => FromData (Maybe a) where
     fromData = (Just <$> fromData) <|> (pure Nothing)
@@ -168,7 +192,7 @@ lookInput name
     = do (query, body, _cookies) <- ask
          case lookup name (query ++ body) of
            Just i  -> return $ i
-           Nothing -> rqDataError $ (strMsg name)
+           Nothing -> rqDataError (strMsg $ "Parameter not found: " ++ name)
 
 -- | Gets all matches for the named input parameter
 -- 
@@ -239,7 +263,7 @@ lookCookieValue = fmap cookieValue . lookCookie
 
 -- | gets the named cookie as the requested Read type
 readCookieValue :: Read a => String -> RqData a
-readCookieValue name = readM =<< fmap cookieValue (lookCookie name)
+readCookieValue name = readRq =<< fmap cookieValue (lookCookie name)
 
 -- | Gets the first matching named input parameter and decodes it using 'Read'
 --
@@ -249,7 +273,7 @@ readCookieValue name = readM =<< fmap cookieValue (lookCookie name)
 --
 -- see also: 'lookReads'
 lookRead :: Read a => String -> RqData a
-lookRead name = readM =<< look name
+lookRead name = readRq =<< look name
 
 -- | Gets all matches for the named input parameter and decodes them using 'Read'
 --
@@ -259,7 +283,7 @@ lookRead name = readM =<< look name
 --
 -- see also: 'lookReads'
 lookReads :: Read a => String -> RqData [a]
-lookReads name = mapM readM =<< looks name
+lookReads name = mapM readRq =<< looks name
 
 -- | Gets the first matching named file
 --
