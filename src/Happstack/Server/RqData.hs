@@ -3,8 +3,13 @@ module Happstack.Server.RqData
     ( RqData
     , RqEnv
     , MonadRqData(askRqEnv, localRqEnv)
+    , mapRqData
+    , rqDataError
     , FromData(..)
     , Errors(..)
+    -- * Body Policy
+    , BodyPolicy(..)
+    , defaultBodyPolicy
     -- * lookup functions
     , lookInput
     , lookInputs
@@ -17,6 +22,7 @@ module Happstack.Server.RqData
     , readCookieValue
     , lookRead
     , lookReads
+    , lookFile
     , lookPairs
      -- * Integration with ServerMonad
     , getDataFn
@@ -38,11 +44,12 @@ import qualified Data.ByteString.Lazy.UTF8      as LU
 import Data.Char 				(toLower)
 import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
+import Data.Maybe                               (fromJust)
 import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Base 			(ServerMonad(askRq))
-import Happstack.Server.HTTP.Types              (Input(inputValue), Request(rqInputsQuery, rqInputsBody, rqCookies))
-import Happstack.Server.MessageWrap             (BodyPolicy(..), bodyInput)
+import Happstack.Server.HTTP.Types              (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies))
+import Happstack.Server.MessageWrap             (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 import Happstack.Util.Common                    (readM)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
@@ -161,7 +168,7 @@ lookInput name
     = do (query, body, _cookies) <- ask
          case lookup name (query ++ body) of
            Just i  -> return $ i
-           Nothing -> RqData $ readerError $ (strMsg name)
+           Nothing -> rqDataError $ (strMsg name)
 
 -- | Gets all matches for the named input parameter
 -- 
@@ -182,7 +189,7 @@ lookBS :: String -> RqData L.ByteString
 lookBS n = 
     do i <- fmap inputValue (lookInput n)
        case i of
-         (Left fp)  -> RqData $ readerError $ (strMsg $ "lookBS: " ++ n ++ " is a file.")
+         (Left fp)  -> rqDataError $ (strMsg $ "lookBS: " ++ n ++ " is a file.")
          (Right bs) -> return bs
 
 -- | Gets all matches for the named input parameter as lazy 'ByteString's
@@ -253,6 +260,28 @@ lookRead name = readM =<< look name
 -- see also: 'lookReads'
 lookReads :: Read a => String -> RqData [a]
 lookReads name = mapM readM =<< looks name
+
+-- | Gets the first matching named file
+--
+-- Files can only appear in the request body. Additionally, the form
+-- must set enctype=\"multipart\/form-data\".
+--
+-- This function returns a tuple consisting of:
+-- 
+--  (1) The temporary location of the uploaded file
+--  (2) The local filename supplied by the browser
+--  (3) The content-type supplied by the browser
+--
+-- NOTE: You must move the file from the temporary location before the
+-- 'Response' is sent. The temporary files are automatically removed
+-- after the 'Response' is sent.
+lookFile :: String -- ^ name of input field to search for
+         -> RqData (FilePath, FilePath, ContentType) -- ^ (temporary file location, uploaded file name, content-type)
+lookFile n =
+    do i <- lookInput n
+       case inputValue i of
+         (Right _) -> rqDataError $ (strMsg $ "lookFile: " ++ n ++ " was found but is not a file.")
+         (Left fp) -> return (fp, fromJust $ inputFilename i, inputContentType i)
 
 -- | gets all the input parameters, and converts them to a 'String'
 --
