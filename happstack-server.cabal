@@ -61,7 +61,7 @@ Library
                        Paths_happstack_server
 
   Build-Depends:       base,
-                       BlazeHtml,
+                       blaze-html,
                        bytestring,
                        containers,
                        directory,
