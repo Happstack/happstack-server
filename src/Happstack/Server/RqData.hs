@@ -347,7 +347,11 @@ lookPairsBS =
 -- >         Nothing -> errorHandler
 -- >         Just a | isValid a -> mzero
 -- >         Just a | otherwise -> errorHandler
-
+--
+-- NOTE: This function will consume the 'Request' body. This means
+-- later 'ServerPart's will not be able to access the raw 'Request'
+-- body. They will, however, be able to use 'RqData' to look at the
+-- parsed request body.
 getDataFn :: (ServerMonad m, MonadIO m) => BodyPolicy -> RqData a -> m (Either [String] a)
 getDataFn bp rqData = 
     do rq <- askRq
@@ -373,6 +377,10 @@ getDataFn bp rqData =
 -- >         Just a | isValid a -> mzero
 -- >         Just a | otherwise -> errorHandler
 --
+-- NOTE: This function will consume the 'Request' body. This means
+-- later 'ServerPart's will not be able to access the raw 'Request'
+-- body. They will, however, be able to use 'RqData' to look at the
+-- parsed request body.
 withDataFn :: (MonadIO m, MonadPlus m, ServerMonad m) => BodyPolicy -> RqData a -> (a -> m r) -> m r
 withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
 
@@ -392,10 +400,19 @@ withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
 -- >         Just a | isValid a -> mzero
 -- >         Just a | otherwise -> errorHandler
 --
+-- NOTE: This function will consume the 'Request' body. This means
+-- later 'ServerPart's will not be able to access the raw 'Request'
+-- body. They will, however, be able to use 'RqData' to look at the
+-- parsed request body.
 getData :: (MonadIO m, ServerMonad m, FromData a) => BodyPolicy -> m (Either [String] a)
 getData bodyPolicy = getDataFn bodyPolicy fromData
 
 -- | Retrieve data from the input query or the cookies.
+--
+-- NOTE: This function will consume the 'Request' body. This means
+-- later 'ServerPart's will not be able to access the raw 'Request'
+-- body. They will, however, be able to use 'RqData' to look at the
+-- parsed request body.
 withData :: (MonadIO m, FromData a, MonadPlus m, ServerMonad m) => BodyPolicy -> (a -> m r) -> m r
 withData bodyPolicy = withDataFn bodyPolicy fromData
 
