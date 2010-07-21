@@ -421,7 +421,7 @@ instance ToMessage XHtml.Html where
     toMessage = LU.fromString . XHtml.renderHtml
 
 instance ToMessage (Blaze.Html a) where
-    toContentType _ = B.pack "text/html: charset=UTF-8"
+    toContentType _ = B.pack "text/html; charset=UTF-8"
     toMessage       = Blaze.renderHtml 
 
 instance ToMessage Response where
