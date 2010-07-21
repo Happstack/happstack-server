@@ -350,8 +350,11 @@ lookPairsBS =
 --
 -- NOTE: This function will consume the 'Request' body. This means
 -- later 'ServerPart's will not be able to access the raw 'Request'
--- body. They will, however, be able to use 'RqData' to look at the
--- parsed request body.
+-- body. 
+-- 
+-- The parsed results are saved in the 'Request'. So future calls to
+-- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
+-- cached value.
 getDataFn :: (ServerMonad m, MonadIO m) => BodyPolicy -> RqData a -> m (Either [String] a)
 getDataFn bp rqData = 
     do rq <- askRq
@@ -379,8 +382,11 @@ getDataFn bp rqData =
 --
 -- NOTE: This function will consume the 'Request' body. This means
 -- later 'ServerPart's will not be able to access the raw 'Request'
--- body. They will, however, be able to use 'RqData' to look at the
--- parsed request body.
+-- body. 
+-- 
+-- The parsed results are saved in the 'Request'. So future calls to
+-- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
+-- cached value.
 withDataFn :: (MonadIO m, MonadPlus m, ServerMonad m) => BodyPolicy -> RqData a -> (a -> m r) -> m r
 withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
 
@@ -402,8 +408,11 @@ withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
 --
 -- NOTE: This function will consume the 'Request' body. This means
 -- later 'ServerPart's will not be able to access the raw 'Request'
--- body. They will, however, be able to use 'RqData' to look at the
--- parsed request body.
+-- body. 
+-- 
+-- The parsed results are saved in the 'Request'. So future calls to
+-- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
+-- cached value.
 getData :: (MonadIO m, ServerMonad m, FromData a) => BodyPolicy -> m (Either [String] a)
 getData bodyPolicy = getDataFn bodyPolicy fromData
 
@@ -411,8 +420,11 @@ getData bodyPolicy = getDataFn bodyPolicy fromData
 --
 -- NOTE: This function will consume the 'Request' body. This means
 -- later 'ServerPart's will not be able to access the raw 'Request'
--- body. They will, however, be able to use 'RqData' to look at the
--- parsed request body.
+-- body. 
+-- 
+-- The parsed results are saved in the 'Request'. So future calls to
+-- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
+-- cached value.
 withData :: (MonadIO m, FromData a, MonadPlus m, ServerMonad m) => BodyPolicy -> (a -> m r) -> m r
 withData bodyPolicy = withDataFn bodyPolicy fromData
 
