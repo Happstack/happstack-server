@@ -171,7 +171,7 @@ module Happstack.Server.SimpleHTTP
     , debugFilter
     , applyRequest
       -- * XSLT
-    , xslt ,doXslt
+--    , xslt ,doXslt
     , -- * Query String, Request Body, and Cookies
       module Happstack.Server.RqData
       -- * Error Handlng
@@ -195,11 +195,11 @@ import qualified Paths_happstack_server          as Cabal
 
 import qualified Data.Version                    as DV
 import Happstack.Server.HTTP.Client              (getResponse, unproxify, unrproxify)
-import Happstack.Data.Xml.HaXml                  (toHaXmlEl)
+-- import Happstack.Data.Xml.HaXml                  (toHaXmlEl)
 import Happstack.Server.Base
-import qualified Happstack.Server.MinHaXML       as H
+-- import qualified Happstack.Server.MinHaXML       as H
 import qualified Happstack.Server.HTTP.Listen    as Listen (listen, listen',listenOn) -- So that we can disambiguate 'Writer.listen'
-import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
+--import Happstack.Server.XSLT                     (XSLTCmd, XSLPath, procLBSIO)
 import Happstack.Server.SURI                     (ToSURI)
 import Happstack.Server.RqData
 import Happstack.Util.Common                     (Seconds, readM)
@@ -391,12 +391,12 @@ class ToMessage a where
             res = Response 200 M.empty nullRsFlags bs Nothing
         in setHeaderBS (B.pack "Content-Type") (toContentType val)
            res
-
+{-
 instance ToMessage [Element] where
     toContentType _ = B.pack "application/xml; charset=UTF-8"
     toMessage [el] = LU.fromString $ H.simpleDoc H.NoStyle $ toHaXmlEl el -- !! OPTIMIZE
     toMessage x    = error ("Happstack.Server.SimpleHTTP 'instance ToMessage [Element]' Can't handle " ++ show x)
-
+-}
 
 instance ToMessage () where
     toContentType _ = B.pack "text/plain"
@@ -639,7 +639,7 @@ requireM fn handle = do
     case mbVal of
         Nothing -> mzero
         Just a -> handle a
-
+{-
 -- | Use @cmd@ to transform XML against @xslPath@.  This function only
 -- acts if the content-type is @application\/xml@.
 xslt :: (MonadIO m, MonadPlus m, ToMessage r) =>
@@ -660,7 +660,7 @@ doXslt cmd xslPath res =
        return $ setHeader "Content-Type" "text/html" $
               setHeader "Content-Length" (show $ L.length new) $
               res { rsBody = new }
-
+-}
 -- | Add the cookie with a timeout to the response.
 addCookie :: (FilterMonad Response m) => Seconds -> Cookie -> m ()
 addCookie sec = (addHeaderM "Set-Cookie") . mkCookieHeader sec

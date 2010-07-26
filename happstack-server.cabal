@@ -36,7 +36,7 @@ Library
                        Happstack.Server.HTTP.Timeout
                        Happstack.Server.SimpleHTTP
                        Happstack.Server.MessageWrap
-                       Happstack.Server.MinHaXML
+--                       Happstack.Server.MinHaXML
                        Happstack.Server.SURI
                        Happstack.Server.XSLT
                        Happstack.Server.RqData
@@ -68,7 +68,7 @@ Library
                        dlist,
                        extensible-exceptions,
                        filepath,
-                       HaXml >= 1.13 && < 1.14,
+--                       HaXml >= 1.13 && < 1.14,
                        hslogger >= 1.0.2,
                        happstack-data >= 0.5 && < 0.6,
                        happstack-util >= 0.5 && < 0.6,

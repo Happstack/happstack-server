@@ -2,14 +2,20 @@
              DeriveDataTypeable, MultiParamTypeClasses, CPP, ScopedTypeVariables,
     ScopedTypeVariables #-}
 module Happstack.Server.XSLT
-    (xsltFile, xsltString, xsltElem, xsltFPS, xsltFPSIO, XSLPath,
-     xsltproc,saxon,procFPSIO,procLBSIO,XSLTCommand,XSLTCmd
+    (xsltFile, xsltString, {- xsltElem, -} xsltFPS, xsltFPSIO, XSLPath,
+     xslt, doXslt, xsltproc,saxon,procFPSIO,procLBSIO,XSLTCommand,XSLTCmd
     ) where
 
 
 import System.Log.Logger
 
-import Happstack.Server.MinHaXML
+import Control.Monad
+import Control.Monad.Trans
+import qualified Data.ByteString.Char8           as B
+import Happstack.Server.SimpleHTTP
+import Happstack.Server.Base
+import Happstack.Server.HTTP.Types
+-- import Happstack.Server.MinHaXML
 import Happstack.Util.Common(runCommand)
 import Control.Exception.Extensible(bracket,try,SomeException)
 import qualified Data.ByteString.Char8 as P
@@ -18,7 +24,7 @@ import System.Directory(removeFile)
 import System.Environment(getEnv)
 import System.IO
 import System.IO.Unsafe(unsafePerformIO)
-import Text.XML.HaXml.Verbatim(verbatim)
+-- import Text.XML.HaXml.Verbatim(verbatim)
 import Happstack.Data hiding (Element)
 
 logMX :: Priority -> String -> IO ()
@@ -39,12 +45,12 @@ xsltCmd :: XSLTCmd
            -> (FilePath, [String])
 xsltCmd XSLTProc = xsltproc'
 xsltCmd Saxon = saxon'
-
+{-
 -- | Uses 'xsltString' to transform the given XML 'Element' into a
 -- a 'String'.    
 xsltElem :: XSLPath -> Element -> String
 xsltElem xsl = xsltString xsl . verbatim
-
+-}
 
 procLBSIO :: XSLTCmd -> XSLPath -> L.ByteString -> IO L.ByteString
 procLBSIO xsltp' xsl inp = 
@@ -155,3 +161,24 @@ tempDir = unsafePerformIO $ tryAny [getEnv "TEMP",getEnv "TMP"] err
 tryAny :: [IO a] -> IO a -> IO a
 tryAny [] c     = c
 tryAny (x:xs) c = either (\(_::SomeException) -> tryAny xs c) return =<< try x
+
+-- | Use @cmd@ to transform XML against @xslPath@.  This function only
+-- acts if the content-type is @application\/xml@.
+xslt :: (MonadIO m, MonadPlus m, ToMessage r) =>
+        XSLTCmd  -- ^ XSLT preprocessor. Usually 'xsltproc' or 'saxon'.
+     -> XSLPath      -- ^ Path to xslt stylesheet.
+     -> m r -- ^ Affected 'ServerPart's.
+     -> m Response
+xslt cmd xslPath parts = do
+    res <- parts
+    if toContentType res == B.pack "application/xml"
+        then doXslt cmd xslPath (toResponse res)
+        else return (toResponse res)
+
+doXslt :: (MonadIO m) =>
+          XSLTCmd -> XSLPath -> Response -> m Response
+doXslt cmd xslPath res =
+    do new <- liftIO $ procLBSIO cmd xslPath $ rsBody res
+       return $ setHeader "Content-Type" "text/html" $
+              setHeader "Content-Length" (show $ L.length new) $
+              res { rsBody = new }
