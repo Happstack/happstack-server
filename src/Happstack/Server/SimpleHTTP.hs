@@ -133,6 +133,7 @@ module Happstack.Server.SimpleHTTP
 
       -- * Respond Codes
     , ok
+    , noContent
     , badGateway
     , internalServerError
     , badRequest
@@ -685,7 +686,7 @@ ifModifiedSince modTime request response =
     let repr = formatCalendarTime defaultTimeLocale "%a, %d %b %Y %X GMT" modTime
         notmodified = getHeader "if-modified-since" request == Just (B.pack $ repr)
     in if notmodified
-          then result 304 "" -- Not Modified
+          then noContentLength $ result 304 "" -- Not Modified
           else setHeader "Last-modified" repr response
 
 -- | Deprecated:  use 'composeFilter'.
@@ -705,6 +706,12 @@ resp status val = setResponseCode status >> return val
 -- | Respond with @200 OK@.
 ok :: (FilterMonad Response m) => a -> m a
 ok = resp 200
+
+-- | Respond with @204 No Content@
+--
+-- A @204 No Content@ response may not contain a message-body. If you try to supply one, it will be dutifully ignored.
+noContent :: (FilterMonad Response m) => a -> m a
+noContent val = composeFilter (\r -> noContentLength (r { rsCode = 204, rsBody = L.empty })) >> return val
 
 -- | Respond with @500 Internal Server Error@.
 internalServerError :: (FilterMonad Response m) => a -> m a

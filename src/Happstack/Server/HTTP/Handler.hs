@@ -7,8 +7,7 @@ module Happstack.Server.HTTP.Handler(request-- version,required
 --    ,fsepC,crlfC,pversion
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
-import Control.Concurrent
-import Control.Concurrent.MVar (newMVar)
+import Control.Concurrent (ThreadId, newMVar, newEmptyMVar, tryTakeMVar)
 import Control.Exception.Extensible as E
 import Control.Monad
 import Data.List(elemIndex)
@@ -19,6 +18,8 @@ import Prelude hiding (last)
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.ByteString.Lazy.Internal (ByteString(Chunk, Empty))
+import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map as M
 import System.IO
 import System.IO.Error (isDoesNotExistError)
@@ -34,7 +35,6 @@ import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
 import Happstack.Server.HTTP.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)
 import Happstack.Util.LogFormat (formatRequestCombined)
-import Network.Socket.SendFile (unsafeSendFile')
 import System.Directory (removeFile)
 import System.Log.Logger (Priority(..), logM)
 
@@ -45,8 +45,6 @@ required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
 required _   (Just a) = Right a
 
-transferEncodingC :: [Char]
-transferEncodingC = "transfer-encoding"
 rloop :: ThreadId
          -> TimeoutEdits
          -> Conf
@@ -69,7 +67,7 @@ rloop tid tedits conf h host handler inputStr
                       let contentLength = fromMaybe 0 $ fmap fst (P.readInt =<< getHeaderUnsafe contentlengthC headers)
                       (body, nextRequest) <- case () of
                           () | contentLength < 0               -> fail "negative content-length"
-                             | isJust $ getHeader transferEncodingC headers ->
+                             | isJust $ getHeaderBS transferEncodingC headers ->
                                  return $ consumeChunks restStr
                              | otherwise                       -> return (L.splitAt (fromIntegral contentLength) restStr)
                       let cookies = [ (cookieName c, c) | cl <- fromMaybe [] (fmap getCookies (getHeader "Cookie" headers)), c <- cl ] -- Ugle
@@ -136,7 +134,7 @@ parseResponse inputStr =
                        else  return $ consumeChunks restStr)
                  (\cl->return (L.splitAt (fromIntegral cl) restStr))
                  mbCL
-       return $ Response {rsCode=code,rsHeaders=headers,rsBody=body,rsFlags=RsFlags True,rsValidator=Nothing}
+       return $ Response {rsCode=code,rsHeaders=headers,rsBody=body,rsFlags=RsFlags ContentLength,rsValidator=Nothing}
 
 -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html
 -- note this does NOT handle extenions
@@ -214,39 +212,57 @@ putAugmentedResult tid tedits outp req res = do
     case res of
         -- standard bytestring response
         Response {} -> do
-            sendTop (fromIntegral (L.length (rsBody res)))
+            let chunked = rsfLength (rsFlags res) == TransferEncodingChunked && isHTTP1_1 req
+            sendTop (if chunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) chunked
             tickleTimeout tid tedits
-            when (rqMethod req /= HEAD) (hPutTickle tid tedits outp $ rsBody res)
+            when (rqMethod req /= HEAD)
+                     (let body = if chunked
+                                 then chunk (rsBody res)
+                                 else rsBody res
+                      in hPutTickle tid tedits outp body)
         -- zero-copy sendfile response
         -- the handle *should* be closed by the garbage collector
         SendFile {} -> do
             let infp = sfFilePath res
                 off = sfOffset res
                 count = sfCount res
-            sendTop count
+            sendTop (Just count) False
             tickleTimeout tid tedits
             unsafeSendFileTickle tid tedits outp infp off count
     hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
-          sendTop cl = do
-              allHeaders <- augmentHeaders req res cl
+          sendTop cl chunked = do
+              allHeaders <- augmentHeaders req res cl chunked
               mapM_ (P.hPut outp) $ concat
                  [ (pversion $ rqVersion req)          -- Print HTTP version
                  , [responseMessage $ rsCode res]      -- Print responseCode
                  , concatMap ph (M.elems allHeaders)   -- Print all headers
                  , [crlfC]
                  ]
+          chunk :: L.ByteString -> L.ByteString
+          chunk Empty        = LC.pack "0\r\n\r\n"
+          chunk (Chunk c cs) = Chunk (B.pack $ showHex (B.length c) "\r\n") (Chunk c (Chunk (B.pack "\r\n") (chunk cs)))
 
-augmentHeaders :: Request -> Response -> Integer -> IO Headers
-augmentHeaders req res cl = do
+augmentHeaders :: Request -> Response -> Maybe Integer -> Bool -> IO Headers
+augmentHeaders req res mcl chunked = do
     -- TODO: Hoist static headers to the toplevel.
     raw <- getApproximateTime
     let stdHeaders = staticHeaders `M.union`
           M.fromList ( [ (dateCLower,       HeaderPair dateC [raw])
                        , (connectionCLower, HeaderPair connectionC [if continueHTTP req res then keepAliveC else closeC])
-                       ] ++ if rsfContentLength (rsFlags res)
-                              then [(contentlengthC, HeaderPair contentLengthC [P.pack (show cl)])]
-                              else [] )
+                       ] ++ case rsfLength (rsFlags res) of
+                              NoContentLength -> []
+                              ContentLength | not (hasHeader "Content-Length" res) ->
+                                                case mcl of
+                                                  (Just cl) -> [(contentlengthC, HeaderPair contentLengthC [P.pack (show cl)])]
+                                                  _ -> []
+                                            | otherwise -> []
+                              TransferEncodingChunked
+                                  -- we check 'chunked' because we might not use this mode if the client is http 1.0
+                                  | chunked   -> [(transferEncodingC, HeaderPair transferEncodingC [chunkedC])]
+                                  | otherwise -> []
+
+                     )
     return (rsHeaders res `M.union` stdHeaders) -- 'union' prefers 'headers res' when duplicate keys are encountered.
 
 -- | Serializes the request to the given handle
@@ -318,6 +334,10 @@ happsC :: B.ByteString
 happsC           = P.pack $ "Happstack/" ++ DV.showVersion Paths.version
 textHtmlC :: B.ByteString
 textHtmlC        = P.pack "text/html; charset=utf-8"
+transferEncodingC :: B.ByteString
+transferEncodingC = P.pack "Transfer-Encoding"
+chunkedC :: B.ByteString
+chunkedC = P.pack "chunked"
 
 -- Response code names
 

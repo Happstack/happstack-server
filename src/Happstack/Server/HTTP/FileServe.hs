@@ -44,7 +44,7 @@ import qualified Data.ByteString.Char8 as S
 import Data.Maybe (fromMaybe)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Request(..), Response(..), WebMonad, toResponse, resultBS, setHeader, forbidden, nullRsFlags, result, require, seeOther, ifModifiedSince)
+import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Length(..), Request(..), Response(..), RsFlags(..), WebMonad, toResponse, resultBS, setHeader, forbidden, nullRsFlags, result, require, seeOther, ifModifiedSince)
 import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
 import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
 import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)
@@ -127,13 +127,14 @@ sendFileResponse :: String  -- ^ content-type string
                  -> Response
 sendFileResponse ct filePath mModTime _offset count =
     let res = ((setHeader "Content-Type" ct) $ 
-               (SendFile 200 Map.empty nullRsFlags Nothing filePath 0 count)
+               (SendFile 200 Map.empty (nullRsFlags { rsfLength = ContentLength }) Nothing filePath 0 count)
               )
     in case mModTime of
          Nothing -> res
          (Just (modTime, request)) -> ifModifiedSince modTime request res
 
 -- | Send the contents of a Lazy ByteString
+--
 lazyByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plain; charset=utf-8\"@)
                        -> L.ByteString   -- ^ lazy bytestring content to send
                        -> Maybe (CalendarTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)

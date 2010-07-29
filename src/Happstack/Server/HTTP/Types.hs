@@ -11,8 +11,9 @@ module Happstack.Server.HTTP.Types
      setRsCode, -- setCookie, setCookies,
      Conf(..), nullConf, result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
+     isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, noContentLength,
-     Version(..), Method(..), Headers, continueHTTP,
+     Version(..), Length(..), Method(..), Headers, continueHTTP,
      Host, ContentType(..)
     ) where
 
@@ -52,7 +53,7 @@ isHTTP1_0 rq = case rqVersion rq of Version 1 0 -> True; _ -> False
 continueHTTP :: Request -> Response -> Bool
 --continueHTTP rq res = isHTTP1_1 rq && getHeader' connectionC rq /= Just closeC && rsfContentLength (rsFlags res)
 continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq) ||
-                      (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq)) && rsfContentLength (rsFlags res)
+                      (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq)) && (rsfLength (rsFlags res) /= NoContentLength)
 
 -- | HTTP configuration
 data Conf = Conf { port      :: Int -- ^ Port for the server to listen on.
@@ -73,19 +74,26 @@ data HeaderPair = HeaderPair { hName :: ByteString, hValue :: [ByteString] } der
 -- | Combined headers.
 type Headers = M.Map ByteString HeaderPair -- lowercased name -> (realname, value)
 
-
+data Length 
+    = ContentLength
+    | TransferEncodingChunked
+    | NoContentLength
+      deriving (Eq, Ord, Read, Show, Enum)
 
 -- | Result flags
 data RsFlags = RsFlags 
-    { rsfContentLength :: Bool -- ^ whether a content-length header will be added to the result.
-    } deriving(Show,Read,Typeable)
+    { rsfLength :: Length
+    } deriving (Show,Read,Typeable)
 
 -- | Default RsFlags that will include the content-length header
 nullRsFlags :: RsFlags
-nullRsFlags = RsFlags { rsfContentLength = True }
--- | Don't display a Content-Lenght field for the 'Result'.
+nullRsFlags = RsFlags { rsfLength = TransferEncodingChunked }
+-- | Do not automatically add a Content-Length field to the 'Response'
 noContentLength :: Response -> Response
-noContentLength res = res { rsFlags = upd } where upd = (rsFlags res) { rsfContentLength = False }
+noContentLength res = res { rsFlags = flags } where flags = (rsFlags res) { rsfLength = NoContentLength }
+-- | Do not automatically add a Content-Length header. Do automatically use Transfer-Encoding: Chunked
+chunked :: Response -> Response
+chunked res         = res { rsFlags = flags } where flags = (rsFlags res) { rsfLength = TransferEncodingChunked }
 
 data Input = Input
     { inputValue       :: Either FilePath L.ByteString
@@ -267,6 +275,8 @@ result :: Int -> String -> Response
 result code = resultBS code . L.pack
 
 -- | Acts as 'result' but works with ByteStrings directly.
+-- 
+-- By default, Transfer-Encoding: chunked will be used
 resultBS :: Int -> L.ByteString -> Response
 resultBS code s = Response code M.empty nullRsFlags s Nothing
 
