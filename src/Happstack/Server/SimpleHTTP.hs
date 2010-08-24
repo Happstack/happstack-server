@@ -247,10 +247,7 @@ import qualified Data.Generics                   as G
 import qualified Data.Map                        as M
 
 import qualified Text.Blaze                      as Blaze
--- Not sure whether there should be another renderer
--- at Text.Blaze.Renderer? In the current blaze-html there is none-
---    Sebastian Höhn
-import qualified Text.Blaze.Renderer.Utf8        as R1
+import qualified Text.Blaze.Renderer.Utf8        as Blaze
 import Text.Html                                 (Html, renderHtml)
 import qualified Text.XHtml                      as XHtml (Html, renderHtml)
 
@@ -425,9 +422,9 @@ instance ToMessage XHtml.Html where
     toContentType _ = B.pack "text/html; charset=UTF-8"
     toMessage = LU.fromString . XHtml.renderHtml
 
-instance ToMessage Blaze.Html where  -- I do not know why (Blaze.Html a) here??
+instance ToMessage Blaze.Html where
     toContentType _ = B.pack "text/html; charset=UTF-8"
-    toMessage       = R1.renderHtml -- Added the correct import
+    toMessage       = Blaze.renderHtml
 
 instance ToMessage Response where
     toResponse = id
