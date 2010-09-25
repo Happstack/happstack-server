@@ -128,7 +128,10 @@ handlers =
 encodings :: GenParser Char st [([Char], Maybe Double)]
 encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
     where
+        ws :: GenParser Char st ()
         ws = many space >> return ()
+
+        sep :: GenParser Char st ()
         sep = do
             ws
             _ <- char ','
@@ -140,11 +143,17 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
             ws
             quality<-optionMaybe qual
             return (encoding, fmap read quality)
+
+        qual :: GenParser Char st String
         qual = do
             char ';' >> ws >> char 'q' >> ws >> char '=' >> ws
             q<-float
             return q
+
+        int :: GenParser Char st String
         int = many1 digit
+
+        float :: GenParser Char st String
         float = do
                 wholePart<-many1 digit
                 fractionalPart<-option "" fraction
