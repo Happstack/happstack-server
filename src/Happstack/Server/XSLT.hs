@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances , UndecidableInstances,
              DeriveDataTypeable, MultiParamTypeClasses, CPP, ScopedTypeVariables,
     ScopedTypeVariables #-}
+-- | Functions to allow you to use XSLT to transform your output. To use this, you would generally design your happstack application to output XML. The xslt filter will then run an external tool which performs the tranforms. The transformed result will then be sent to the http client as the Response.
 module Happstack.Server.XSLT
     (xsltFile, xsltString, {- xsltElem, -} xsltFPS, xsltFPSIO, XSLPath,
      xslt, doXslt, xsltproc,saxon,procFPSIO,procLBSIO,XSLTCommand,XSLTCmd
@@ -13,7 +14,7 @@ import Control.Monad
 import Control.Monad.Trans
 import qualified Data.ByteString.Char8           as B
 import Happstack.Server.SimpleHTTP
-import Happstack.Server.Base
+
 import Happstack.Server.HTTP.Types
 -- import Happstack.Server.MinHaXML
 import Happstack.Util.Common(runCommand)

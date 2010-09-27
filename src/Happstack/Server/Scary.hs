@@ -1,20 +1,17 @@
-{-# LANGUAGE FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, UndecidableInstances  #-}
-{- | This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. 
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, UndecidableInstances  #-}
+{- | This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. Look in "Happstack.Server.Monads" instead.
 -}
-module Happstack.Server.Base where
+module Happstack.Server.Scary where
 
 import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 
-import Control.Monad                             ( MonadPlus, mzero, mplus
-                                                 , msum, ap, unless
-                                                 , liftM, liftM2, liftM3, liftM4
+import Control.Monad                             ( MonadPlus(mzero, mplus), ap, msum
                                                  )
 import Control.Monad.Trans                       ( MonadTrans, lift
                                                  , MonadIO, liftIO
                                                  )
 import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
                                                  , MonadReader, ask, local
-                                                 , asks
                                                  )
 import Control.Monad.Writer                      ( WriterT(WriterT), runWriterT
                                                  , MonadWriter, tell, pass
@@ -23,15 +20,18 @@ import Control.Monad.Writer                      ( WriterT(WriterT), runWriterT
 import qualified Control.Monad.Writer            as Writer (listen) -- So that we can disambiguate 'Listen.listen'
 import Control.Monad.State                       (MonadState, get, put)
 import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
-                                                 , Error, strMsg
-                                                 , MonadError, throwError, catchError
-                                                 , mapErrorT
+                                                 , Error, MonadError, throwError
+                                                 , catchError, mapErrorT
                                                  )
 import Control.Monad.Maybe                       (MaybeT(MaybeT), runMaybeT)
-import qualified Data.ByteString.Char8           as B
-import Data.Monoid
-import Happstack.Server.HTTP.Types
-
+import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
+import Data.Char                                 (ord)
+import Data.List                                 (inits, isPrefixOf, stripPrefix, tails)
+import Data.Monoid                               (Monoid(mempty, mappend), Dual(..), Endo(..))
+import qualified Paths_happstack_server          as Cabal
+import qualified Data.Version                    as DV
+import Debug.Trace                               (trace)
+import Happstack.Server.HTTP.Types               (Request, Response, resultBS, setHeader)
 
 -- | An alias for 'WebT' when using 'IO'.
 type Web a = WebT IO a
@@ -54,10 +54,21 @@ instance (MonadIO m) => MonadIO (ServerPartT m) where
 runServerPartT :: ServerPartT m a -> Request -> WebT m a
 runServerPartT = runReaderT . unServerPartT
 
+-- | function for lifting WebT to ServerPartT
+--
+-- NOTE: This is mostly for internal use. If you want to access the
+-- 'Request' in user-code see 'askRq' from 'ServerMonad'.
+--
+-- > do request <- askRq
+-- >    ...
 withRequest :: (Request -> WebT m a) -> ServerPartT m a
 withRequest = ServerPartT . ReaderT
 
 -- | A constructor for a 'ServerPartT' when you don't care about the request.
+--
+-- NOTE: This is mostly for internal use. If you think you need to use
+-- it in your own code, you might consider asking on the mailing list
+-- or IRC to find out if there is an alternative solution.
 anyRequest :: Monad m => WebT m a -> ServerPartT m a
 anyRequest x = withRequest $ \_ -> x
 
@@ -234,6 +245,10 @@ class Monad m => FilterMonad a m | m->a where
     -- | Retrieves the filter from the environment.
     getFilter :: m b -> m (b, a->a)
 
+-- | An alias for @'setFilter' 'id'@. It resets all your filters.
+ignoreFilters :: (FilterMonad a m) => m ()
+ignoreFilters = setFilter id
+
 instance (Monad m) => FilterMonad a (FilterT a m) where
     setFilter     = FilterT . tell                . Set    . Dual . Endo
     composeFilter = FilterT . tell                . Append . Dual . Endo
@@ -300,22 +315,7 @@ instance Monad m => Monad (WebT m) where
     {-# INLINE (>>=) #-}
     return a = WebT $ return a
     {-# INLINE return #-}
-    fail s = finishWith (result 500 s)
---    fail s = outputTraceMessage s (mkFailMessage s) -- FIXME
-
-
-newtype MyWebT m a = MyWebT { unMyWebT :: ErrorT Response (WriterT [Response] {- (MaybeT -} m {-) -}) a }
-    deriving (Functor)
-
-instance (MonadIO m) => MonadIO (MyWebT m) where
-    liftIO = MyWebT . liftIO
-    {-# INLINE liftIO #-}
-
-instance Monad m => Monad (MyWebT m) where
-    m >>= f = MyWebT $ unMyWebT m >>= unMyWebT . f
-    {-# INLINE (>>=) #-}
-    return a = MyWebT $ return a
-    {-# INLINE return #-}
+    fail s = outputTraceMessage s (mkFailMessage s)
 
 class Monad m => WebMonad a m | m->a where
     -- | A control structure.  It ends the computation and returns the
@@ -347,11 +347,6 @@ instance (Monad m) => MonadPlus (WebT m) where
     mplus x y =  WebT $ ErrorT $ FilterT $ (lower x) `mplus` (lower y)
         where lower = (unFilterT . runErrorT . unWebT)
 
--- | Deprecated: use 'mzero'.
-noHandle :: (MonadPlus m) => m a
-noHandle = mzero
-{-# DEPRECATED noHandle "Use mzero" #-}
-
 instance (Monad m) => FilterMonad Response (WebT m) where
     setFilter f = WebT $ lift $ setFilter $ f
     composeFilter f = WebT . lift . composeFilter $ f
@@ -363,9 +358,7 @@ instance (Monad m) => FilterMonad Response (WebT m) where
 instance (Monad m) => Monoid (WebT m a) where
     mempty = mzero
     mappend = mplus
-{-
 
--}
 -- | For when you really need to unpack a 'WebT' entirely (and not
 -- just unwrap the first layer with 'unWebT').
 ununWebT :: WebT m a -> UnWebT m a
@@ -417,16 +410,62 @@ instance MonadWriter w m => MonadWriter w (WebT m) where
               liftWebT (Just (Left x,f)) = return $ Just (Left x, f)
               liftWebT (Just (Right x,f)) = pass (return x)>>= (\a -> return $ Just (Right a,f))
 
--- | An alias for @'setFilter' 'id'@. It resets all your filters.
-ignoreFilters :: (FilterMonad a m) => m ()
-ignoreFilters = setFilter id
+-- | Deprecated: use 'msum'.
+multi :: Monad m => [ServerPartT m a] -> ServerPartT m a
+multi = msum
+{-# DEPRECATED multi "Use msum instead" #-}
 
--- | Used to ignore all your filters and immediately end the
--- computation.  A combination of 'ignoreFilters' and 'finishWith'.
-escape :: (WebMonad a m, FilterMonad a m) => m a -> m b
-escape gen = ignoreFilters >> gen >>= finishWith
+-- | What is this for, exactly?  I don't understand why @Show a@ is
+-- even in the context Deprecated: This function appears to do nothing
+-- at all. If it use it, let us know why.
+debugFilter :: (MonadIO m, Show a) => ServerPartT m a -> ServerPartT m a
+debugFilter handle =
+    withRequest $ \rq -> do
+                    r <- runServerPartT handle rq
+                    return r
+{-# DEPRECATED debugFilter "This function appears to do nothing." #-}
 
--- | An alternate form of 'escape' that can be easily used within a do
--- block.
-escape' :: (WebMonad a m, FilterMonad a m) => a -> m b
-escape' a = ignoreFilters >> finishWith a
+
+-- "Pattern match failure in do expression at src\AppControl.hs:43:24"
+-- is converted to:
+-- "src\AppControl.hs:43:24: Pattern match failure in do expression"
+-- Then we output this to stderr. Help debugging under Emacs console when using GHCi.
+-- This is GHC specific, but you may add your favourite compiler here also.
+outputTraceMessage :: String -> a -> a
+outputTraceMessage s c | "Pattern match failure " `isPrefixOf` s = 
+    let w = [(k,p) | (i,p) <- zip (tails s) (inits s), Just k <- [stripPrefix " at " i]]
+        v = concatMap (\(k,p) -> k ++ ": " ++ p) w
+    in trace v c
+outputTraceMessage _ c = trace "some error" c
+
+
+mkFailMessage :: (FilterMonad Response m, WebMonad Response m) => String -> m b
+mkFailMessage s = do
+    ignoreFilters
+    let res = setHeader "Content-Type" "text/html; charset=UTF-8" $
+              resultBS 500 (LU.fromString (failHtml s))
+    finishWith $ res
+
+failHtml:: String->String
+failHtml errString = 
+   "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">"
+    ++ "<html><head><title>Happstack "
+    ++ ver ++ " Internal Server Error</title></head>"
+    ++ "<body><h1>Happstack " ++ ver ++ "</h1>"
+    ++ "<p>Something went wrong here<br>"
+    ++ "Internal server error<br>"
+    ++ "Everything has stopped</p>"
+    ++ "<p>The error was \"" ++ (escapeString errString) ++ "\"</p></body></html>"
+    where ver = DV.showVersion Cabal.version
+
+escapeString :: String -> String
+escapeString str = concatMap encodeEntity str
+    where
+      encodeEntity :: Char -> String
+      encodeEntity '<' = "&lt;"
+      encodeEntity '>' = "&gt;"
+      encodeEntity '&' = "&amp;"
+      encodeEntity '"' = "&quot;"
+      encodeEntity c
+          | ord c > 127 = "&#" ++ show (ord c) ++ ";"
+          | otherwise = [c]

@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable #-}
-
+-- | A wrapper and type class so that functions like 'seeOther' can take a URI which is represented by a 'String', 'URI.URI', or other instance of 'ToSURI'. 
 module Happstack.Server.SURI where
 import Data.Maybe
 import Data.Generics

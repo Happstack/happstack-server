@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types #-}
 -- |File Serving functions
-module Happstack.Server.HTTP.FileServe
+module Happstack.Server.FileServe
     (
      -- * Content-Type \/ Mime-Type
      MimeMap,
@@ -44,7 +44,9 @@ import qualified Data.ByteString.Char8 as S
 import Data.Maybe (fromMaybe)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import Happstack.Server.SimpleHTTP (FilterMonad, ServerMonad(askRq), Length(..), Request(..), Response(..), RsFlags(..), WebMonad, toResponse, resultBS, setHeader, forbidden, nullRsFlags, result, require, seeOther, ifModifiedSince)
+import Happstack.Server.Monads     (ServerMonad(askRq), FilterMonad, WebMonad, require)
+import Happstack.Server.Response   (ifModifiedSince, forbidden, seeOther, toResponse)
+import Happstack.Server.HTTP.Types (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
 import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
 import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
 import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)

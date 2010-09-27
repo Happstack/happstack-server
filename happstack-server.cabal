@@ -27,21 +27,28 @@ Library
 
   Exposed-modules:
                        Happstack.Server
-                       Happstack.Server.Base
+                       Happstack.Server.Auth
                        Happstack.Server.Cookie
+                       Happstack.Server.Error
+                       Happstack.Server.FileServe
+                       Happstack.Server.Filters
+                       Happstack.Server.HTTP.Cookie
                        Happstack.Server.HTTP.Client
                        Happstack.Server.HTTP.Types
                        Happstack.Server.HTTP.LowLevel
-                       Happstack.Server.HTTP.FileServe
+                       Happstack.Server.HTTP.MessageWrap
                        Happstack.Server.HTTP.Timeout
-                       Happstack.Server.SimpleHTTP
-                       Happstack.Server.MessageWrap
---                       Happstack.Server.MinHaXML
-                       Happstack.Server.SURI
-                       Happstack.Server.XSLT
+                       Happstack.Server.Monads
+                       Happstack.Server.Proxy
+                       Happstack.Server.Response
+                       Happstack.Server.Routing
                        Happstack.Server.RqData
-                       Happstack.Server.StdConfig
-                       Happstack.Server.Parts
+                       Happstack.Server.SURI
+                       Happstack.Server.SimpleHTTP
+                       Happstack.Server.Scary
+                       Happstack.Server.Validation
+                       Happstack.Server.XSLT
+
   if flag(tests)
     Exposed-modules:   
                        Happstack.Server.Tests

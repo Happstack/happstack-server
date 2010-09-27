@@ -28,11 +28,12 @@ import Data.Maybe
 import qualified Data.ByteString.Char8 as P
 import Data.ByteString.Char8 (ByteString,pack)
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.Lazy.UTF8  as LU (fromString)
 import Happstack.Server.SURI
 import Data.Char (toLower)
 
 import Happstack.Server.HTTP.RFC822Headers ( ContentType(..) )
-import Happstack.Server.Cookie
+import Happstack.Server.HTTP.Cookie
 import Data.List
 import Text.Show.Functions ()
 
@@ -272,7 +273,7 @@ addHeaderUnsafe key val = updateHeaders (M.insertWith join key val)
 -- | Creates a Response with the given Int as the status code and the provided
 -- String as the body of the Response 
 result :: Int -> String -> Response
-result code = resultBS code . L.pack
+result code = resultBS code . LU.fromString
 
 -- | Acts as 'result' but works with ByteStrings directly.
 -- 

@@ -25,12 +25,12 @@ import System.IO
 import System.IO.Error (isDoesNotExistError)
 import Numeric
 import Data.Int (Int64)
-import Happstack.Server.Cookie
+import Happstack.Server.HTTP.Cookie
 import Happstack.Server.HTTP.Clock
 import Happstack.Server.HTTP.Types
 import Happstack.Server.HTTP.Multipart
 import Happstack.Server.HTTP.RFC822Headers
-import Happstack.Server.MessageWrap
+import Happstack.Server.HTTP.MessageWrap
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
 import Happstack.Server.HTTP.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, FlexibleInstances, MultiParamTypeClasses #-}
+-- | Functions for extracting values from the query string, form data, cookies, etc. <http://happstack.com/docs/crashcourse/RqData.html>
 module Happstack.Server.RqData 
     ( RqData
     , RqEnv
@@ -48,9 +49,9 @@ import Data.Generics                            (Data, Typeable)
 import Data.Maybe                               (fromJust)
 import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
-import Happstack.Server.Base 			(ServerMonad(askRq))
+import Happstack.Server.Monads 			(ServerMonad(askRq))
 import Happstack.Server.HTTP.Types              (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies))
-import Happstack.Server.MessageWrap             (BodyPolicy(..), bodyInput, defaultBodyPolicy)
+import Happstack.Server.HTTP.MessageWrap             (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad, MonadPlus)

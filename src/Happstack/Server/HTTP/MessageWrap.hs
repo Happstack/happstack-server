@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Happstack.Server.MessageWrap where
+module Happstack.Server.HTTP.MessageWrap where
 
 import Control.Concurrent.MVar (tryTakeMVar, putMVar)
 import Control.Monad.Trans (MonadIO(liftIO))

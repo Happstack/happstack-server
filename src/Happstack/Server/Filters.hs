@@ -1,5 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
-module Happstack.Server.Parts(
+-- | Filters which can be used with the 'FilterMonad'.
+module Happstack.Server.Filters(
     compressedResponseFilter
    ,gzipFilter
    ,deflateFilter
