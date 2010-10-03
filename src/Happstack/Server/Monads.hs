@@ -6,6 +6,7 @@ module Happstack.Server.Monads
     , FilterMonad(..)
     , WebMonad(..)
     , ServerPartT
+    , ServerPart
     , UnWebT
     , escape
     , escape' 
