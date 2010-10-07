@@ -21,8 +21,8 @@ module Happstack.Server.Monads
 import Control.Monad (MonadPlus(mzero))
 import Control.Monad.Trans (MonadIO(..),MonadTrans(lift))
 import qualified Data.ByteString.Char8           as B
-import Happstack.Server.Scary
-import Happstack.Server.HTTP.Types (Response, addHeader, getHeader, setHeader)
+import Happstack.Server.Internal.Monads
+import Happstack.Server.Types (Response, addHeader, getHeader, setHeader)
 
 -- | Used to ignore all your filters and immediately end the
 -- computation.  A combination of 'ignoreFilters' and 'finishWith'.

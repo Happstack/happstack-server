@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Happstack.Server.HTTP.MessageWrap where
+module Happstack.Server.Internal.MessageWrap where
 
 import Control.Concurrent.MVar (tryTakeMVar, putMVar)
 import Control.Monad.Trans (MonadIO(liftIO))
@@ -8,9 +8,9 @@ import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Lazy.Char8 as L
 import Data.Maybe
 import Data.Int (Int64)
-import Happstack.Server.HTTP.Types as H
-import Happstack.Server.HTTP.Multipart
-import Happstack.Server.HTTP.RFC822Headers (parseContentType)
+import Happstack.Server.Internal.Types as H
+import Happstack.Server.Internal.Multipart
+import Happstack.Server.Internal.RFC822Headers (parseContentType)
 import Happstack.Server.SURI as SURI
 import Happstack.Util.Common
 

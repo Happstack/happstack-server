@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Happstack.Server.HTTP.SocketTH(supportsIPv6) where
+module Happstack.Server.Internal.SocketTH(supportsIPv6) where
 import Language.Haskell.TH
 
 import Data.List

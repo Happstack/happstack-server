@@ -1,8 +1,8 @@
-module Happstack.Server.HTTP.Client where
+module Happstack.Server.Client where
 
 
-import Happstack.Server.HTTP.Handler
-import Happstack.Server.HTTP.Types
+import Happstack.Server.Internal.Handler
+import Happstack.Server.Internal.Types
 import Data.Maybe
 import Control.Monad
 import qualified Data.ByteString.Lazy.Char8 as L 

@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Happstack.Server.HTTP.LazyLiner
+module Happstack.Server.Internal.LazyLiner
     (Lazy, newLinerHandle, headerLines, getBytes, getBytesStrict, getRest, L.toChunks
     ) where
 

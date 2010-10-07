@@ -16,7 +16,7 @@
 -- Partly based on code from WASHMail.
 --
 -----------------------------------------------------------------------------
-module Happstack.Server.HTTP.RFC822Headers
+module Happstack.Server.Internal.RFC822Headers
     ( -- * Headers
       Header, 
       pHeader,

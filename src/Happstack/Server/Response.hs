@@ -7,7 +7,7 @@ import qualified Data.ByteString.Lazy.Char8      as L
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
 import qualified Data.Map                        as M
 import           Happstack.Server.Monads         (FilterMonad(composeFilter))
-import           Happstack.Server.HTTP.Types     (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
+import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
 import           Happstack.Server.SURI           (ToSURI)
 import           System.Locale                   (defaultTimeLocale)
 import           System.Time                     (CalendarTime, formatCalendarTime)

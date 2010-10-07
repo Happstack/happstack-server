@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Happstack.Server.HTTP.Socket(acceptLite) where
+module Happstack.Server.Internal.Socket(acceptLite) where
 
-import Happstack.Server.HTTP.SocketTH(supportsIPv6)
+import Happstack.Server.Internal.SocketTH(supportsIPv6)
 import Language.Haskell.TH.Syntax
 import Happstack.Util.HostAddress
 import qualified Network as N

@@ -2,9 +2,9 @@ module Happstack.Server.Error where
 
 import Control.Monad.Error          (Error, ErrorT(runErrorT))
 import Happstack.Server.Monads      (ServerPartT)
-import Happstack.Server.Scary       (WebT, UnWebT, withRequest, mkWebT, runServerPartT, ununWebT)
+import Happstack.Server.Internal.Monads (WebT, UnWebT, withRequest, mkWebT, runServerPartT, ununWebT)
 import Happstack.Server.Response    (ok, toResponse)
-import Happstack.Server.HTTP.Types  (Request, Response)
+import Happstack.Server.Types  (Request, Response)
 
 --------------------------------------------------------------
 -- Error Handling

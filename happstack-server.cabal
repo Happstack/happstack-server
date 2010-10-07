@@ -29,15 +29,16 @@ Library
                        Happstack.Server
                        Happstack.Server.Auth
                        Happstack.Server.Cookie
+                       Happstack.Server.Client
                        Happstack.Server.Error
                        Happstack.Server.FileServe
                        Happstack.Server.Filters
-                       Happstack.Server.HTTP.Cookie
-                       Happstack.Server.HTTP.Client
-                       Happstack.Server.HTTP.Types
-                       Happstack.Server.HTTP.LowLevel
-                       Happstack.Server.HTTP.MessageWrap
-                       Happstack.Server.HTTP.Timeout
+                       Happstack.Server.Internal.Cookie
+                       Happstack.Server.Internal.Types
+                       Happstack.Server.Internal.LowLevel
+                       Happstack.Server.Internal.MessageWrap
+                       Happstack.Server.Internal.Timeout
+                       Happstack.Server.Internal.Monads
                        Happstack.Server.Monads
                        Happstack.Server.Proxy
                        Happstack.Server.Response
@@ -45,7 +46,7 @@ Library
                        Happstack.Server.RqData
                        Happstack.Server.SURI
                        Happstack.Server.SimpleHTTP
-                       Happstack.Server.Scary
+                       Happstack.Server.Types
                        Happstack.Server.Validation
                        Happstack.Server.XSLT
 
@@ -56,14 +57,14 @@ Library
                        Happstack.Server.HTTPClient.HTTP
                        Happstack.Server.HTTPClient.Stream
                        Happstack.Server.HTTPClient.TCP
-                       Happstack.Server.HTTP.Clock
-                       Happstack.Server.HTTP.Handler
-                       Happstack.Server.HTTP.LazyLiner
-                       Happstack.Server.HTTP.Listen
-                       Happstack.Server.HTTP.Multipart
-                       Happstack.Server.HTTP.RFC822Headers
-                       Happstack.Server.HTTP.Socket
-                       Happstack.Server.HTTP.SocketTH
+                       Happstack.Server.Internal.Clock
+                       Happstack.Server.Internal.Handler
+                       Happstack.Server.Internal.LazyLiner
+                       Happstack.Server.Internal.Listen
+                       Happstack.Server.Internal.Multipart
+                       Happstack.Server.Internal.RFC822Headers
+                       Happstack.Server.Internal.Socket
+                       Happstack.Server.Internal.SocketTH
                        Happstack.Server.SURI.ParseURI
                        Paths_happstack_server
 

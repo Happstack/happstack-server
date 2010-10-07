@@ -1,4 +1,4 @@
-module Happstack.Server.HTTP.Multipart where
+module Happstack.Server.Internal.Multipart where
 
 import           Control.Monad (MonadPlus(mplus), foldM)
 import qualified Data.ByteString.Lazy.Char8    as L
@@ -11,9 +11,9 @@ import           Data.List (intercalate)
 import           Data.Maybe (fromMaybe)
 import           Data.Int (Int64)
 import           Text.ParserCombinators.Parsec (ParseError, parse)
-import           Happstack.Server.HTTP.Types (Input(..))
-import           Happstack.Server.HTTP.RFC822Headers ( ContentType(..), ContentDisposition(..), Header
-                                                     , getContentDisposition, getContentType, pHeaders)
+import           Happstack.Server.Internal.Types (Input(..))
+import           Happstack.Server.Internal.RFC822Headers ( ContentType(..), ContentDisposition(..), Header
+                                                         , getContentDisposition, getContentType, pHeaders)
 import           System.IO (Handle, hClose, openBinaryTempFile)
 
 -- | similar to the normal 'span' function, except the predicate gets the whole rest of the lazy bytestring, not just one character.

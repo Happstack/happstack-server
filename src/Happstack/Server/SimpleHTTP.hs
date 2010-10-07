@@ -102,8 +102,8 @@
 --
 -----------------------------------------------------------------------------
 module Happstack.Server.SimpleHTTP
-    ( module Happstack.Server.HTTP.Types
-    , module Happstack.Server.Scary
+    ( module Happstack.Server.Types
+    , module Happstack.Server.Internal.Monads
 
     -- * SimpleHTTP
     , simpleHTTP
@@ -138,7 +138,7 @@ import Happstack.Server.Auth
 import Happstack.Server.Monads
 import Happstack.Server.Cookie
 import Happstack.Server.Error
-import Happstack.Server.HTTP.Types
+import Happstack.Server.Types
 import Happstack.Server.Proxy
 import Happstack.Server.Routing
 import Happstack.Server.RqData
@@ -147,9 +147,9 @@ import Happstack.Server.Validation
 
 import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
-import Happstack.Server.Scary                    (FilterFun, WebT(..), UnWebT, unFilterFun, mapServerPartT, runServerPartT, ununWebT)
-import qualified Happstack.Server.HTTP.Listen    as Listen (listen, listen',listenOn) -- So that we can disambiguate 'Writer.listen'
-import Happstack.Server.HTTP.Types               (Conf(port, validator), Request, Response(rsBody, rsCode), nullConf, setHeader)
+import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), UnWebT, unFilterFun, mapServerPartT, runServerPartT, ununWebT)
+import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn) -- So that we can disambiguate 'Writer.listen'
+import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), nullConf, setHeader)
 import Network                                   (Socket)
 import qualified Paths_happstack_server          as Cabal
 import System.Console.GetOpt                     ( OptDescr(Option)

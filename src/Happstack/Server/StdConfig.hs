@@ -4,7 +4,7 @@ module Happstack.Server.StdConfig where
 import Control.Monad.Trans
 import Control.Monad
 import Happstack.Server.SimpleHTTP
-import Happstack.Server.HTTP.FileServe
+import Happstack.Server.FileServe
 
 -- | Is equal to "haskell/Main"
 binarylocation :: String

@@ -1,10 +1,10 @@
 {-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, ScopedTypeVariables #-}
-module Happstack.Server.HTTP.Listen(listen, listen',listenOn) where
+module Happstack.Server.Internal.Listen(listen, listen',listenOn) where
 
-import Happstack.Server.HTTP.Types
-import Happstack.Server.HTTP.Handler
-import Happstack.Server.HTTP.Socket (acceptLite)
-import Happstack.Server.HTTP.Timeout (timeoutThread, cancelTimeout)
+import Happstack.Server.Internal.Types
+import Happstack.Server.Internal.Handler
+import Happstack.Server.Internal.Socket (acceptLite)
+import Happstack.Server.Internal.Timeout (timeoutThread, cancelTimeout)
 import Control.Exception.Extensible as E
 import Control.Concurrent (forkIO, killThread, myThreadId)
 import qualified Data.DList as D

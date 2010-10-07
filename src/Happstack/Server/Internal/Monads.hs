@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, UndecidableInstances  #-}
 {- | This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. Look in "Happstack.Server.Monads" instead.
 -}
-module Happstack.Server.Scary where
+module Happstack.Server.Internal.Monads where
 
 import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 
@@ -31,7 +31,7 @@ import Data.Monoid                               (Monoid(mempty, mappend), Dual(
 import qualified Paths_happstack_server          as Cabal
 import qualified Data.Version                    as DV
 import Debug.Trace                               (trace)
-import Happstack.Server.HTTP.Types               (Request, Response, resultBS, setHeader)
+import Happstack.Server.Types                    (Request, Response, resultBS, setHeader)
 
 -- | An alias for 'WebT' when using 'IO'.
 type Web a = WebT IO a

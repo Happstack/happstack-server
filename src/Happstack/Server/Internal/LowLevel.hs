@@ -1,4 +1,4 @@
-module Happstack.Server.HTTP.LowLevel
+module Happstack.Server.Internal.LowLevel
     (-- * HTTP Implementation
      -- $impl
 
@@ -6,14 +6,14 @@ module Happstack.Server.HTTP.LowLevel
      -- $problems
 
      -- * API
-     module Happstack.Server.HTTP.Handler,
-     module Happstack.Server.HTTP.Listen,
-     module Happstack.Server.HTTP.Types
+     module Happstack.Server.Internal.Handler,
+     module Happstack.Server.Internal.Listen,
+     module Happstack.Server.Internal.Types
     ) where
 
-import Happstack.Server.HTTP.Handler
-import Happstack.Server.HTTP.Listen
-import Happstack.Server.HTTP.Types
+import Happstack.Server.Internal.Handler
+import Happstack.Server.Internal.Listen
+import Happstack.Server.Internal.Types
 
 -- $impl
 -- The Happstack HTTP implementation supports HTTP 1.0 and 1.1.

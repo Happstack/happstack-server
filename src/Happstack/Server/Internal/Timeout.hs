@@ -2,7 +2,7 @@
 {- | 
 -- borrowed from snap-server. Check there periodically for updates.
 -}
-module Happstack.Server.HTTP.Timeout where
+module Happstack.Server.Internal.Timeout where
 
 import           Control.Concurrent            (ThreadId, forkIO, killThread, threadDelay, threadWaitWrite)
 import qualified Data.ByteString.Char8         as B

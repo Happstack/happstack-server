@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable #-}
 
-module Happstack.Server.HTTP.Types
+module Happstack.Server.Internal.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
      takeRequestBody,
      rqURL, mkHeaders,
@@ -32,8 +32,8 @@ import qualified Data.ByteString.Lazy.UTF8  as LU (fromString)
 import Happstack.Server.SURI
 import Data.Char (toLower)
 
-import Happstack.Server.HTTP.RFC822Headers ( ContentType(..) )
-import Happstack.Server.HTTP.Cookie
+import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
+import Happstack.Server.Internal.Cookie
 import Data.List
 import Text.Show.Functions ()
 

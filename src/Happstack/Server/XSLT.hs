@@ -15,7 +15,7 @@ import Control.Monad.Trans
 import qualified Data.ByteString.Char8           as B
 import Happstack.Server.SimpleHTTP
 
-import Happstack.Server.HTTP.Types
+import Happstack.Server.Types
 -- import Happstack.Server.MinHaXML
 import Happstack.Util.Common(runCommand)
 import Control.Exception.Extensible(bracket,try,SomeException)

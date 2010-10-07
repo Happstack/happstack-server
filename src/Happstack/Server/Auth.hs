@@ -7,7 +7,7 @@ import qualified Data.ByteString.Char8           as B
 import qualified Data.Map                        as M
 import qualified Happstack.Crypto.Base64         as Base64
 import Happstack.Server.Monads                   (FilterMonad, ServerMonad, WebMonad, escape, getHeaderM, setHeaderM)
-import Happstack.Server.HTTP.Types               (Response)
+import Happstack.Server.Types                    (Response)
 import Happstack.Server.Response                 (unauthorized, toResponse)
 
 -- | A simple HTTP basic authentication guard.

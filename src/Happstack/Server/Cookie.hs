@@ -9,10 +9,10 @@ module Happstack.Server.Cookie
     )
     where
 
-import Happstack.Server.Monads      (FilterMonad, composeFilter)
-import Happstack.Server.HTTP.Cookie (Cookie(..), mkCookie, mkCookieHeader)
-import Happstack.Server.HTTP.Types  (Response, addHeader)
-import Happstack.Util.Common        (Seconds)
+import Happstack.Server.Monads          (FilterMonad, composeFilter)
+import Happstack.Server.Internal.Cookie (Cookie(..), mkCookie, mkCookieHeader)
+import Happstack.Server.Types           (Response, addHeader)
+import Happstack.Util.Common            (Seconds)
 
 -- | Add the cookie with a timeout to the response.
 addCookie :: (FilterMonad Response m) => Seconds -> Cookie -> m ()

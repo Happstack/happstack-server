@@ -5,8 +5,8 @@ import Control.Monad.Trans                       (MonadIO(liftIO))
 import Data.List                                 (isPrefixOf)
 import Happstack.Server.Monads                   (ServerMonad(askRq), FilterMonad, WebMonad, escape')
 import Happstack.Server.Response                 (badGateway, toResponse)
-import Happstack.Server.HTTP.Client              (getResponse, unproxify, unrproxify)
-import Happstack.Server.HTTP.Types               (Request(rqPaths), Response)
+import Happstack.Server.Client                   (getResponse, unproxify, unrproxify)
+import Happstack.Server.Types                    (Request(rqPaths), Response)
 
 -- | The 'proxyServe' is for creating 'ServerPartT's that proxy.  The
 -- sole argument @['String']@ is a list of allowed domains for

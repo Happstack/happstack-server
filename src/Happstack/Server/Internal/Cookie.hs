@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 -- http://tools.ietf.org/html/rfc2109
-module Happstack.Server.HTTP.Cookie
+module Happstack.Server.Internal.Cookie
     ( Cookie(..)
     , mkCookie
     , mkCookieHeader

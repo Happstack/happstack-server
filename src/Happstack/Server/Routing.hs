@@ -2,13 +2,13 @@
 -- | Incoming 'Request' routing for mapping requests to handlers. <http://happstack.com/docs/crashcourse/RouteFilters.html>
 module Happstack.Server.Routing where
 
-import           Control.Monad                   (MonadPlus(mzero,mplus), unless)
-import qualified Data.ByteString.Char8           as B
-import           Happstack.Server.Monads         (ServerPartT, ServerMonad(..))
-import           Happstack.Server.Scary          (WebT, anyRequest)
-import           Happstack.Server.HTTP.Types     (Request(..), Method(..), getHeader, rqURL)
-import           Happstack.Util.Common           (readM)
-import           System.FilePath                 (makeRelative, splitDirectories)
+import           Control.Monad                    (MonadPlus(mzero,mplus), unless)
+import qualified Data.ByteString.Char8            as B
+import           Happstack.Server.Monads          (ServerPartT, ServerMonad(..))
+import           Happstack.Server.Internal.Monads (WebT, anyRequest)
+import           Happstack.Server.Types           (Request(..), Method(..), getHeader, rqURL)
+import           Happstack.Util.Common            (readM)
+import           System.FilePath                  (makeRelative, splitDirectories)
 
 class MatchMethod m where matchMethod :: m -> Method -> Bool
 instance MatchMethod Method where matchMethod m = (== m)

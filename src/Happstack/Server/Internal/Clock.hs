@@ -1,5 +1,5 @@
 {-# OPTIONS -fno-cse #-}
-module Happstack.Server.HTTP.Clock(getApproximateTime) where
+module Happstack.Server.Internal.Clock(getApproximateTime) where
 
 import Control.Concurrent
 import Data.IORef

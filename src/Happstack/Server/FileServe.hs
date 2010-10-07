@@ -46,7 +46,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import Happstack.Server.Monads     (ServerMonad(askRq), FilterMonad, WebMonad, require)
 import Happstack.Server.Response   (ifModifiedSince, forbidden, seeOther, toResponse)
-import Happstack.Server.HTTP.Types (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
+import Happstack.Server.Types      (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
 import System.Directory (doesDirectoryExist, doesFileExist, getModificationTime)
 import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
 import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)
@@ -285,7 +285,7 @@ fileServe' serveFn mimeFn ixFiles localpath = do
     let status | de   = "DIR"
                | fe   = "file"
                | True = "NOT FOUND"
-    liftIO $ logM "Happstack.Server.HTTP.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
+    liftIO $ logM "Happstack.Server.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
     if de
         then if last (rqUri rq) == '/'
              then doIndex' serveFn mimeFn (ixFiles++defaultIxFiles) fp

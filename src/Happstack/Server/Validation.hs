@@ -6,7 +6,7 @@ import Control.Exception                         (evaluate)
 import Control.Monad.Trans                       (MonadIO(liftIO))
 import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
-import Happstack.Server.HTTP.Types               (Conf(..), Response(..), getHeader, nullConf)
+import Happstack.Server.Types                    (Conf(..), Response(..), getHeader, nullConf)
 import Happstack.Server.Response                 (ToMessage, toResponse)
 import System.Exit                               (ExitCode(ExitSuccess, ExitFailure))
 import System.IO                                 (hGetContents, hClose)
