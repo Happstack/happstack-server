@@ -3,9 +3,8 @@
 module Happstack.Server.RqData 
     ( RqData
     , RqEnv
-    , MonadRqData(askRqEnv, localRqEnv)
+    , HasRqData(askRqEnv, localRqEnv,rqDataError)
     , mapRqData
-    , rqDataError
     , FromData(..)
     , Errors(..)
     -- * Body Policy
@@ -26,7 +25,9 @@ module Happstack.Server.RqData
     , lookFile
     , lookPairs
     , checkRq
+    , checkRqM
      -- * Integration with ServerMonad
+    , decodeBody
     , getDataFn
     , withDataFn
     , getData
@@ -37,8 +38,9 @@ module Happstack.Server.RqData
     ) where
 
 import Control.Applicative 			(Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
-import Control.Monad 				(MonadPlus(mzero))
-import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), asks, mapReaderT)
+import Control.Concurrent.MVar                  (newMVar)
+import Control.Monad 				(MonadPlus(mzero), liftM)
+import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
 import Control.Monad.Error 			(Error(noMsg, strMsg))
 import Control.Monad.Trans                      (MonadIO(..))
 import qualified Data.ByteString.Lazy.Char8     as L
@@ -46,11 +48,11 @@ import qualified Data.ByteString.Lazy.UTF8      as LU
 import Data.Char 				(toLower)
 import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
-import Data.Maybe                               (fromJust)
+import Data.Maybe                               (fromMaybe, fromJust)
 import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
-import Happstack.Server.Monads 			(ServerMonad(askRq))
-import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies))
+import Happstack.Server.Monads 			(ServerMonad(askRq, localRq), ServerPartT)
+import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), readInputsBody)
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
@@ -105,13 +107,38 @@ type RqEnv = ([(String, Input)], [(String, Input)], [(String, Cookie)])
 newtype RqData a = RqData { unRqData :: ReaderError RqEnv (Errors String) a }
     deriving (Functor, Monad, MonadPlus, Applicative, Alternative, MonadReader RqEnv )
 
-class MonadRqData m where
+class HasRqData m where
     askRqEnv :: m RqEnv
     localRqEnv :: (RqEnv -> RqEnv) -> m a -> m a
+    -- | lift some 'Errors' into 'RqData'
+    rqDataError :: Errors String -> m a 
 
-instance MonadRqData RqData where
+instance HasRqData RqData where
     askRqEnv    = RqData ask
     localRqEnv f (RqData re) = RqData $ local f re
+    rqDataError e = mapRqData ((Left e) `apEither`) (return ())
+
+-- instance (MonadPlus m, MonadIO m, ServerMonad m) => (HasRqData m) where
+instance (MonadIO m) => HasRqData (ServerPartT m) where
+    askRqEnv =
+        do rq <- askRq
+           mbi <- liftIO $ if ((rqMethod rq) == POST) || ((rqMethod rq) == PUT)
+                           then readInputsBody rq
+                           else return (Just [])
+           case mbi of
+             Nothing   -> fail "askRqEnv failed because the request body has not been decoded yet. Try using 'decodeBody'."
+             (Just bi) -> return (rqInputsQuery rq, bi, rqCookies rq)
+    rqDataError e = mzero
+    localRqEnv f m =
+        do rq <- askRq
+           b  <- liftM (fromMaybe []) $ liftIO $ readInputsBody rq
+           let (q', b', c') = f (rqInputsQuery rq, b, rqCookies rq)
+           bv <- liftIO $ newMVar b'
+           let rq' = rq { rqInputsQuery = q'
+                        , rqInputsBody = bv
+                        , rqCookies = c'
+                        }
+           localRq (const rq') m
 
 -- | apply 'RqData a' to a 'RqEnv'
 --
@@ -127,11 +154,7 @@ runRqData rqData rqEnv =
 mapRqData :: (Either (Errors String) a -> Either (Errors String) b) -> RqData a -> RqData b
 mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 
--- | lift some 'Errors' into 'RqData'
-rqDataError :: Errors String -> RqData a
-rqDataError e = mapRqData ((Left e) `apEither`) (return ())
-
-readRq :: (Read a) => String -> RqData a
+readRq :: (Monad m, HasRqData m, Read a) => String -> m a
 readRq str =
     case reads str of
       [(a,[])] -> return a
@@ -148,10 +171,19 @@ readRq str =
 --  (1) Parsing a 'String' into another type
 --
 --  (2) Checking that a value meets some requirements (for example, that is an Int between 1 and 10).
-checkRq :: RqData a -> (a -> Either String b) -> RqData b
+checkRq :: (Monad m, HasRqData m) => m a -> (a -> Either String b) -> m b
 checkRq rq f =
     do a <- rq
        case f a of
+         (Left e)  -> rqDataError (strMsg e)
+         (Right b) -> return b
+
+-- | like 'checkRq' but the check function can be monadic
+checkRqM :: (Monad m, HasRqData m) => m a -> (a -> m (Either String b)) -> m b
+checkRqM rq f =
+    do a <- rq
+       b <- f a
+       case b of
          (Left e)  -> rqDataError (strMsg e)
          (Right b) -> return b
 
@@ -188,9 +220,9 @@ lookups a = map snd . filter ((a ==) . fst)
 -- Searches the QUERY_STRING followed by the Request body.
 --
 -- see also: 'lookInputs'
-lookInput :: String -> RqData Input
+lookInput :: (Monad m, HasRqData m) => String -> m Input
 lookInput name
-    = do (query, body, _cookies) <- ask
+    = do (query, body, _cookies) <- askRqEnv
          case lookup name (query ++ body) of
            Just i  -> return $ i
            Nothing -> rqDataError (strMsg $ "Parameter not found: " ++ name)
@@ -200,9 +232,9 @@ lookInput name
 -- Searches the QUERY_STRING followed by the Request body.
 --
 -- see also: 'lookInput'
-lookInputs :: String -> RqData [Input]
+lookInputs :: (Monad m, HasRqData m) => String -> m [Input]
 lookInputs name
-    = do (query, body, _cookies) <- ask
+    = do (query, body, _cookies) <- askRqEnv
          return $ lookups name (query ++ body)
 
 -- | Gets the first matching named input parameter as a lazy 'ByteString'
@@ -210,7 +242,7 @@ lookInputs name
 -- Searches the QUERY_STRING followed by the Request body.
 --
 -- see also: 'lookBSs'
-lookBS :: String -> RqData L.ByteString
+lookBS :: (Functor m, Monad m, HasRqData m) => String -> m L.ByteString
 lookBS n = 
     do i <- fmap inputValue (lookInput n)
        case i of
@@ -222,12 +254,12 @@ lookBS n =
 -- Searches the QUERY_STRING followed by the Request body.
 --
 -- see also: 'lookBS'
-lookBSs :: String -> RqData [L.ByteString]
+lookBSs :: (Functor m, Monad m, HasRqData m) => String -> m [L.ByteString]
 lookBSs n = 
     do is <- fmap (map inputValue) (lookInputs n)
        case partitionEithers is of
          ([], bs) -> return bs
-         (fp, _) -> RqData $ readerError $ (strMsg $ "lookBSs: " ++ n ++ " is a file.")
+         (fp, _)  -> rqDataError (strMsg $ "lookBSs: " ++ n ++ " is a file.")
 
 -- | Gets the first matching named input parameter as a 'String'
 --
@@ -236,7 +268,7 @@ lookBSs n =
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'looks'
-look :: String -> RqData String
+look :: (Functor m, Monad m, HasRqData m) => String -> m String
 look = fmap LU.toString . lookBS
 
 -- | Gets all matches for the named input parameter as 'String's
@@ -246,24 +278,24 @@ look = fmap LU.toString . lookBS
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'look'
-looks :: String -> RqData [String]
+looks :: (Functor m, Monad m, HasRqData m) => String -> m [String]
 looks = fmap (map LU.toString) . lookBSs
 
 -- | Gets the named cookie
 -- the cookie name is case insensitive
-lookCookie :: String -> RqData Cookie
+lookCookie :: (Monad m, HasRqData m) => String -> m Cookie
 lookCookie name
-    = do (_query,_body, cookies) <- ask
+    = do (_query,_body, cookies) <- askRqEnv
          case lookup (map toLower name) cookies of -- keys are lowercased
            Nothing -> fail "cookie not found"
            Just c  -> return c
 
 -- | gets the named cookie as a string
-lookCookieValue :: String -> RqData String
+lookCookieValue :: (Functor m, Monad m, HasRqData m) => String -> m String
 lookCookieValue = fmap cookieValue . lookCookie
 
 -- | gets the named cookie as the requested Read type
-readCookieValue :: Read a => String -> RqData a
+readCookieValue :: (Functor m, Monad m, HasRqData m, Read a) => String -> m a
 readCookieValue name = readRq =<< fmap cookieValue (lookCookie name)
 
 -- | Gets the first matching named input parameter and decodes it using 'Read'
@@ -273,7 +305,7 @@ readCookieValue name = readRq =<< fmap cookieValue (lookCookie name)
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookReads'
-lookRead :: Read a => String -> RqData a
+lookRead :: (Functor m, Monad m, HasRqData m, Read a) => String -> m a
 lookRead name = readRq =<< look name
 
 -- | Gets all matches for the named input parameter and decodes them using 'Read'
@@ -283,7 +315,7 @@ lookRead name = readRq =<< look name
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookReads'
-lookReads :: Read a => String -> RqData [a]
+lookReads :: (Functor m, Monad m, HasRqData m, Read a) => String -> m [a]
 lookReads name = mapM readRq =<< looks name
 
 -- | Gets the first matching named file
@@ -300,8 +332,9 @@ lookReads name = mapM readRq =<< looks name
 -- NOTE: You must move the file from the temporary location before the
 -- 'Response' is sent. The temporary files are automatically removed
 -- after the 'Response' is sent.
-lookFile :: String -- ^ name of input field to search for
-         -> RqData (FilePath, FilePath, ContentType) -- ^ (temporary file location, uploaded file name, content-type)
+lookFile :: (Monad m, HasRqData m) =>
+            String -- ^ name of input field to search for
+         -> m (FilePath, FilePath, ContentType) -- ^ (temporary file location, uploaded file name, content-type)
 lookFile n =
     do i <- lookInput n
        case inputValue i of
@@ -316,9 +349,9 @@ lookFile n =
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookPairsBS'
-lookPairs :: RqData [(String, Either FilePath String)]
+lookPairs :: (Monad m, HasRqData m) => m [(String, Either FilePath String)]
 lookPairs = 
-    do (query, body, _cookies) <- ask
+    do (query, body, _cookies) <- askRqEnv
        return $ map (\(n,vbs)->(n, (\e -> case e of Left fp -> Left fp ; Right bs -> Right (LU.toString bs)) $ inputValue vbs)) (query ++ body)
 
 -- | gets all the input parameters
@@ -327,11 +360,20 @@ lookPairs =
 -- body.
 --
 -- see also: 'lookPairs'
-lookPairsBS :: RqData [(String, Either FilePath L.ByteString)]
+lookPairsBS :: (Monad m, HasRqData m) => m [(String, Either FilePath L.ByteString)]
 lookPairsBS = 
-    do (query, body, _cookies) <- ask
+    do (query, body, _cookies) <- askRqEnv
        return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ body)
 
+-- | The POST\/PUT body of a Request is not received or decoded unless
+-- explicitly requested.
+decodeBody :: (ServerMonad m, MonadPlus m, MonadIO m) => BodyPolicy -> m ()
+decodeBody bp =
+    do rq <- askRq
+       (_, me) <- bodyInput bp rq
+       case me of
+         Nothing -> return ()
+         Just e  -> fail e -- FIXME: is this the best way to report the error
 
 -- | Parse your request with a 'RqData' (a 'ReaderT', basically) For
 -- example here is a simple @GET@ or @POST@ variable based
@@ -343,19 +385,20 @@ lookPairsBS =
 -- >     password <- lookInput "password"
 -- >     return (username, password)
 -- > checkAuth errorHandler = do
--- >     d <- getData myRqDataA
+-- >     d <- getDataFn myRqData
 -- >     case d of
--- >         Nothing -> errorHandler
+-- >         (Left e) -> errorHandler e
 -- >         Just a | isValid a -> mzero
--- >         Just a | otherwise -> errorHandler
+-- >         Just a | otherwise -> errorHandler "invalid"
 --
--- NOTE: This function will consume the 'Request' body. This means
--- later 'ServerPart's will not be able to access the raw 'Request'
--- body. 
--- 
--- The parsed results are saved in the 'Request'. So future calls to
--- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
--- cached value.
+-- NOTE: you must call 'decodeBody' prior to calling this function if
+-- the request method is POST or PUT.
+getDataFn :: (HasRqData m, ServerMonad m, MonadIO m) => RqData a -> m (Either [String] a)
+getDataFn rqData =
+    do rqEnv <- askRqEnv
+       return (runRqData rqData rqEnv)
+
+{-
 getDataFn :: (ServerMonad m, MonadIO m) => BodyPolicy -> RqData a -> m (Either [String] a)
 getDataFn bp rqData = 
     do rq <- askRq
@@ -363,33 +406,16 @@ getDataFn bp rqData =
        case me of
          Nothing  -> return $ runRqData rqData (rqInputsQuery rq, bi, rqCookies rq)         
          (Just e) -> return (Left [e])
+-}
 
 
--- | A variant of 'getData' that uses 'FromData' to chose your
--- 'RqData' for you.  The example from 'getData' becomes:
---
--- >  myRqData = do
--- >     username <- lookInput "username"
--- >     password <- lookInput "password"
--- >     return (username, password)
--- >  instance FromData (String,String) where
--- >     fromData = myRqData
--- >  checkAuth errorHandler = do
--- >     d <- getData'
--- >     case d of
--- >         Nothing -> errorHandler
--- >         Just a | isValid a -> mzero
--- >         Just a | otherwise -> errorHandler
---
--- NOTE: This function will consume the 'Request' body. This means
--- later 'ServerPart's will not be able to access the raw 'Request'
--- body. 
+-- | similar to 'getDataFn', except it calls a sub-handler on success
+-- or 'mzero' on failure.
 -- 
--- The parsed results are saved in the 'Request'. So future calls to
--- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
--- cached value.
-withDataFn :: (MonadIO m, MonadPlus m, ServerMonad m) => BodyPolicy -> RqData a -> (a -> m r) -> m r
-withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
+-- NOTE: you must call 'decodeBody' prior to calling this function if
+-- the request method is POST or PUT.
+withDataFn :: (HasRqData m, MonadIO m, MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
+withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 
 -- | A variant of 'getDataFn' that uses 'FromData' to chose your
 -- 'RqData' for you.  The example from 'getData' becomes:
@@ -401,33 +427,23 @@ withDataFn bp fn handle = getDataFn bp fn >>= either (const mzero) handle
 -- >  instance FromData (String,String) where
 -- >     fromData = myRqData
 -- >  checkAuth errorHandler = do
--- >     d <- getData'
+-- >     d <- getData
 -- >     case d of
--- >         Nothing -> errorHandler
+-- >         (Left e) -> errorHandler e
 -- >         Just a | isValid a -> mzero
--- >         Just a | otherwise -> errorHandler
+-- >         Just a | otherwise -> errorHandler "invalid"
 --
--- NOTE: This function will consume the 'Request' body. This means
--- later 'ServerPart's will not be able to access the raw 'Request'
--- body. 
--- 
--- The parsed results are saved in the 'Request'. So future calls to
--- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
--- cached value.
-getData :: (MonadIO m, ServerMonad m, FromData a) => BodyPolicy -> m (Either [String] a)
-getData bodyPolicy = getDataFn bodyPolicy fromData
+-- NOTE: you must call 'decodeBody' prior to calling this function if
+-- the request method is POST or PUT.
+getData :: (HasRqData m, MonadIO m, ServerMonad m, FromData a) => m (Either [String] a)
+getData = getDataFn fromData
 
--- | Retrieve data from the input query or the cookies.
+-- | similar to 'getData' except it calls a subhandler on success or 'mzero' on failure.
 --
--- NOTE: This function will consume the 'Request' body. This means
--- later 'ServerPart's will not be able to access the raw 'Request'
--- body. 
--- 
--- The parsed results are saved in the 'Request'. So future calls to
--- 'getDataFn' and friends will ignore the 'BodyPolicy' and use the
--- cached value.
-withData :: (MonadIO m, FromData a, MonadPlus m, ServerMonad m) => BodyPolicy -> (a -> m r) -> m r
-withData bodyPolicy = withDataFn bodyPolicy fromData
+-- NOTE: you must call 'decodeBody' prior to calling this function if
+-- the request method is POST or PUT.
+withData :: (HasRqData m, MonadIO m, FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
+withData = withDataFn fromData
 
 {- | Request filters
 
@@ -437,22 +453,22 @@ body for matches keys.
 -}
 
 -- | limit the scope to the Request body
-body :: RqData a -> RqData a
+body :: (HasRqData m) => m a -> m a
 body rqData = localRqEnv f rqData
     where
       f (_query, body, _cookies) = ([], body, [])
 
 -- | limit the scope to the QUERY_STRING
-queryString :: RqData a -> RqData a
+queryString ::  (HasRqData m) => m a -> m a
 queryString rqData = localRqEnv f rqData
     where
       f (query, _body, _cookies) = (query, [], [])
 
-right :: Either a b -> RqData b
-right (Right a) = pure a
+right :: (MonadPlus m) => Either a b -> m b
+right (Right a) = return a
 right (Left e) = mzero
 
-bytestring :: RqData a -> RqData a
+bytestring :: (HasRqData m) => m a -> m a
 bytestring rqData = localRqEnv f rqData
     where
       f (query, body, cookies) = (filter bsf query, filter bsf body, cookies)
