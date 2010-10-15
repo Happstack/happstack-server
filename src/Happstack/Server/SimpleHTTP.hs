@@ -15,125 +15,60 @@
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Happstack.Server.SimpleHTTP
--- Copyright   :  (c) Happstack.com 2009; (c) HAppS Inc 2007
+-- Copyright   :  (c) Happstack.com 2010; (c) HAppS Inc 2007
 -- License     :  BSD-like
 --
--- Maintainer  :  lemmih@vo.com
+-- Maintainer  :  Happstack team <happs@googlegroups.com>
 -- Stability   :  provisional
 -- Portability :  requires mtl
 --
--- 'SimpleHTTP' provides a back-end independent API for handling HTTP
--- requests.
+-- 'simpleHTTP' is a self-contained HTTP server which can be used to
+-- run a 'ServerPart'.
 --
--- By default, the built-in HTTP server will be used. However, other
--- back-ends like CGI\/FastCGI can be used if so desired.
+-- A very simple, \"Hello World!\" web app looks like:
+-- 
+-- > import Happstack.Server
+-- > main = simpleHTTP nullConf $ ok "Hello World!"
 --
--- So the general nature of 'simpleHTTP' is just what you'd expect
--- from a web application container.  First you figure out which
--- function is going to process your request, process the request to
--- generate a response, then return that response to the client. The
--- web application container is started with 'simpleHTTP', which takes
--- a configuration and a response-building structure ('ServerPartT'
--- which I'll return to in a moment), picks the first handler that is
--- willing to accept the request, and passes the request in to the
--- handler.  A simple \"hello world\" style Happstack 'simpleHTTP'
--- server looks like:
+-- By default the server will listen on port 8000. Run the app and point your browser at: <http://localhost:8000/>
 --
--- >  main = simpleHTTP nullConf $ return "Hello World!"
---
--- @simpleHTTP nullConf@ creates a HTTP server on port 8000.  return
--- \"Hello World!\" creates a 'ServerPartT' that just returns that
--- text.
---
--- 'ServerPartT' is the basic response builder.  As you might expect,
--- it's a container for a function that takes a 'Request' and converts
--- it to a response suitable for sending back to the server.  Most of
--- the time though you don't even need to worry about that as
--- 'ServerPartT' hides almost all the machinery for building your
--- response by exposing a few type classes.
---
--- 'ServerPartT' is a pretty rich monad.  You can interact with your
--- 'Request', your 'Response', do 'IO', etc.  Here is a do block that
--- validates basic authentication.  It takes a realm name as a string,
--- a Map of username to password and a server part to run if
--- authentication fails.
---
--- 'basicAuth' acts like a guard, and only produces a response when
--- authentication fails.  So put it before any 'ServerPartT' for which
--- you want to demand authentication, in any collection of
--- 'ServerPartT's.
---
--- > main = simpleHTTP nullConf $ myAuth, return "Hello World!"
--- >     where
--- >         myAuth = basicAuth' "Test"
--- >             (M.fromList [("hello", "world")]) (return "Login Failed")
---
--- > basicAuth' realmName authMap unauthorizedPart =
--- >    do
--- >        let validLogin name pass = M.lookup name authMap == Just pass
--- >        let parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
--- >        authHeader <- getHeaderM "authorization"
--- >        case authHeader of
--- >            Nothing -> err
--- >            Just x  -> case parseHeader x of
--- >                (name, ':':pass) | validLogin name pass -> mzero
--- >                                   | otherwise -> err
--- >                _                                       -> err
--- >    where
--- >        err = do
--- >            unauthorized ()
--- >            setHeaderM headerName headerValue
--- >            unauthorizedPart
--- >        headerValue = "Basic realm=\"" ++ realmName ++ "\""
--- >        headerName  = "WWW-Authenticate"
---
--- Here is another example that uses 'liftIO' to embed IO in a request process:
---
--- >  main = simpleHTTP nullConf $ myPart
--- >  myPart = do
--- >    line <- liftIO $ do -- IO
--- >        putStr "return? "
--- >        getLine
--- >    when (take 2 line /= "ok") $ (notfound () >> return "refused")
--- >    return "Hello World!"
---
--- This example will ask in the console \"return? \" if you type \"ok\" it will
--- show \"Hello World!\" and if you type anything else it will return a 404.
---
+-- For FastCGI support see: <http://hackage.haskell.org/package/happstack-fastcgi>
 -----------------------------------------------------------------------------
 module Happstack.Server.SimpleHTTP
-    ( module Happstack.Server.Types
-    , module Happstack.Server.Internal.Monads
-
-    -- * SimpleHTTP
-    , simpleHTTP
+    ( -- * SimpleHTTP
+      simpleHTTP
     , simpleHTTP'
     , simpleHTTP''
     , simpleHTTPWithSocket
     , simpleHTTPWithSocket'
     , bindPort
     , parseConfig
-    -- * Basic ServerMonad functionality
+    -- * Re-exported modules
+    -- ** Basic ServerMonad functionality
     , module Happstack.Server.Monads
-    -- * HTTP Realm Authentication
+    -- ** HTTP Realm Authentication
     , module Happstack.Server.Auth
-    -- * Create and Set Cookies (see also "Happstack.Server.RqData")
+    -- ** Create and Set Cookies (see also "Happstack.Server.RqData")
     , module Happstack.Server.Cookie
-   -- * Error Handling
+    -- ** Error Handling
     , module Happstack.Server.Error
-    -- * Manipulating responses
+    -- ** Creating Responses
     , module Happstack.Server.Response
-    -- * guards and building blocks for routing requests
+    -- ** Request Routing
     , module Happstack.Server.Routing
-      -- * proxying
+    -- ** Proxying
     , module Happstack.Server.Proxy
-     -- * Look up values in Query String, Request Body, and Cookies
+    -- ** Looking up values in Query String, Request Body, and Cookies
     , module Happstack.Server.RqData
-      -- * Output Validation
+    -- ** Output Validation
     , module Happstack.Server.Validation
+    , module Happstack.Server.Types
+--    , module Happstack.Server.Internal.Monads
+
     ) where
 
 -- re-exports
+
 import Happstack.Server.Auth
 import Happstack.Server.Monads
 import Happstack.Server.Cookie
@@ -144,6 +79,7 @@ import Happstack.Server.Routing
 import Happstack.Server.RqData
 import Happstack.Server.Response
 import Happstack.Server.Validation
+
 
 import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
@@ -170,18 +106,23 @@ parseConfig args
         (flags,_,[]) -> Right $ foldr ($) nullConf flags
         (_,_,errs)   -> Left errs
 
--- | Use the built-in web-server to serve requests according to a
--- 'ServerPartT'.  Use 'msum' to pick the first handler from a list of
--- handlers that doesn't call 'mzero'. This function always binds o
--- IPv4 ports until Network module is fixed to support IPv6 in a
--- portable way. Use 'simpleHTTPWithSocket' with custom socket if you
--- want different behaviour.
+-- |start the server, and handle requests using the supplied
+-- 'ServerPart'.
+--
+-- This function will not return, though it might throw an exception.
+--
+-- NOTE: The server will only listen on IPv4 due to portability issues
+-- in the "Network" module. For IPv6 support, use
+-- 'simpleHTTPWithSocket' with custom socket if you want different
+-- behaviour.
 simpleHTTP :: (ToMessage a) => Conf -> ServerPartT IO a -> IO ()
 simpleHTTP = simpleHTTP' id
 
 -- | A combination of 'simpleHTTP''' and 'mapServerPartT'.  See
 -- 'mapServerPartT' for a discussion of the first argument of this
--- function. This function always binds to IPv4 ports until Network
+-- function. 
+--
+-- NOTE: This function always binds to IPv4 ports until Network
 -- module is fixed to support IPv6 in a portable way. Use
 -- 'simpleHTTPWithSocket' with custom socket if you want different
 -- behaviour.

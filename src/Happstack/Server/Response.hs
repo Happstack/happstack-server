@@ -1,6 +1,28 @@
 {-# LANGUAGE FlexibleContexts, TypeSynonymInstances, ScopedTypeVariables #-}
--- | Functions related to generating a 'Response' and setting the response code. <http://happstack.com/docs/crashcourse/HelloWorld.html#response_code>
-module Happstack.Server.Response where
+-- | Functions and classes related to generating a 'Response' and setting the response code. For detailed instruction see the Happstack Crash Course: <http://happstack.com/docs/crashcourse/HelloWorld.html#response_code>
+module Happstack.Server.Response 
+    ( -- * Converting values to a 'Response'
+      ToMessage(..)
+    , flatten
+    , toResponseBS
+      -- * Setting the Response Code
+    , setResponseCode
+    , resp
+    , ok
+    , noContent
+    , internalServerError
+    , badGateway
+    , badRequest
+    , unauthorized
+    , forbidden
+    , notFound
+    , seeOther
+    , found
+    , movedPermanently
+    , tempRedirect
+    -- * Handling if-modified-since
+    , ifModifiedSince
+    ) where
 
 import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
@@ -29,11 +51,23 @@ toResponseBS contentType message =
     in setHeaderBS (B.pack "Content-Type") contentType res
 
 
--- | Used to convert arbitrary types into an HTTP response.  You need
--- to implement this if you want to pass @'ServerPartT' m@ containing
--- your type into 'simpleHTTP'.
+-- | Used to convert a value into an HTTP 'Response'
 --
--- Minimal definition: 'toMessage'.
+-- Calling 'toResponse' will convert a value into a 'Response' body,
+-- set the @content-type@, and set a default @response code@.
+--
+-- Example:
+--
+-- > main = simpleHTTP nullConf $ toResponse "hello, world!"
+--
+-- will generate a 'Response' with the content-type @text/plain@,
+-- the response code @200 OK@, and the body: @hello, world!@.
+--
+-- 'simpleHTTP' will call 'toResponse' automatically, so the above can be shortened to:
+--
+--  > main = simpleHTTP nullConf $ "hello, world!"
+--
+-- Minimal definition: 'toMessage' (and usually 'toContentType'). 
 class ToMessage a where
     toContentType :: a -> B.ByteString
     toContentType _ = B.pack "text/plain"
@@ -95,8 +129,9 @@ instance (Xml a)=>ToMessage a where
 
 --    toMessageM = toMessageM . toPublicXml
 
--- | The function 'flatten' turns your arbitrary @m a@ and converts it
--- too a @m 'Response'@ with 'toResponse'.
+-- | alias for: @fmap toResponse@
+--
+-- turns @m a@ into @m 'Response'@ using 'toResponse'.
 flatten :: (ToMessage a, Functor f) => f a -> f Response
 flatten = fmap toResponse
 

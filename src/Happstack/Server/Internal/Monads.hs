@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, UndecidableInstances  #-}
-{- | This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. Look in "Happstack.Server.Monads" instead.
+{-| This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. Look in "Happstack.Server.Monads" instead.
 -}
 module Happstack.Server.Internal.Monads where
 
@@ -35,13 +35,16 @@ import Happstack.Server.Types                    (Request, Response, resultBS, s
 
 -- | An alias for 'WebT' when using 'IO'.
 type Web a = WebT IO a
--- | An alias for using 'ServerPartT' when using the 'IO'.
+
+-- | An alias for @'ServerPartT' 'IO'@
 type ServerPart a = ServerPartT IO a
 
 --------------------------------------
 -- HERE BEGINS ServerPartT definitions
 
--- | 'ServerPartT' is a container for processing requests and returning results.
+-- | 'ServerPartT' is a rich, featureful monad for web development. 
+--
+-- see also: 'simpleHTTP', 'ServerMonad', 'FilterMonad', 'WebMonad', and 'HasRqData'
 newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
     deriving (Monad, MonadPlus, Functor)
 
@@ -72,10 +75,12 @@ withRequest = ServerPartT . ReaderT
 anyRequest :: Monad m => WebT m a -> ServerPartT m a
 anyRequest x = withRequest $ \_ -> x
 
--- | Used to manipulate the containing monad.  Very useful when
--- embedding a monad into a 'ServerPartT', since 'simpleHTTP' requires
--- a @'ServerPartT' 'IO' a@.  Refer to 'WebT' for an explanation of
--- the structure of the monad.
+-- | Apply a function to transform the inner monad of
+-- @'ServerPartT' m@.  
+-- 
+-- Often used when transforming a monad with 'ServerPartT', since
+-- 'simpleHTTP' requires a @'ServerPartT' 'IO' a@.  Refer to 'WebT'
+-- for an explanation of the structure of the monad.
 --
 -- Here is an example.  Suppose you want to embed an 'ErrorT' into your
 -- 'ServerPartT' to enable 'throwError' and 'catchError' in your 'Monad'.
@@ -92,7 +97,7 @@ anyRequest x = withRequest $ \_ -> x
 -- >      return $ case eitherV of
 -- >          Left err -> Just (Left $ toResponse $ 
 -- >                                   "Catastrophic failure " ++ show err
--- >                           , Set $ Dual $ Endo $ \r -> r{rsCode = 500})
+-- >                           , filterFun $ \r -> r{rsCode = 500})
 -- >          Right x -> x
 --
 -- With @unpackErrorT@ you can now call 'simpleHTTP'. Just wrap your
@@ -104,7 +109,7 @@ anyRequest x = withRequest $ \_ -> x
 --
 -- >  simpleHTTP' unpackErrorT nullConf (myPart `catchError` myHandler)
 --
--- Also see 'spUnwrapErrorT' for a more sophisticated version of this
+-- Also see 'Happstack.Server.Error.spUnwrapErrorT' for a more sophisticated version of this
 -- function.
 --
 mapServerPartT :: (     UnWebT m a ->      UnWebT n b)
@@ -154,12 +159,11 @@ instance Monad m => FilterMonad Response (ServerPartT m) where
 instance Monad m => WebMonad Response (ServerPartT m) where
     finishWith r = anyRequest $ finishWith r
 
--- | Yes, this is exactly like 'ReaderT' with new names.  Why you ask?
--- Because 'ServerPartT' can lift up a 'ReaderT'.  If you did that, it
--- would shadow 'ServerPartT''s behavior as a 'ReaderT', thus meaning if
--- you lifted the 'ReaderT' you could no longer ask for the 'Request'.
--- This way you can add a 'ReaderT' to your monad stack without any
--- trouble.
+-- | The 'ServerMonad' class provides methods for reading or locally
+-- modifying the 'Request'. It is essentially a specialized version of
+-- the 'MonadReader' class. Providing the unique names, 'askRq' and
+-- 'localRq' makes it easier to use 'ServerPartT' and 'ReaderT'
+-- together.
 class Monad m => ServerMonad m where
     askRq   :: m Request
     localRq :: (Request -> Request) -> m a -> m a
@@ -215,6 +219,10 @@ type FilterFun a = SetAppend (Dual (Endo a))
 unFilterFun :: FilterFun a -> (a -> a)
 unFilterFun = appEndo . getDual . extract
 
+-- | turn a function into a 'FilterFun'. Primarily used with 'mapServerPartT'
+filterFun :: (a -> a) -> FilterFun a
+filterFun = Set . Dual . Endo
+
 newtype FilterT a m b = FilterT { unFilterT :: WriterT (FilterFun a) m b }
    deriving (Monad, MonadTrans, Functor)
 
@@ -222,10 +230,10 @@ instance (MonadIO m) => MonadIO (FilterT a m) where
     liftIO = FilterT . liftIO
     {-# INLINE liftIO #-}
 
--- | A set of functions for manipulating filters.  A 'ServerPartT'
--- implements 'FilterMonad' 'Response' so these methods are the
--- fundamental ways of manipulating the response object, especially
--- before you've converted your monadic value to a 'Response'.
+-- | A set of functions for manipulating filters.  
+--
+-- 'ServerPartT' implements 'FilterMonad' 'Response' so these methods
+-- are the fundamental ways of manipulating 'Response' values.
 class Monad m => FilterMonad a m | m->a where
     -- | Ignores all previous alterations to your filter
     --
@@ -245,7 +253,7 @@ class Monad m => FilterMonad a m | m->a where
     -- | Retrieves the filter from the environment.
     getFilter :: m b -> m (b, a->a)
 
--- | An alias for @'setFilter' 'id'@. It resets all your filters.
+-- | Resets all your filters. An alias for @'setFilter' 'id'@.
 ignoreFilters :: (FilterMonad a m) => m ()
 ignoreFilters = setFilter id
 
@@ -262,8 +270,13 @@ instance (MonadIO m) => MonadIO (WebT m) where
     liftIO = WebT . liftIO
     {-# INLINE liftIO #-}
 
--- | It is worth discussing the unpacked structure of 'WebT' a bit as
---  it's exposed in 'mapServerPartT' and 'mapWebT'.
+-- | 'UnWebT' is almost exclusively used with 'mapServerPartT'. If you
+-- are not using 'mapServerPartT' then you do not need to wrap your
+-- head around this type. If you are -- the type is not as complex as
+-- it first appears.
+-- 
+-- It is worth discussing the unpacked structure of 'WebT' a bit as
+-- it's exposed in 'mapServerPartT' and 'mapWebT'.
 --
 --  A fully unpacked 'WebT' has a structure that looks like:
 --
@@ -318,8 +331,8 @@ instance Monad m => Monad (WebT m) where
     fail s = outputTraceMessage s (mkFailMessage s)
 
 class Monad m => WebMonad a m | m->a where
-    -- | A control structure.  It ends the computation and returns the
-    -- 'Response' you passed into it immediately.  This provides an
+    -- | 'WebMonad' provides a means to end the current computation
+    -- and return a 'Response' immediately.  This provides an
     -- alternate escape route.  In particular it has a monadic value
     -- of any type.  And unless you call @'setFilter' id@ first your
     -- response filters will be applied normally.

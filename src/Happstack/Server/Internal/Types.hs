@@ -2,7 +2,7 @@
 
 module Happstack.Server.Internal.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
-     takeRequestBody,
+     takeRequestBody, readInputsBody,
      rqURL, mkHeaders,
      getHeader, getHeaderBS, getHeaderUnsafe,
      hasHeader, hasHeaderBS, hasHeaderUnsafe,
@@ -146,6 +146,20 @@ data Request = Request { rqMethod      :: Method,
 takeRequestBody :: Request -> IO (Maybe RqBody)
 takeRequestBody rq = tryTakeMVar (rqBody rq) 
 -- takeRequestBody rq = return (rqBody rq)
+
+
+-- | read the request body inputs
+--
+-- This will only work if the body inputs have already been decoded. Otherwise it will return Nothing.
+readInputsBody :: Request -> IO (Maybe [(String, Input)])
+readInputsBody req =
+    do mbi <- tryTakeMVar (rqInputsBody req)
+       case mbi of
+         (Just bi) ->
+                do putMVar (rqInputsBody req) bi
+                   return (Just bi)
+         Nothing -> return Nothing
+
 {-
 takeRequestBody rq = 
     do body <- atomicModifyIORef (rqBody rq) (\bdy -> (Nothing, bdy))

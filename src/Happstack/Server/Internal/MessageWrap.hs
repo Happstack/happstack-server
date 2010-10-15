@@ -19,14 +19,20 @@ queryInput uri = formDecode (case SURI.query uri of
                                '?':r -> r
                                xs    -> xs)
 
+-- | see 'defaultBodyPolicy'
 data BodyPolicy 
     = BodyPolicy { inputWorker :: Int64 -> Int64 -> Int64 -> InputWorker
-                 , maxDisk     :: Int64 -- ^ maximum bytes to save to disk (files)
-                 , maxRAM      :: Int64 -- ^ maximum bytes to hold in RAM 
-                 , maxHeader   :: Int64 -- ^ maximum header size (this only affects headers in the multipart/form-data)
+                 , maxDisk     :: Int64 -- ^ maximum bytes for files uploaded in this 'Request'
+                 , maxRAM      :: Int64 -- ^ maximum bytes for all non-file values in the 'Request' body
+                 , maxHeader   :: Int64 -- ^ maximum bytes of overhead for headers in @multipart/form-data@
                  }
 
-defaultBodyPolicy :: FilePath -> Int64 -> Int64 -> Int64 -> BodyPolicy
+-- | create a 'BodyPolicy' for use with decodeBody
+defaultBodyPolicy :: FilePath -- ^ temporary directory for file uploads
+                  -> Int64 -- ^ maximum bytes for files uploaded in this 'Request'
+                  -> Int64 -- ^ maximum bytes for all non-file values in the 'Request' body
+                  -> Int64 -- ^ maximum bytes of overhead for headers in @multipart/form-data@
+                  -> BodyPolicy
 defaultBodyPolicy tmpDir md mr mh =
     BodyPolicy { inputWorker = defaultInputIter tmpDir 0 0 0
                , maxDisk   = md

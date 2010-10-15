@@ -1,40 +1,54 @@
 {-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, FlexibleInstances, MultiParamTypeClasses #-}
--- | Functions for extracting values from the query string, form data, cookies, etc. <http://happstack.com/docs/crashcourse/RqData.html>
+-- | Functions for extracting values from the query string, form data, cookies, etc. 
+--
+-- For in-depth documentation see the following section of the Happstack Crash Course:
+--
+-- <http://happstack.com/docs/crashcourse/RqData.html>
 module Happstack.Server.RqData 
-    ( RqData
-    , RqEnv
-    , HasRqData(askRqEnv, localRqEnv,rqDataError)
-    , mapRqData
-    , FromData(..)
-    , Errors(..)
-    -- * Body Policy
-    , BodyPolicy(..)
-    , defaultBodyPolicy
-    -- * lookup functions
-    , lookInput
-    , lookInputs
+    ( -- * Looking up keys
+      -- ** Form Values and Query Parameters
+      look
+    , looks
     , lookBS
     , lookBSs
-    , look
-    , looks
-    , lookCookie
-    , lookCookieValue
-    , readCookieValue
     , lookRead
     , lookReads
     , lookFile
     , lookPairs
-    , checkRq
-    , checkRqM
-     -- * Integration with ServerMonad
-    , decodeBody
-    , getDataFn
-    , withDataFn
-    , getData
-    , withData
+    , lookPairsBS
+    -- ** Cookies
+    , lookCookie
+    , lookCookieValue
+    , readCookieValue
+    -- ** low-level
+    , lookInput
+    , lookInputs
     -- * Filters
+    -- The look* functions normally search the QUERY_STRING and the Request
+    -- body for matches keys. 
     , body
     , queryString
+    -- * Validation and Parsing
+    , checkRq
+    , checkRqM        
+    -- * Handling POST\/PUT Requests
+    , decodeBody
+    -- ** Body Policy
+    , BodyPolicy(..)
+    , defaultBodyPolicy
+    -- * RqData Monad & Error Reporting
+    , RqData
+    , mapRqData
+    , Errors(..)       
+    -- ** Using RqData with ServerMonad
+    , getDataFn
+    , withDataFn
+    , FromData(..)
+    , getData
+    , withData
+    -- * HasRqData class
+    , RqEnv
+    , HasRqData(askRqEnv, localRqEnv,rqDataError)
     ) where
 
 import Control.Applicative 			(Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
@@ -142,7 +156,7 @@ instance (MonadIO m) => HasRqData (ServerPartT m) where
 
 -- | apply 'RqData a' to a 'RqEnv'
 --
--- see also: 'getData', 'getDataFn', 'withData', 'withDataFn'
+-- see also: 'getData', 'getDataFn', 'withData', 'withDataFn', 'RqData', 'getDataFn'
 runRqData :: RqData a -> RqEnv -> Either [String] a
 runRqData rqData rqEnv =
     either (Left . unErrors) Right $ runReaderError (unRqData rqData) rqEnv
@@ -160,17 +174,21 @@ readRq str =
       [(a,[])] -> return a
       _        -> rqDataError (strMsg $ "Read failed while parsing: " ++ str)
 
--- | apply a possibly failing function to value inside the 'RqData'
+-- | convert or validate a value
 --
 -- This is similar to 'fmap' except that the function can fail by
--- returning Left and an error message. The error will be propogated
--- via the normal 'RqData' error handling.
+-- returning Left and an error message. The error will be propagated
+-- by calling 'rqDataError'.
 --
 -- This function is useful for a number of things including:
 -- 
 --  (1) Parsing a 'String' into another type
 --
 --  (2) Checking that a value meets some requirements (for example, that is an Int between 1 and 10).
+--
+-- Example usage at:
+--
+-- <http://happstack.com/docs/crashcourse/RqData.html#rqdatacheckrq>
 checkRq :: (Monad m, HasRqData m) => m a -> (a -> Either String b) -> m b
 checkRq rq f =
     do a <- rq
@@ -267,7 +285,14 @@ lookBSs n =
 --
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
--- see also: 'looks'
+-- Example:
+--
+-- > handler :: ServerPart Response
+-- > handler =
+-- >      do foo <- look "foo"
+-- >         ok $ toResponse $ "foo = " ++ foo
+--
+-- see also: 'looks', 'lookBS', and 'lookBSs'
 look :: (Functor m, Monad m, HasRqData m) => String -> m String
 look = fmap LU.toString . lookBS
 
@@ -277,7 +302,7 @@ look = fmap LU.toString . lookBS
 --
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
--- see also: 'look'
+-- see also: 'look' and 'lookBSs'
 looks :: (Functor m, Monad m, HasRqData m) => String -> m [String]
 looks = fmap (map LU.toString) . lookBSs
 
@@ -326,7 +351,9 @@ lookReads name = mapM readRq =<< looks name
 -- This function returns a tuple consisting of:
 -- 
 --  (1) The temporary location of the uploaded file
+--
 --  (2) The local filename supplied by the browser
+--
 --  (3) The content-type supplied by the browser
 --
 -- NOTE: You must move the file from the temporary location before the
@@ -366,7 +393,23 @@ lookPairsBS =
        return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ body)
 
 -- | The POST\/PUT body of a Request is not received or decoded unless
--- explicitly requested.
+-- this function is invoked. 
+--
+-- It is an error to try to use the look functions for a POST\/PUT
+-- request with out first calling this function.
+--
+-- It is ok to call 'decodeBody' at the beginning of every request:
+--
+-- > main = simpleHTTP nullConf $ 
+-- >           do decodeBody (defaultBodyPolicy "/tmp/" 4096 4096 4096)
+-- >              handlers
+--
+-- You can achieve finer granularity quotas by calling 'decodeBody'
+-- with different values in different handlers.
+--
+-- Only the first call to 'decodeBody' will have any effect. Calling
+-- it a second time, even with different quota values, will do
+-- nothing.
 decodeBody :: (ServerMonad m, MonadPlus m, MonadIO m) => BodyPolicy -> m ()
 decodeBody bp =
     do rq <- askRq
@@ -375,39 +418,39 @@ decodeBody bp =
          Nothing -> return ()
          Just e  -> fail e -- FIXME: is this the best way to report the error
 
--- | Parse your request with a 'RqData' (a 'ReaderT', basically) For
--- example here is a simple @GET@ or @POST@ variable based
--- authentication guard.  It handles the request with 'errorHandler'
--- if authentication fails.
+-- | run 'RqData' in a 'ServerMonad'.
 --
--- > myRqData = do
--- >     username <- lookInput "username"
--- >     password <- lookInput "password"
--- >     return (username, password)
--- > checkAuth errorHandler = do
+-- Example: a simple @GET@ or @POST@ variable based authentication
+-- guard.  It handles the request with 'errorHandler' if
+-- authentication fails.
+--
+-- >  data AuthCredentials = AuthCredentials { username :: String,  password :: String }
+-- >
+-- >  isValid :: AuthCredentials -> Bool
+-- >  isValid = const True
+-- >
+-- >  myRqData :: RqData AuthCredentials
+-- >  myRqData = do
+-- >     username <- look "username"
+-- >     password <- look "password"
+-- >     return (AuthCredentials username password)
+-- >
+-- >  checkAuth :: (String -> ServerPart Response) -> ServerPart Response
+-- >  checkAuth errorHandler = do
 -- >     d <- getDataFn myRqData
 -- >     case d of
--- >         (Left e) -> errorHandler e
--- >         Just a | isValid a -> mzero
--- >         Just a | otherwise -> errorHandler "invalid"
+-- >         (Left e) -> errorHandler (unlines e)
+-- >         (Right a) | isValid a -> mzero
+-- >         (Right a) | otherwise -> errorHandler "invalid"
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
-getDataFn :: (HasRqData m, ServerMonad m, MonadIO m) => RqData a -> m (Either [String] a)
+getDataFn :: (HasRqData m, ServerMonad m, MonadIO m) => 
+             RqData a -- ^ 'RqData' monad to evaluate
+          -> m (Either [String] a) -- ^ return 'Left' errors or 'Right' a
 getDataFn rqData =
     do rqEnv <- askRqEnv
        return (runRqData rqData rqEnv)
-
-{-
-getDataFn :: (ServerMonad m, MonadIO m) => BodyPolicy -> RqData a -> m (Either [String] a)
-getDataFn bp rqData = 
-    do rq <- askRq
-       (bi, me) <- bodyInput bp rq
-       case me of
-         Nothing  -> return $ runRqData rqData (rqInputsQuery rq, bi, rqCookies rq)         
-         (Just e) -> return (Left [e])
--}
-
 
 -- | similar to 'getDataFn', except it calls a sub-handler on success
 -- or 'mzero' on failure.
@@ -419,19 +462,28 @@ withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 
 -- | A variant of 'getDataFn' that uses 'FromData' to chose your
 -- 'RqData' for you.  The example from 'getData' becomes:
---
+-- 
+-- >  data AuthCredentials = AuthCredentials { username :: String,  password :: String }
+-- >
+-- >  isValid :: AuthCredentials -> Bool
+-- >  isValid = const True
+-- >
+-- >  myRqData :: RqData AuthCredentials
 -- >  myRqData = do
--- >     username <- lookInput "username"
--- >     password <- lookInput "password"
--- >     return (username, password)
--- >  instance FromData (String,String) where
+-- >     username <- look "username"
+-- >     password <- look "password"
+-- >     return (AuthCredentials username password)
+-- >
+-- >  instance FromData AuthCredentials where
 -- >     fromData = myRqData
+-- >
+-- >  checkAuth :: (String -> ServerPart Response) -> ServerPart Response
 -- >  checkAuth errorHandler = do
 -- >     d <- getData
 -- >     case d of
--- >         (Left e) -> errorHandler e
--- >         Just a | isValid a -> mzero
--- >         Just a | otherwise -> errorHandler "invalid"
+-- >         (Left e) -> errorHandler (unlines e)
+-- >         (Right a) | isValid a -> mzero
+-- >         (Right a) | otherwise -> errorHandler "invalid"
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
@@ -445,20 +497,23 @@ getData = getDataFn fromData
 withData :: (HasRqData m, MonadIO m, FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
 withData = withDataFn fromData
 
-{- | Request filters
-
-The look* functions normally search the QUERY_STRING and the Request
-body for matches keys. 
-
--}
-
 -- | limit the scope to the Request body
+--
+-- > handler :: ServerPart Response
+-- > handler =
+-- >     do foo <- body $ look "foo"
+-- >        ok $ toResponse $ "foo = " ++ foo
 body :: (HasRqData m) => m a -> m a
 body rqData = localRqEnv f rqData
     where
       f (_query, body, _cookies) = ([], body, [])
 
 -- | limit the scope to the QUERY_STRING
+--
+-- > handler :: ServerPart Response
+-- > handler =
+-- >     do foo <- queryString $ look "foo"
+-- >        ok $ toResponse $ "foo = " ++ foo
 queryString ::  (HasRqData m) => m a -> m a
 queryString rqData = localRqEnv f rqData
     where

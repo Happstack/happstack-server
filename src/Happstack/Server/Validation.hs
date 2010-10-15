@@ -25,7 +25,7 @@ import System.Process                            (runInteractiveProcess, waitFor
 -- Example: (use 'noopValidator' instead of the default supplied by
 -- 'validateConf')
 --
--- > simpleHTTP validateConf . anyRequest $ ok . setValidator noopValidator =<< htmlPage
+-- > simpleHTTP validateConf $ ok . setValidator noopValidator =<< htmlPage
 --
 -- See also: 'validateConf', 'wdgHTMLValidator', 'noopValidator',
 -- 'lazyProcValidator'.

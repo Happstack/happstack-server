@@ -1,5 +1,5 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
--- | Filters which can be used with the 'FilterMonad'.
+-- | Filters to transform your 'Response', such as automatically compressing the 'Response' body.
 module Happstack.Server.Filters(
     compressedResponseFilter
    ,gzipFilter
@@ -18,10 +18,13 @@ import qualified Codec.Compression.Zlib as Z
 -- | reads the \"Accept-Encoding\" header.  Then, if possible
 -- will compress the response body with methods "gzip" or "deflate"
 --
--- Returns the name of the coding chosen
+-- > main = 
+-- >   simpleHTTP nullConf $ 
+-- >      do str <- compressedResponseFilter
+-- >         return $ toResponse ("This response compressed using: " ++ str)
 compressedResponseFilter::
     (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m)
-    => m String
+    => m String -- ^ name of the encoding chosen
 compressedResponseFilter = do
     getHeaderM "Accept-Encoding" >>=
         (maybe (return "identity") installHandler)
@@ -46,6 +49,8 @@ compressedResponseFilter = do
 
 -- | compresses the body of the response with gzip.
 -- does not set any headers.
+--
+-- see also: 'compressedResponseFilter'
 gzipFilter::(FilterMonad Response m) => m()
 gzipFilter = do
     composeFilter (\r -> r{rsBody = GZ.compress $ rsBody r})
@@ -53,6 +58,8 @@ gzipFilter = do
 -- | compresses the body of the response with zlib's
 -- deflate method
 -- does not set any headers.
+--
+-- see also: 'compressedResponseFilter'
 deflateFilter::(FilterMonad Response m) => m()
 deflateFilter = do
     composeFilter (\r -> r{rsBody = Z.compress $ rsBody r})

@@ -1,6 +1,6 @@
 module Happstack.Server.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
-     takeRequestBody,
+     takeRequestBody, readInputsBody,
      rqURL, mkHeaders,
      getHeader, getHeaderBS, getHeaderUnsafe,
      hasHeader, hasHeaderBS, hasHeaderUnsafe,

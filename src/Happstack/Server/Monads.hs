@@ -1,19 +1,33 @@
 {-# LANGUAGE FlexibleContexts #-}
+-- | This module provides three classes and some related functions
+-- which provide 'ServerPartT' with much of its web-centric behavior.
+--
+--  1. 'ServerMonad' provides access to the HTTP 'Request'
+--
+--  2. 'FilterMonad' provides the ability to apply filters and transformations to a 'Response'
+--
+--  3. 'WebMonad' provides a way to escape a computation and return a 'Response'
 module Happstack.Server.Monads
-    ( ServerMonad(..)
+    ( -- * ServerPartT
+      ServerPartT
+    , ServerPart
+      -- * ServerMonad
+    , ServerMonad(..)
     , mapServerPartT
     , mapServerPartT'
-    , FilterMonad(..)
-    , WebMonad(..)
-    , ServerPartT
-    , ServerPart
     , UnWebT
-    , escape
-    , escape' 
+    , filterFun
+      -- * FilterMonad
+    , FilterMonad(..)
     , ignoreFilters
     , addHeaderM
     , getHeaderM
     , setHeaderM
+      -- * WebMonad
+    , WebMonad(..)
+    , escape
+    , escape' 
+      -- * MonadPlus helpers
     , require
     , requireM
     ) where

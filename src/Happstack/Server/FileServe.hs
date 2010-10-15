@@ -1,13 +1,16 @@
 {-# LANGUAGE FlexibleContexts, Rank2Types #-}
--- |File Serving functions
+-- | File Serving functions
 module Happstack.Server.FileServe
     (
-     -- * Content-Type \/ Mime-Type
-     MimeMap,
-     mimeTypes,
-     asContentType,
-     guessContentType,
-     guessContentTypeM,
+     -- * High-Level
+     -- ** Serving files from a directory
+     fileServe,
+     fileServe',
+     fileServeLazy,
+     fileServeStrict,
+     -- ** Serving a single file
+     serveFile,
+     serveFileUsing,
      -- * Low-Level
      sendFileResponse,     
      lazyByteStringResponse,
@@ -15,15 +18,12 @@ module Happstack.Server.FileServe
      filePathSendFile,
      filePathLazy,
      filePathStrict,
-     -- * High-Level
-     -- ** Serving a single file
-     serveFile,
-     serveFileUsing,
-     -- ** Serving files from a directory
-     fileServe',
-     fileServe,
-     fileServeLazy,
-     fileServeStrict,
+     -- * Content-Type \/ Mime-Type
+     MimeMap,
+     mimeTypes,
+     asContentType,
+     guessContentType,
+     guessContentTypeM,
      -- * Other
      blockDotFiles,
      defaultIxFiles,
@@ -220,7 +220,7 @@ filePathStrict contentType fp =
 
 -- ** Serve a single file
 
--- | Serve a single, specified file.
+-- | Serve a single, specified file. The name of the file being served is specified explicity. It is not derived automatically from the 'Request' url.
 -- 
 -- example 1:
 -- 
@@ -261,7 +261,9 @@ serveFile = serveFileUsing filePathSendFile
 -- You supply:
 --
 --  1. a low-level function which takes a content-type and 'FilePath' and generates a Response
+--
 --  2. a function which determines the content-type from the 'FilePath'
+--
 --  3. a list of all the default index files
 --
 -- NOTE: unlike fileServe, there are no index files by default. See 'defaultIxFiles'.
@@ -295,7 +297,18 @@ fileServe' serveFn mimeFn ixFiles localpath = do
                 then serveFileUsing serveFn mimeFn fp
                 else mzero
 
--- | Serve files from a directory and its subdirectories (sendFile version). Should perform much better than its predecessors.
+-- | Serve files from a directory and its subdirectories using 'sendFile'.
+-- 
+-- Usage:
+--
+-- > fileServe ["index.html"] "path/to/files/on/disk"
+--
+-- Notes:
+--
+--  1. 'fileServe' does not support directory browsing. You should submit a patch!
+--
+--  2. The list of index files @[\"index.html\"]@ is only used to determine what file to show if the user requests a directory. You *do not* need to explicitly list all the files you want to serve.
+-- 
 fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index file names, in case the requested path is a directory
           -> FilePath           -- ^ file/directory to serve
@@ -303,8 +316,8 @@ fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadI
 fileServe ixFiles localPath = fileServe' filePathSendFile (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
 
 -- | Serve files from a directory and its subdirectories (lazy ByteString version).
--- 
--- May leak file handles.
+--
+-- WARNING: May leak file handles. You should probably use 'fileServe' instead.
 fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index file names, in case the requested path is a directory
           -> FilePath           -- ^ file/directory to serve
@@ -312,6 +325,8 @@ fileServeLazy :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, Mo
 fileServeLazy ixFiles localPath = fileServe' filePathLazy (guessContentTypeM mimeTypes) (ixFiles ++ defaultIxFiles) localPath
 
 -- | Serve files from a directory and its subdirectories (strict ByteString version). 
+--
+-- WARNING: the entire file will be read into RAM before being served. You should probably use 'fileServe' instead.
 fileServeStrict :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index file names, in case the next argument is a directory
           -> FilePath           -- ^ file/directory to serve
