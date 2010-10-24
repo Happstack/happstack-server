@@ -31,6 +31,7 @@ module Happstack.Server.RqData
     -- * Validation and Parsing
     , checkRq
     , checkRqM        
+    , readRq
     -- * Handling POST\/PUT Requests
     , decodeBody
     -- ** Body Policy
@@ -168,11 +169,17 @@ runRqData rqData rqEnv =
 mapRqData :: (Either (Errors String) a -> Either (Errors String) b) -> RqData a -> RqData b
 mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 
-readRq :: (Monad m, HasRqData m, Read a) => String -> m a
-readRq str =
-    case reads str of
-      [(a,[])] -> return a
-      _        -> rqDataError (strMsg $ "Read failed while parsing: " ++ str)
+-- | use 'read' to convert a 'String' to a value of type 'a'
+--
+-- use with 'checkRq'
+readRq :: (Read a) => 
+          String -- ^ name of key (only used for error reporting)
+       -> String -- ^ 'String' to 'read'
+       -> Either String a -- ^ 'Left' on error, 'Right' on success
+readRq key val =
+    case reads val of
+      [(a,[])] -> Right a
+      _        -> Left $ "readRq failed while parsing key: " ++ key ++ " which has the value: " ++ val
 
 -- | convert or validate a value
 --
@@ -321,7 +328,7 @@ lookCookieValue = fmap cookieValue . lookCookie
 
 -- | gets the named cookie as the requested Read type
 readCookieValue :: (Functor m, Monad m, HasRqData m, Read a) => String -> m a
-readCookieValue name = readRq =<< fmap cookieValue (lookCookie name)
+readCookieValue name = fmap cookieValue (lookCookie name) `checkRq` (readRq name)
 
 -- | Gets the first matching named input parameter and decodes it using 'Read'
 --
@@ -331,7 +338,7 @@ readCookieValue name = readRq =<< fmap cookieValue (lookCookie name)
 --
 -- see also: 'lookReads'
 lookRead :: (Functor m, Monad m, HasRqData m, Read a) => String -> m a
-lookRead name = readRq =<< look name
+lookRead name = look name `checkRq` (readRq name)
 
 -- | Gets all matches for the named input parameter and decodes them using 'Read'
 --
@@ -341,7 +348,9 @@ lookRead name = readRq =<< look name
 --
 -- see also: 'lookReads'
 lookReads :: (Functor m, Monad m, HasRqData m, Read a) => String -> m [a]
-lookReads name = mapM readRq =<< looks name
+lookReads name = 
+    do vals <- looks name
+       mapM (\v -> (return v) `checkRq` (readRq name)) vals
 
 -- | Gets the first matching named file
 --
