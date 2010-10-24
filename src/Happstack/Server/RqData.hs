@@ -312,7 +312,7 @@ lookCookie :: (Monad m, HasRqData m) => String -> m Cookie
 lookCookie name
     = do (_query,_body, cookies) <- askRqEnv
          case lookup (map toLower name) cookies of -- keys are lowercased
-           Nothing -> fail "cookie not found"
+           Nothing -> rqDataError $ strMsg $ "lookCookie: cookie not found: " ++ name
            Just c  -> return c
 
 -- | gets the named cookie as a string
