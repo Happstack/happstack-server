@@ -3,6 +3,8 @@
 -- http://tools.ietf.org/html/rfc2109
 module Happstack.Server.Internal.Cookie
     ( Cookie(..)
+    , CookieLife(..)
+    , calcLife
     , mkCookie
     , mkCookieHeader
     , getCookies
@@ -15,11 +17,15 @@ module Happstack.Server.Internal.Cookie
     where
 
 import qualified Data.ByteString.Char8 as C
-import Data.Char
-import Data.List
-import Data.Generics
+import Data.Char             (chr, toLower)
+import Data.Data             (Data, Typeable)
+import Data.List             ((\\), intersperse)
+import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
+import Data.Time.Format      (formatTime)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Happstack.Util.Common (Seconds)
 import Text.ParserCombinators.Parsec hiding (token)
+import System.Locale         (defaultTimeLocale)
 
 data Cookie = Cookie
     { cookieVersion :: String
@@ -30,8 +36,39 @@ data Cookie = Cookie
     , secure        :: Bool
     } deriving(Show,Eq,Read,Typeable,Data)
 
+-- | life time of a cookie
+--
+-- Specify the lifetime of a cookie.
+--
+-- Note that we always set the max-age and expires headers because
+-- internet explorer does not honor max-age. You can specific 'MaxAge'
+-- or 'Expires' and the other will be calculated for you. Choose which
+-- ever one makes your life easiest.
+--
+data CookieLife
+    = Session         -- ^ session cookie - expires when browser is closed
+    | MaxAge Seconds  -- ^ life time of cookie in seconds
+    | Expires UTCTime -- ^ cookie expiration date
+    | Expired         -- ^ cookie already expired
+      deriving (Eq, Ord, Read, Show, Typeable)
+
+-- convert 'CookieLife' to the argument needed for calling 'mkCookieHeader'
+calcLife :: CookieLife -> IO (Maybe (Seconds, UTCTime))
+calcLife Session = return Nothing
+calcLife (MaxAge s) =
+          do now <- getCurrentTime
+             return (Just (s, addUTCTime (fromIntegral s) now))
+calcLife (Expires expirationDate) =
+          do now <- getCurrentTime
+             return $ Just (round  $ expirationDate `diffUTCTime` now, expirationDate)
+calcLife Expired =
+          return $ Just (0, posixSecondsToUTCTime 0)
+
+
 -- | Creates a cookie with a default version of 1 and path of "/"
-mkCookie :: String -> String -> Cookie
+mkCookie :: String  -- ^ cookie name
+         -> String  -- ^ cookie value
+         -> Cookie
 mkCookie key val = Cookie "1" "/" "" key val False
 
 -- | Set a Cookie in the Result.
@@ -41,11 +78,18 @@ mkCookie key val = Cookie "1" "/" "" key val False
 -- Also, it seems that chrome, safari, and other webkit browsers do
 -- not like cookies which have double quotes around the domain and
 -- reject/ignore the cookie. So, we no longer quote the domain.
-mkCookieHeader :: Seconds -> Cookie -> String
-mkCookieHeader sec cookie =
-    let l = [("Domain=", cookieDomain cookie)
-            ,("Max-Age=",if sec < 0 then "" else show sec)
-            ,("Path=", cookiePath cookie)
+--
+-- internet explorer does not honor the max-age directive so we set
+-- both max-age and expires.
+--
+-- See 'CookieLife' and 'calcLife' for a convenient way of calculating
+-- the first argument to this function.
+mkCookieHeader :: Maybe (Seconds, UTCTime) -> Cookie -> String
+mkCookieHeader mLife cookie =
+    let l = [("Domain=",  cookieDomain cookie)
+            ,("Max-Age=", maybe "" (show . max 0 . fst) mLife)
+            ,("expires=", maybe "" (formatTime defaultTimeLocale "%a, %d-%b-%Y %X GMT" . snd) mLife)
+            ,("Path=",    cookiePath cookie)
             ,("Version=", s cookieVersion)]
         s f | f cookie == "" = ""
         s f   = '\"' : concatMap e (f cookie) ++ "\""
