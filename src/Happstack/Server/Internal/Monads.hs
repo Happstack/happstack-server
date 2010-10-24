@@ -449,7 +449,7 @@ outputTraceMessage s c | "Pattern match failure " `isPrefixOf` s =
     let w = [(k,p) | (i,p) <- zip (tails s) (inits s), Just k <- [stripPrefix " at " i]]
         v = concatMap (\(k,p) -> k ++ ": " ++ p) w
     in trace v c
-outputTraceMessage _ c = trace "some error" c
+outputTraceMessage s c = trace s c
 
 
 mkFailMessage :: (FilterMonad Response m, WebMonad Response m) => String -> m b
