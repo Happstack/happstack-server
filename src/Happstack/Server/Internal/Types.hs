@@ -139,6 +139,21 @@ data Request = Request { rqMethod      :: Method,
                          rqPeer        :: Host
                        } deriving(Typeable)
 
+instance Show Request where
+    showsPrec _ rq =
+        showString   "================== Request =================" .
+        showString "\nrqMethod      = " . shows      (rqMethod rq) .
+        showString "\nrqPaths       = " . shows      (rqPaths rq) .
+        showString "\nrqUri         = " . showString (rqUri rq) .
+        showString "\nrqQuery       = " . showString (rqQuery rq) .
+        showString "\nrqInputsQuery = " . shows      (rqInputsQuery rq) .
+        showString "\nrqInputsBody  = " . showString "<<mvar>>" .
+        showString "\nrqCookies     = " . shows      (rqCookies rq) .
+        showString "\nrqVersion     = " . shows      (rqVersion rq) .
+        showString "\nrqHeaders     = " . shows      (rqHeaders rq) .
+        showString "\nrqBody        = " . showString "<<mvar>>" .
+        showString "\nrqPeer        = " . shows      (rqPeer rq)
+
 -- | get the request body from the Request and replace it with Nothing
 --
 -- IMPORTANT: You can really only call this function once. Subsequent
