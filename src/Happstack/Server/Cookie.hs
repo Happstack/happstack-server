@@ -31,6 +31,6 @@ addCookie life cookie =
 addCookies :: (MonadIO m, FilterMonad Response m) => [(CookieLife, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
 
--- | Expire the cookie immediately and set the cookie value to @""@
+-- | Expire the cookie immediately and set the cookie value to @\"\"@
 expireCookie :: (MonadIO m, FilterMonad Response m) => String -> m () 
 expireCookie cookieName = addCookie Expired (mkCookie cookieName "")

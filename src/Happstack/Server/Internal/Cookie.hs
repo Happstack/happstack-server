@@ -65,7 +65,7 @@ calcLife Expired =
           return $ Just (0, posixSecondsToUTCTime 0)
 
 
--- | Creates a cookie with a default version of 1 and path of "/"
+-- | Creates a cookie with a default version of 1, a path of "/", and secure == False
 mkCookie :: String  -- ^ cookie name
          -> String  -- ^ cookie value
          -> Cookie
