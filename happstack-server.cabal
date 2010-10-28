@@ -38,6 +38,7 @@ Library
                        Happstack.Server.Internal.LowLevel
                        Happstack.Server.Internal.MessageWrap
                        Happstack.Server.Internal.Timeout
+                       Happstack.Server.Internal.TimeoutTable
                        Happstack.Server.Internal.Monads
                        Happstack.Server.Monads
                        Happstack.Server.Proxy
@@ -54,6 +55,8 @@ Library
     Exposed-modules:   
                        Happstack.Server.Tests
   Other-modules:       
+                       Data.Concurrent.HashMap
+                       Data.Concurrent.HashMap.Internal
                        Happstack.Server.HTTPClient.HTTP
                        Happstack.Server.HTTPClient.Stream
                        Happstack.Server.HTTPClient.TCP
@@ -83,6 +86,7 @@ Library
                        html,
                        MaybeT,
                        mtl >= 1.1 && < 1.2,
+                       murmur-hash,
                        network,
                        old-locale,
                        old-time,
@@ -93,6 +97,7 @@ Library
                        template-haskell,
                        time,
                        utf8-string >= 0.3.4 && < 0.4,
+                       vector,
                        xhtml,
                        zlib
 

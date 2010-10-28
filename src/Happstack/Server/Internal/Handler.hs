@@ -7,7 +7,7 @@ module Happstack.Server.Internal.Handler(request-- version,required
 --    ,fsepC,crlfC,pversion
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
-import Control.Concurrent (ThreadId, newMVar, newEmptyMVar, tryTakeMVar)
+import Control.Concurrent (newMVar, newEmptyMVar, tryTakeMVar)
 import Control.Exception.Extensible as E
 import Control.Monad
 import Data.List(elemIndex)
@@ -25,6 +25,7 @@ import System.IO
 import System.IO.Error (isDoesNotExistError)
 import Numeric
 import Data.Int (Int64)
+import Data.Word (Word)
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.Clock
 import Happstack.Server.Internal.Types
@@ -33,27 +34,28 @@ import Happstack.Server.Internal.RFC822Headers
 import Happstack.Server.Internal.MessageWrap
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
-import Happstack.Server.Internal.Timeout (TimeoutEdits, hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)
+import Happstack.Server.Internal.Timeout (TimeoutHandle(..), hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)
+import Happstack.Server.Internal.TimeoutTable (TimeoutTable)
+
 import Happstack.Util.LogFormat (formatRequestCombined)
 import System.Directory (removeFile)
 import System.Log.Logger (Priority(..), logM)
 
-request :: ThreadId -> TimeoutEdits -> Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
-request tid tedits conf h host handler = rloop tid tedits conf h host handler =<< hGetContents' tid tedits h
+request :: TimeoutHandle -> Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
+request thandle conf h host handler = rloop thandle conf h host handler =<< hGetContents' thandle h
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
 required _   (Just a) = Right a
 
-rloop :: ThreadId
-         -> TimeoutEdits
+rloop :: TimeoutHandle
          -> Conf
          -> Handle
          -> Host
          -> (Request -> IO Response)
          -> L.ByteString
          -> IO ()
-rloop tid tedits conf h host handler inputStr
+rloop thandle conf h host handler inputStr
     | L.null inputStr = return ()
     | otherwise
     = join $ -- withTimeOut (30 * second) $
@@ -97,10 +99,10 @@ rloop tid tedits conf h host handler inputStr
                          userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                      logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
 
-                     putAugmentedResult tid tedits h req res
+                     putAugmentedResult thandle h req res
                      -- clean up tmp files
                      cleanupTempFiles req
-                     when (continueHTTP req res) $ rloop tid tedits conf h host handler nextRequest
+                     when (continueHTTP req res) $ rloop thandle conf h host handler nextRequest
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()
@@ -207,19 +209,19 @@ staticHeaders =
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
-putAugmentedResult :: ThreadId -> TimeoutEdits -> Handle -> Request -> Response -> IO ()
-putAugmentedResult tid tedits outp req res = do
+putAugmentedResult :: TimeoutHandle -> Handle -> Request -> Response -> IO ()
+putAugmentedResult thandle outp req res = do
     case res of
         -- standard bytestring response
         Response {} -> do
             let chunked = rsfLength (rsFlags res) == TransferEncodingChunked && isHTTP1_1 req
             sendTop (if chunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) chunked
-            tickleTimeout tid tedits
+            tickleTimeout thandle
             when (rqMethod req /= HEAD)
                      (let body = if chunked
                                  then chunk (rsBody res)
                                  else rsBody res
-                      in hPutTickle tid tedits outp body)
+                      in hPutTickle thandle outp body)
         -- zero-copy sendfile response
         -- the handle *should* be closed by the garbage collector
         SendFile {} -> do
@@ -227,8 +229,8 @@ putAugmentedResult tid tedits outp req res = do
                 off = sfOffset res
                 count = sfCount res
             sendTop (Just count) False
-            tickleTimeout tid tedits
-            unsafeSendFileTickle tid tedits outp infp off count
+            tickleTimeout thandle
+            unsafeSendFileTickle thandle outp infp off count
     hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl chunked = do

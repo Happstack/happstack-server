@@ -4,13 +4,11 @@ module Happstack.Server.Internal.Listen(listen, listen',listenOn) where
 import Happstack.Server.Internal.Types
 import Happstack.Server.Internal.Handler
 import Happstack.Server.Internal.Socket (acceptLite)
-import Happstack.Server.Internal.Timeout (timeoutThread, cancelTimeout)
+import Happstack.Server.Internal.Timeout (TimeoutHandle(..), tickleTimeout, timeoutThread, cancelTimeout)
+import qualified Happstack.Server.Internal.TimeoutTable as TT
 import Control.Exception.Extensible as E
 import Control.Concurrent (forkIO, killThread, myThreadId)
-import qualified Data.DList as D
-import           Data.IORef (atomicModifyIORef, newIORef)
-import qualified Data.PSQueue as PSQ
-import Data.Time.Clock.POSIX(getPOSIXTime)
+import Data.Concurrent.HashMap (hashString)
 import Network.BSD (getProtocolNumber)
 import Network(sClose, Socket)
 import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption, 
@@ -72,16 +70,16 @@ listen' s conf hand = do
 -}
   let port' = port conf
   log' NOTICE ("Listening on port " ++ show port')
-  tedits <- newIORef D.empty
-  ttid <- timeoutThread tedits PSQ.empty
+  tt <- TT.new
+  ttid <- timeoutThread tt
   let work (h,hn,p) = do -- hSetBuffering h NoBuffering
                          let eh (x::SomeException) = log' ERROR ("HTTP request failed with: "++show x)
                          tid <- myThreadId
-                         now <- getPOSIXTime
-                         atomicModifyIORef tedits $ \es -> (D.snoc es (PSQ.insert tid now), ())
-                         request tid tedits conf h (hn,fromIntegral p) hand `E.catch` eh
+                         let thandle = TimeoutHandle (hashString (show tid)) tid tt
+                         tickleTimeout thandle
+                         request thandle conf h (hn,fromIntegral p) hand `E.catch` eh
                          -- remove thread from timeout table
-                         cancelTimeout tid tedits
+                         cancelTimeout thandle
                          hClose h
   let loop = do acceptLite s >>= forkIO . work
                 loop
