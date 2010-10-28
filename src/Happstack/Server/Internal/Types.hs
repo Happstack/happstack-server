@@ -13,7 +13,7 @@ module Happstack.Server.Internal.Types
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, noContentLength,
-     Version(..), Length(..), Method(..), Headers, continueHTTP,
+     HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
      Host, ContentType(..)
     ) where
 
@@ -38,16 +38,16 @@ import Data.List
 import Text.Show.Functions ()
 
 -- | HTTP version
-data Version = Version Int Int
+data HttpVersion = HttpVersion Int Int
              deriving(Read,Eq)
 
-instance Show Version where
-  show (Version x y) = (show x) ++ "." ++ (show y)
+instance Show HttpVersion where
+  show (HttpVersion x y) = (show x) ++ "." ++ (show y)
 
 isHTTP1_1 :: Request -> Bool
-isHTTP1_1 rq = case rqVersion rq of Version 1 1 -> True; _ -> False
+isHTTP1_1 rq = case rqVersion rq of HttpVersion 1 1 -> True; _ -> False
 isHTTP1_0 :: Request -> Bool
-isHTTP1_0 rq = case rqVersion rq of Version 1 0 -> True; _ -> False
+isHTTP1_0 rq = case rqVersion rq of HttpVersion 1 0 -> True; _ -> False
 
 -- | Should the connection be used for further messages after this.
 -- | isHTTP1_0 && hasKeepAlive || isHTTP1_1 && hasNotConnectionClose
@@ -133,7 +133,7 @@ data Request = Request { rqMethod      :: Method,
                          rqInputsQuery :: [(String,Input)],
                          rqInputsBody  :: MVar [(String,Input)],
                          rqCookies     :: [(String,Cookie)],
-                         rqVersion     :: Version,
+                         rqVersion     :: HttpVersion,
                          rqHeaders     :: Headers,
                          rqBody        :: MVar RqBody,
                          rqPeer        :: Host

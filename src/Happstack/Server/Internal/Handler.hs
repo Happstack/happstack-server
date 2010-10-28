@@ -173,10 +173,10 @@ lazylines s
         in l : if L.null s' then []
                             else lazylines (L.tail s')
 
-requestLine :: L.ByteString -> (Method, SURI, Version)
+requestLine :: L.ByteString -> (Method, SURI, HttpVersion)
 requestLine l = case P.words ((P.concat . L.toChunks) l) of
                   [rq,uri,ver] -> (method rq, SURI $ parseURIRef uri, version ver)
-                  [rq,uri] -> (method rq, SURI $ parseURIRef uri,Version 0 9)
+                  [rq,uri] -> (method rq, SURI $ parseURIRef uri,HttpVersion 0 9)
                   x -> error $ "requestLine cannot handle input:  " ++ (show x)
 
 responseLine :: L.ByteString -> (B.ByteString, Int)
@@ -284,17 +284,17 @@ putRequest h rq = do
 
 
 
--- Version
+-- HttpVersion
 
-pversion :: Version -> [B.ByteString]
-pversion (Version 1 1) = [http11]
-pversion (Version 1 0) = [http10]
-pversion (Version x y) = [P.pack "HTTP/", P.pack (show x), P.pack ".", P.pack (show y)]
+pversion :: HttpVersion -> [B.ByteString]
+pversion (HttpVersion 1 1) = [http11]
+pversion (HttpVersion 1 0) = [http10]
+pversion (HttpVersion x y) = [P.pack "HTTP/", P.pack (show x), P.pack ".", P.pack (show y)]
 
-version :: B.ByteString -> Version
-version x | x == http09 = Version 0 9
-          | x == http10 = Version 1 0
-          | x == http11 = Version 1 1
+version :: B.ByteString -> HttpVersion
+version x | x == http09 = HttpVersion 0 9
+          | x == http10 = HttpVersion 1 0
+          | x == http11 = HttpVersion 1 1
           | otherwise   = error "Invalid HTTP version"
 
 http09 :: B.ByteString

@@ -11,7 +11,7 @@ module Happstack.Server.Types
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, noContentLength,
-     Version(..), Length(..), Method(..), Headers, continueHTTP,
+     HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
      Host, ContentType(..)
     ) where
 

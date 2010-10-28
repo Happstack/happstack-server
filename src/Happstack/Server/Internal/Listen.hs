@@ -100,5 +100,6 @@ listen' s conf hand = do
 
     catchSome op h = op `E.catches` [
             Handler $ \(e :: ArithException) -> h (toException e),
-            Handler $ \(e :: ArrayException) -> h (toException e)
+            Handler $ \(e :: ArrayException) -> h (toException e),
+            Handler $ \(e :: IOException)    -> h (toException e)
           ]
