@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable #-}
+{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, RankNTypes #-}
 
 module Happstack.Server.Internal.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
@@ -23,18 +23,21 @@ import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Data.Data (Data)
 import Data.IORef (IORef, atomicModifyIORef, readIORef)
+import Data.Time.Format (FormatTime(..))
 import Data.Typeable(Typeable)
-import Data.Maybe
 import qualified Data.ByteString.Char8 as P
 import Data.ByteString.Char8 (ByteString,pack)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.UTF8  as LU (fromString)
+import Data.Maybe
+import Data.List
 import Happstack.Server.SURI
 import Data.Char (toLower)
 
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
-import Data.List
+import Happstack.Util.LogFormat (formatRequestCombined)
+import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()
 
 -- | HTTP version
@@ -57,15 +60,21 @@ continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq) 
                       (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq)) && (rsfLength (rsFlags res) /= NoContentLength)
 
 -- | HTTP configuration
-data Conf = Conf { port      :: Int -- ^ Port for the server to listen on.
+data Conf = Conf { port       :: Int -- ^ Port for the server to listen on.
                  , validator  :: Maybe (Response -> IO Response)
+                 , logAccess  :: forall t. FormatTime t => Maybe (String -> String -> t -> String -> Int -> Integer -> String -> String -> IO ())
                  } 
 
 -- | Default configuration contains no validator and the port is set to 8000
 nullConf :: Conf
 nullConf = Conf { port      = 8000
-                , validator  = Nothing
+                , validator = Nothing
+                , logAccess = Just logMAccess
+
                 }
+
+logMAccess host user time requestLine responseCode size referer userAgent =
+    logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host user time requestLine responseCode size referer userAgent
 
 -- | HTTP request method
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT

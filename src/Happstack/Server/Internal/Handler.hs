@@ -37,9 +37,7 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Server.Internal.Timeout (TimeoutHandle(..), hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)
 import Happstack.Server.Internal.TimeoutTable (TimeoutTable)
 
-import Happstack.Util.LogFormat (formatRequestCombined)
 import System.Directory (removeFile)
-import System.Log.Logger (Priority(..), logM)
 
 request :: TimeoutHandle -> Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
 request thandle conf h host handler = rloop thandle conf h host handler =<< hGetContents' thandle h
@@ -88,16 +86,19 @@ rloop thandle conf h host handler inputStr
 
                      res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
 
-                     -- combined log format
-                     time <- getApproximateUTCTime
-                     let host' = fst host
-                         user = "-"
-                         requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
-                         responseCode = rsCode res
-                         size = maybe (-1) (read . B.unpack) (getHeader "Content-Length" res) -- -1 indicates unknown size
-                         referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
-                         userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
-                     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host' user time requestLn responseCode size referer userAgent
+                     case logAccess conf of
+                       Nothing -> return ()
+                       (Just logger) ->
+                           do time <- getApproximateUTCTime
+                              let host' = fst host
+                                  user = "-"
+                                  requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
+                                  responseCode = rsCode res
+                                  size = maybe (-1) (read . B.unpack) (getHeader "Content-Length" res) -- -1 indicates unknown size
+                                  referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
+                                  userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
+                              logger host' user time requestLn responseCode size referer userAgent
+
 
                      putAugmentedResult thandle h req res
                      -- clean up tmp files
@@ -240,7 +241,7 @@ putAugmentedResult thandle outp req res = do
                  , concatMap ph (M.elems allHeaders)   -- Print all headers
                  , [crlfC]
                  ]
-              tickleTimeout thandle
+              -- tickleTimeout thandle
           chunk :: L.ByteString -> L.ByteString
           chunk Empty        = LC.pack "0\r\n\r\n"
           chunk (Chunk c cs) = Chunk (B.pack $ showHex (B.length c) "\r\n") (Chunk c (Chunk (B.pack "\r\n") (chunk cs)))
