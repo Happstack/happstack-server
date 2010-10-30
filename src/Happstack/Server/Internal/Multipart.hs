@@ -98,7 +98,7 @@ defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader 
 defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (HeaderWork bs) =
     case L.splitAt (maxHeader - headerCount) bs of
       (_hs, rest)
-          | not (L.null rest) -> return $ Failed Nothing ("Reached header quote of " ++ show maxHeader ++ " bytes.")
+          | not (L.null rest) -> return $ Failed Nothing ("Reached header quota of " ++ show maxHeader ++ " bytes.")
           | otherwise ->
               case parse pHeaders (LU.toString bs) (LU.toString bs) of
                 (Left e) -> return $ Failed Nothing (show e)
