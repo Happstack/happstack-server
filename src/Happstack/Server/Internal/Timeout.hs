@@ -18,6 +18,7 @@ import           Data.List (foldl')
 import qualified Data.PSQueue as PSQ
 import           Data.PSQueue (PSQ)
 import           Data.Time.Clock.POSIX(POSIXTime, getPOSIXTime)
+import           Happstack.Server.Internal.Clock (getApproximatePOSIXTime)
 import qualified Happstack.Server.Internal.TimeoutTable as TT
 import           Happstack.Server.Internal.TimeoutTable (TimeoutTable)
 import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, unsafeSendFileIterWith')
@@ -46,7 +47,7 @@ timeoutThread table = do
 
 
     killTooOld = do
-        now    <- getPOSIXTime
+        now    <- getApproximatePOSIXTime
         TT.killOlderThan (now - tIMEOUT) table
 
     -- timeout = 30 seconds
@@ -56,41 +57,10 @@ timeoutThread table = do
 --        debug "Backend.timeoutThread: shutdown, killing all connections"
         TT.killAll table
 
-{-
-timeoutThread :: TimeoutEdits -> TimeoutTable -> IO ThreadId
-timeoutThread tedits timeoutTable  = forkIO $ loop timeoutTable
-  where
-    loop tt = do
-        tt' <- killTooOld tt
-        threadDelay (1000000)
-        loop tt'
 
-
-    killTooOld table = do
-        -- atomic swap edit list
-        now <- getPOSIXTime
-        edits <- atomicModifyIORef tedits $ \t -> (D.empty, D.toList t)
-
-        let table' = foldl' (flip ($)) table edits
-        !t'   <- killOlderThan now table'
-        return t'
-
-    -- timeout = 60 seconds
-    tIMEOUT = 60
-
-    killOlderThan now !table = do
-        let mmin = PSQ.findMin table
-        maybe (return table)
-              (\m -> if now - PSQ.prio m > tIMEOUT
-                       then do
-                           killThread $ PSQ.key m
-                           killOlderThan now $ PSQ.deleteMin table
-                       else return table)
-              mmin
--}
 tickleTimeout :: TimeoutHandle -> IO ()
 tickleTimeout thandle = do
-    now <- getPOSIXTime
+    now <- getApproximatePOSIXTime
     TT.insert thash tid now tt
         where
           thash = _threadHash   thandle

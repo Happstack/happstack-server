@@ -58,11 +58,11 @@ rloop :: TimeoutHandle
 rloop thandle conf h host handler inputStr
     | L.null inputStr = return ()
     | otherwise
-    = join $ -- withTimeOut (30 * second) $
+    = join $
       do let parseRequest
                  = do
                       (topStr, restStr) <- required "failed to separate request" $ splitAtEmptyLine inputStr
-                      (rql, headerStr) <- required "failed to separate headers/body" $ splitAtCRLF topStr
+                      (rql, headerStr)  <- required "failed to separate headers/body" $ splitAtCRLF topStr
                       let (m,u,v) = requestLine rql
                       headers' <- parseHeaders "host" (L.unpack headerStr)
                       let headers = mkHeaders headers'
@@ -79,8 +79,8 @@ rloop thandle conf h host handler inputStr
            Left err -> error $ "failed to parse HTTP request: " ++ err
            Right (m, u, cookies, v, headers, body, host, nextRequest)
                -> return $
-                  do bodyRef        <- newMVar (Body body) -- newIORef (Just (Body body)) -- 
-                     bodyInputRef   <- newEmptyMVar -- newIORef Nothing
+                  do bodyRef        <- newMVar (Body body)
+                     bodyInputRef   <- newEmptyMVar
                      let req = Request m (pathEls (path u)) (path u) (query u)
                                   (queryInput u) bodyInputRef cookies v headers bodyRef host
 
@@ -89,7 +89,7 @@ rloop thandle conf h host handler inputStr
                      res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
 
                      -- combined log format
-                     time <- getCurrentTime
+                     time <- getApproximateUTCTime
                      let host' = fst host
                          user = "-"
                          requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
@@ -216,7 +216,6 @@ putAugmentedResult thandle outp req res = do
         Response {} -> do
             let chunked = rsfLength (rsFlags res) == TransferEncodingChunked && isHTTP1_1 req
             sendTop (if chunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) chunked
-            tickleTimeout thandle
             when (rqMethod req /= HEAD)
                      (let body = if chunked
                                  then chunk (rsBody res)
@@ -241,6 +240,7 @@ putAugmentedResult thandle outp req res = do
                  , concatMap ph (M.elems allHeaders)   -- Print all headers
                  , [crlfC]
                  ]
+              tickleTimeout thandle
           chunk :: L.ByteString -> L.ByteString
           chunk Empty        = LC.pack "0\r\n\r\n"
           chunk (Chunk c cs) = Chunk (B.pack $ showHex (B.length c) "\r\n") (Chunk c (Chunk (B.pack "\r\n") (chunk cs)))
@@ -283,8 +283,6 @@ putRequest h rq = do
     mBody <- takeRequestBody rq -- tryTakeMVar (rqBody rq)
     L.hPut h (maybe L.empty unBody mBody) -- FIXME: should this actually be an error if the body is null?
     hFlush h
-
-
 
 -- HttpVersion
 

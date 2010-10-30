@@ -16,14 +16,16 @@ module Happstack.Server.Internal.Cookie
     )
     where
 
+import Control.Applicative   ((<$>))
 import qualified Data.ByteString.Char8 as C
 import Data.Char             (chr, toLower)
 import Data.Data             (Data, Typeable)
 import Data.List             ((\\), intersperse)
-import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime, getCurrentTime)
-import Data.Time.Format      (formatTime)
+import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Format      (formatTime)
 import Happstack.Util.Common (Seconds)
+import Happstack.Server.Internal.Clock (getApproximateUTCTime)
 import Text.ParserCombinators.Parsec hiding (token)
 import System.Locale         (defaultTimeLocale)
 
@@ -56,10 +58,10 @@ data CookieLife
 calcLife :: CookieLife -> IO (Maybe (Seconds, UTCTime))
 calcLife Session = return Nothing
 calcLife (MaxAge s) =
-          do now <- getCurrentTime
+          do now <- getApproximateUTCTime
              return (Just (s, addUTCTime (fromIntegral s) now))
 calcLife (Expires expirationDate) =
-          do now <- getCurrentTime
+          do now <- getApproximateUTCTime
              return $ Just (round  $ expirationDate `diffUTCTime` now, expirationDate)
 calcLife Expired =
           return $ Just (0, posixSecondsToUTCTime 0)
