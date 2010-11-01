@@ -90,15 +90,14 @@ rloop thandle conf h host handler inputStr
                        Nothing -> return ()
                        (Just logger) ->
                            do time <- getApproximateUTCTime
-                              let host' = fst host
-                                  user = "-"
-                                  requestLn = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
+                              let host'        = fst host
+                                  user         = "-"
+                                  requestLn    = unwords [show $ rqMethod req, rqUri req, show $ rqVersion req]
                                   responseCode = rsCode res
-                                  size = maybe (-1) (read . B.unpack) (getHeader "Content-Length" res) -- -1 indicates unknown size
-                                  referer = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
-                                  userAgent = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
+                                  size         = maybe (-1) (read . B.unpack) (getHeader "Content-Length" res) -- -1 indicates unknown size
+                                  referer      = B.unpack $ fromMaybe (B.pack "") $ getHeader "Referer" req
+                                  userAgent    = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                               logger host' user time requestLn responseCode size referer userAgent
-
 
                      putAugmentedResult thandle h req res
                      -- clean up tmp files
