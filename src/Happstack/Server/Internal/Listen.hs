@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
 module Happstack.Server.Internal.Listen(listen, listen',listenOn) where
 
 import Happstack.Server.Internal.Types
@@ -8,6 +8,7 @@ import Happstack.Server.Internal.Timeout (TimeoutHandle(..), tickleTimeout, time
 import qualified Happstack.Server.Internal.TimeoutTable as TT
 import Control.Exception.Extensible as E
 import Control.Concurrent (forkIO, killThread, myThreadId)
+import Control.Monad (forever)
 import Data.Concurrent.HashMap (hashString)
 import Network.BSD (getProtocolNumber)
 import Network(sClose, Socket)
@@ -18,6 +19,7 @@ import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption,
                                  bindSocket)
 import qualified Network.Socket as Socket (listen)
 import System.IO
+import System.IO.Error (isFullError)
 {-
 #ifndef mingw32_HOST_OS
 -}
@@ -73,7 +75,7 @@ listen' s conf hand = do
   tt <- TT.new
   ttid <- timeoutThread tt
   let work (h,hn,p) = do -- hSetBuffering h NoBuffering
-                         let eh (x::SomeException) = log' ERROR ("HTTP request failed with: "++show x)
+                         let eh (x::SomeException) = log' ERROR ("HTTP request failed with: " ++ show x)
                          tid <- myThreadId
                          let thandle = TimeoutHandle (hashString (show tid)) tid tt
                          tickleTimeout thandle
@@ -81,10 +83,10 @@ listen' s conf hand = do
                          -- remove thread from timeout table
                          cancelTimeout thandle
                          hClose h
-  let loop = do acceptLite s >>= forkIO . work
-                loop
-  let pe e = log' ERROR ("ERROR in accept thread: " ++ show e)
-  let infi = loop `catchSome` pe >> infi -- loop `E.catch` pe >> infi
+      loop = forever $ do w <- acceptLite s
+                          forkIO $ work w
+      pe e = log' ERROR ("ERROR in accept thread: " ++ show e)
+      infi = loop `catchSome` pe >> infi
   infi `finally` (sClose s >> killThread ttid)
 {--
 #ifndef mingw32_HOST_OS
@@ -99,5 +101,8 @@ listen' s conf hand = do
     catchSome op h = op `E.catches` [
             Handler $ \(e :: ArithException) -> h (toException e),
             Handler $ \(e :: ArrayException) -> h (toException e),
-            Handler $ \(e :: IOException)    -> h (toException e)
+            Handler $ \(e :: IOException)    ->
+                if isFullError e
+                   then return () -- h (toException e) -- we could log the exception, but there could be thousands of them
+                   else throw e
           ]
