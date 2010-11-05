@@ -8,7 +8,7 @@ import Happstack.Server.Internal.Timeout (TimeoutHandle(..), tickleTimeout, time
 import qualified Happstack.Server.Internal.TimeoutTable as TT
 import Control.Exception.Extensible as E
 import Control.Concurrent (forkIO, killThread, myThreadId)
-import Control.Monad (forever)
+import Control.Monad (forever, when)
 import Data.Concurrent.HashMap (hashString)
 import Network.BSD (getProtocolNumber)
 import Network(sClose, Socket)
@@ -75,7 +75,7 @@ listen' s conf hand = do
   tt <- TT.new
   ttid <- timeoutThread tt
   let work (h,hn,p) = do -- hSetBuffering h NoBuffering
-                         let eh (x::SomeException) = log' ERROR ("HTTP request failed with: " ++ show x)
+                         let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
                          tid <- myThreadId
                          let thandle = TimeoutHandle (hashString (show tid)) tid tt
                          tickleTimeout thandle
