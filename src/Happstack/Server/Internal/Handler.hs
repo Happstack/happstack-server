@@ -382,4 +382,4 @@ responseMessage 502 = P.pack " 502 Bad Gateway\r\n"
 responseMessage 503 = P.pack " 503 Service Unavailable\r\n"
 responseMessage 504 = P.pack " 504 Gateway Time-out\r\n"
 responseMessage 505 = P.pack " 505 HTTP Version not supported\r\n"
-responseMessage x   = P.pack (show x ++ "\r\n")
+responseMessage x   = P.pack (" " ++ show x ++ " \r\n")
