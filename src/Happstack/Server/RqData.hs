@@ -68,7 +68,7 @@ import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
 import           Data.Text.Lazy                 (Text)
 import qualified Data.Text.Lazy.Encoding        as Text
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
-import Happstack.Server.Monads 			(ServerMonad(askRq, localRq), ServerPartT)
+import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), ServerPartT)
 import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), readInputsBody)
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 

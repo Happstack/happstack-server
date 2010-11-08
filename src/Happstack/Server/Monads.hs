@@ -11,6 +11,8 @@ module Happstack.Server.Monads
     ( -- * ServerPartT
       ServerPartT
     , ServerPart
+      -- * Happstack class
+    , Happstack
       -- * ServerMonad
     , ServerMonad(..)
     , mapServerPartT
@@ -32,11 +34,17 @@ module Happstack.Server.Monads
     , requireM
     ) where
 
-import Control.Monad (MonadPlus(mzero))
-import Control.Monad.Trans (MonadIO(..),MonadTrans(lift))
-import qualified Data.ByteString.Char8           as B
+import Control.Monad                     (MonadPlus(mzero))
+import Control.Monad.Trans               (MonadIO(..),MonadTrans(lift))
+import qualified Data.ByteString.Char8   as B
 import Happstack.Server.Internal.Monads
-import Happstack.Server.Types (Response, addHeader, getHeader, setHeader)
+import Happstack.Server.Types            (Response, addHeader, getHeader, setHeader)
+import Happstack.Server.RqData           (HasRqData)
+
+class ( ServerMonad m, WebMonad Response m, FilterMonad Response m
+      , MonadIO m, MonadPlus m, HasRqData m, Monad m, Functor m) => Happstack m 
+
+instance (Functor m, Monad m, MonadPlus m, MonadIO m) => Happstack (ServerPartT m)
 
 -- | Used to ignore all your filters and immediately end the
 -- computation.  A combination of 'ignoreFilters' and 'finishWith'.
