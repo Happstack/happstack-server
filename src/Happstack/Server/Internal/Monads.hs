@@ -5,7 +5,7 @@ module Happstack.Server.Internal.Monads where
 
 import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 
-import Control.Monad                             ( MonadPlus(mzero, mplus), ap, msum
+import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
 import Control.Monad.Trans                       ( MonadTrans, lift
                                                  , MonadIO, liftIO
@@ -363,7 +363,7 @@ instance (Monad m) => MonadPlus (WebT m) where
 instance (Monad m) => FilterMonad Response (WebT m) where
     setFilter f = WebT $ lift $ setFilter $ f
     composeFilter f = WebT . lift . composeFilter $ f
-    getFilter     m = WebT $ ErrorT $ fmap lft $ getFilter (runErrorT $ unWebT m)
+    getFilter     m = WebT $ ErrorT $ liftM lft $ getFilter (runErrorT $ unWebT m)
         where
           lft (Left  r, _) = Left r
           lft (Right a, f) = Right (a, f)

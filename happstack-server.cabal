@@ -85,7 +85,7 @@ Library
                        happstack-util >= 0.5 && < 0.6,
                        html,
                        MaybeT,
-                       mtl >= 1.1 && < 1.2,
+                       mtl >= 1.1 && < 2.1,
                        murmur-hash,
                        network,
                        old-locale,
