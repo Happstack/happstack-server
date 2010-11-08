@@ -32,6 +32,7 @@ Library
                        Happstack.Server.Client
                        Happstack.Server.Error
                        Happstack.Server.FileServe
+                       Happstack.Server.FileServe.BuildingBlocks
                        Happstack.Server.Filters
                        Happstack.Server.Internal.Cookie
                        Happstack.Server.Internal.Types
