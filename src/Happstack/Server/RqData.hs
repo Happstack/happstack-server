@@ -65,6 +65,8 @@ import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
 import Data.Maybe                               (fromMaybe, fromJust)
 import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
+import           Data.Text.Lazy                 (Text)
+import qualified Data.Text.Lazy.Encoding        as Text
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Monads 			(ServerMonad(askRq, localRq), ServerPartT)
 import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), readInputsBody)
@@ -312,6 +314,26 @@ look = fmap LU.toString . lookBS
 -- see also: 'look' and 'lookBSs'
 looks :: (Functor m, Monad m, HasRqData m) => String -> m [String]
 looks = fmap (map LU.toString) . lookBSs
+
+-- | Gets the first matching named input parameter as a lazy 'Text'
+--
+-- Searches the QUERY_STRING followed by the Request body.
+--
+-- This function assumes the underlying octets are UTF-8 encoded.
+--
+-- see also: 'lookTexts', 'look', 'looks', 'lookBS', and 'lookBSs'
+lookText :: (Functor m, Monad m, HasRqData m) => String -> m Text
+lookText = fmap Text.decodeUtf8 . lookBS
+
+-- | Gets all matches for the named input parameter as lazy 'Text's
+--
+-- Searches the QUERY_STRING followed by the Request body.
+--
+-- This function assumes the underlying octets are UTF-8 encoded.
+--
+-- see also: 'lookText', 'looks' and 'lookBSs'
+lookTexts :: (Functor m, Monad m, HasRqData m) => String -> m [Text]
+lookTexts = fmap (map Text.decodeUtf8) . lookBSs
 
 -- | Gets the named cookie
 -- the cookie name is case insensitive
