@@ -292,6 +292,8 @@ serveFileUsing serveFn mimeFn fp =
 --  Serve guessing the content-type from the extension:
 -- 
 -- > serveFile (guessContentTypeM mimeTypes) "/srv/data/image.jpg"
+--
+-- If the specified path does not exist or is not a file, this function will return 'mzero'.
 -- 
 -- WARNING: No security checks are performed.
 --
@@ -559,9 +561,12 @@ data Browsing
 -- 
 -- Usage:
 --
--- > serveDirectory True ["index.html"] "path/to/files/on/disk"
+-- > serveDirectory EnableBrowsing ["index.html"] "path/to/files/on/disk"
 --
--- If the requested path is a file is the file is served normally. 
+-- if the requested path does not match a file or directory on the
+-- disk, then servieDirectory calls 'mzero'.
+--
+-- If the requested path is a file then the file is served normally. 
 --
 -- If the requested path is a directory, then the result depends on
 -- what the first two arguments to the function are.
@@ -574,8 +579,8 @@ data Browsing
 --
 -- When a directory is requested, 'serveDirectory' will first try to
 -- find one of the index files (in the order they are listed). If that
--- fails, it will show a directory listing if enabled, otherwise
--- @forbidden \"Directory index forbidden\"@.
+-- fails, it will show a directory listing if 'EnableBrowsing' is set,
+-- otherwise it will return @forbidden \"Directory index forbidden\"@.
 -- 
 -- Here is an explicit list of all the possible outcomes when the
 -- argument is a (valid) directory:
