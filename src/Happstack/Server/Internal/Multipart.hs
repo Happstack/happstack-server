@@ -68,8 +68,22 @@ data InputIter
     | BodyResult (String, Input) InputWorker
     | HeaderResult [Header] InputWorker
 
-defaultInputIter :: FilePath -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Work -> IO InputIter
-defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (BodyWork ctype ps b)
+type FileSaver = FilePath 		-- ^ tempdir
+		-> Int64 		-- ^ quota
+		-> FilePath 		-- ^ filename of field
+		-> L.ByteString 	-- ^ content to save
+		-> IO (Bool		-- ^ truncated?
+			, Int64		-- ^ saved bytes
+			, FilePath)	-- ^ saved filename
+
+defaultFileSaver tmpDir diskQuota filename b =
+    do (fn, h) <- openBinaryTempFile tmpDir filename
+       (trunc, len) <- hPutLimit diskQuota h b
+       hClose h
+       return (trunc, len, fn) 
+
+defaultInputIter :: FileSaver -> FilePath -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Work -> IO InputIter
+defaultInputIter fileSaver tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (BodyWork ctype ps b)
     | diskCount > maxDisk = return $ Failed Nothing ("diskCount (" ++ show diskCount ++ ") is greater than maxDisk (" ++ show maxDisk  ++ ")")
     | ramCount  > maxRAM  = return $ Failed Nothing ("ramCount ("  ++ show ramCount  ++ ") is greater than maxRAM ("  ++ show maxRAM   ++ ")")
     | otherwise =
@@ -81,21 +95,20 @@ defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader 
                                   , inputFilename    = Nothing
                                   , inputContentType = ctype })
               in if L.null rest
-                  then return $ BodyResult input (defaultInputIter tmpDir diskCount (ramCount + L.length b) headerCount maxDisk maxRAM maxHeader)
+                  then return $ BodyResult input (defaultInputIter fileSaver tmpDir diskCount (ramCount + L.length b) headerCount maxDisk maxRAM maxHeader)
                   else return $ Failed (Just input) ("Reached RAM quota of " ++ show maxRAM ++ " bytes.")
 
           (Just filename) ->
-              do (fn, h) <- openBinaryTempFile tmpDir filename
-                 (trunc, len) <- hPutLimit (maxDisk - diskCount) h b
-                 hClose h
+              do (trunc, len, fn) <- fileSaver tmpDir (maxDisk - diskCount) filename b
                  let input = ( fromMaybe "" $ lookup "name" ps
                              , Input { inputValue       = Left fn
                                      , inputFilename    = (Just filename)
                                      , inputContentType = ctype })
                  if trunc
                     then return $ Failed (Just input) ("Reached disk quota of " ++ show maxDisk ++ " bytes.")
-                    else return $ BodyResult input (defaultInputIter tmpDir (diskCount + len) ramCount headerCount maxDisk maxRAM maxHeader)
-defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (HeaderWork bs) =
+                    else return $ BodyResult input (defaultInputIter fileSaver tmpDir (diskCount + len) ramCount headerCount maxDisk maxRAM maxHeader)
+
+defaultInputIter fileSaver tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (HeaderWork bs) =
     case L.splitAt (maxHeader - headerCount) bs of
       (_hs, rest)
           | not (L.null rest) -> return $ Failed Nothing ("Reached header quota of " ++ show maxHeader ++ " bytes.")
@@ -104,7 +117,7 @@ defaultInputIter tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader 
                 (Left e) -> return $ Failed Nothing (show e)
                 (Right hs) ->
                     return $ HeaderResult hs
-                               (defaultInputIter tmpDir diskCount ramCount (headerCount + (L.length bs)) maxDisk maxRAM maxHeader)
+                               (defaultInputIter fileSaver tmpDir diskCount ramCount (headerCount + (L.length bs)) maxDisk maxRAM maxHeader)
 {-# INLINE defaultInputIter #-}
 
 hPutLimit :: Int64 -> Handle -> L.ByteString -> IO (Bool, Int64)

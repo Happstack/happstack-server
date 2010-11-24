@@ -1,6 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 
-module Happstack.Server.Internal.MessageWrap where
+module Happstack.Server.Internal.MessageWrap (
+	module Happstack.Server.Internal.MessageWrap
+	,defaultInputIter
+   ) where
 
 import Control.Concurrent.MVar (tryTakeMVar, putMVar)
 import Control.Monad.Trans (MonadIO(liftIO))
@@ -34,7 +37,7 @@ defaultBodyPolicy :: FilePath -- ^ temporary directory for file uploads
                   -> Int64 -- ^ maximum bytes of overhead for headers in @multipart/form-data@
                   -> BodyPolicy
 defaultBodyPolicy tmpDir md mr mh =
-    BodyPolicy { inputWorker = defaultInputIter tmpDir 0 0 0
+    BodyPolicy { inputWorker = defaultInputIter defaultFileSaver tmpDir 0 0 0
                , maxDisk   = md
                , maxRAM    = mr
                , maxHeader = mh
