@@ -12,8 +12,9 @@ import Data.ByteString.Lazy.Char8     (pack, unpack)
 import qualified Data.ByteString.Char8 as B 
 import qualified Data.ByteString.Lazy  as L
 import qualified Data.Map              as Map
-import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart(..), Headers(..), RqBody(Body), Version(..)
-                                             , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', sendFileResponse, composeFilter, noContentLength)
+import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart(..), Headers(..), RqBody(Body), HttpVersion(..)
+                                             , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength)
+import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
 import Happstack.Server.Cookie
 import Happstack.Server.Filters
 import Happstack.Server.Internal.Cookie
@@ -113,7 +114,7 @@ mkRequest method uri cookies headers body =
                         , rqInputsQuery = (queryInput u)
                         , rqInputsBody  = ib
                         , rqCookies     = cookies
-                        , rqVersion     = Version 1 1
+                        , rqVersion     = HttpVersion 1 1
                         , rqHeaders     = headers
                         , rqBody        = b
                         , rqPeer        = ("",0)
