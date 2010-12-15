@@ -96,7 +96,7 @@ Library
                        PSQueue,
                        sendfile >= 0.7.1 && < 0.8,
                        template-haskell,
-                       text == 0.10.*,
+                       text >= 0.10 && < 0.12,
                        time,
                        utf8-string >= 0.3.4 && < 0.4,
                        vector,
