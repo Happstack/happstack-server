@@ -74,15 +74,15 @@ listen' s conf hand = do
   log' NOTICE ("Listening on port " ++ show port')
   tt <- TT.new
   ttid <- timeoutThread tt
-  let work (s,hn,p) = do -- hSetBuffering h NoBuffering
+  let work (h,hn,p) = do -- hSetBuffering h NoBuffering
                          let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
                          tid <- myThreadId
                          let thandle = TimeoutHandle (hashString (show tid)) tid tt
                          tickleTimeout thandle
-                         request thandle conf s (hn,fromIntegral p) hand `E.catch` eh
+                         request thandle conf h (hn,fromIntegral p) hand `E.catch` eh
                          -- remove thread from timeout table
                          cancelTimeout thandle
-                         sClose s
+                         hClose h
       loop = forever $ do w <- acceptLite s
                           forkIO $ work w
       pe e = log' ERROR ("ERROR in accept thread: " ++ show e)

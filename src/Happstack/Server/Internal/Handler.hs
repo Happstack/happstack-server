@@ -23,10 +23,7 @@ import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map as M
 import System.IO
 import System.IO.Error (isDoesNotExistError)
-import Network.Socket (Socket)
-import Network.Socket.ByteString (sendAll)
 import Numeric
-import NoPush
 import Data.Int (Int64)
 import Data.Word (Word)
 import Happstack.Server.Internal.Cookie
@@ -37,13 +34,13 @@ import Happstack.Server.Internal.RFC822Headers
 import Happstack.Server.Internal.MessageWrap
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
-import Happstack.Server.Internal.Timeout (TimeoutHandle(..), sGetContents', sPutTickle, tickleTimeout, unsafeSendFileTickle)
+import Happstack.Server.Internal.Timeout (TimeoutHandle(..), hGetContents', hPutTickle, tickleTimeout, unsafeSendFileTickle)
 import Happstack.Server.Internal.TimeoutTable (TimeoutTable)
 
 import System.Directory (removeFile)
 
-request :: TimeoutHandle -> Conf -> Socket -> Host -> (Request -> IO Response) -> IO ()
-request thandle conf sock host handler = rloop thandle conf sock host handler =<< sGetContents' thandle sock
+request :: TimeoutHandle -> Conf -> Handle -> Host -> (Request -> IO Response) -> IO ()
+request thandle conf h host handler = rloop thandle conf h host handler =<< hGetContents' thandle h
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
@@ -51,12 +48,12 @@ required _   (Just a) = Right a
 
 rloop :: TimeoutHandle
          -> Conf
-         -> Socket
+         -> Handle
          -> Host
          -> (Request -> IO Response)
          -> L.ByteString
          -> IO ()
-rloop thandle conf sock host handler inputStr
+rloop thandle conf h host handler inputStr
     | L.null inputStr = return ()
     | otherwise
     = join $
@@ -102,10 +99,10 @@ rloop thandle conf sock host handler inputStr
                                   userAgent    = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                               logger host' user time requestLn responseCode size referer userAgent
 
-                     withNoPush sock $ putAugmentedResult thandle sock req res
+                     putAugmentedResult thandle h req res
                      -- clean up tmp files
                      cleanupTempFiles req
-                     when (continueHTTP req res) $ rloop thandle conf sock host handler nextRequest
+                     when (continueHTTP req res) $ rloop thandle conf h host handler nextRequest
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()
@@ -212,7 +209,7 @@ staticHeaders =
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
-putAugmentedResult :: TimeoutHandle -> Socket -> Request -> Response -> IO ()
+putAugmentedResult :: TimeoutHandle -> Handle -> Request -> Response -> IO ()
 putAugmentedResult thandle outp req res = do
     case res of
         -- standard bytestring response
@@ -223,10 +220,9 @@ putAugmentedResult thandle outp req res = do
                      (let body = if chunked
                                  then chunk (rsBody res)
                                  else rsBody res
-                      in sPutTickle thandle outp body)
+                      in hPutTickle thandle outp body)
         -- zero-copy sendfile response
         -- the handle *should* be closed by the garbage collector
-{-
         SendFile {} -> do
             let infp = sfFilePath res
                 off = sfOffset res
@@ -234,12 +230,11 @@ putAugmentedResult thandle outp req res = do
             sendTop (Just count) False
             tickleTimeout thandle
             unsafeSendFileTickle thandle outp infp off count
--}
---    hFlush outp
+    hFlush outp
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl chunked = do
               allHeaders <- augmentHeaders req res cl chunked
-              mapM_ (sendAll outp) $ concat
+              mapM_ (P.hPut outp) $ concat
                  [ (pversion $ rqVersion req)          -- Print HTTP version
                  , [responseMessage $ rsCode res]      -- Print responseCode
                  , concatMap ph (M.elems allHeaders)   -- Print all headers

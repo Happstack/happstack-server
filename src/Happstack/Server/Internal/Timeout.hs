@@ -21,10 +21,7 @@ import           Data.Time.Clock.POSIX(POSIXTime, getPOSIXTime)
 import           Happstack.Server.Internal.Clock (getApproximatePOSIXTime)
 import qualified Happstack.Server.Internal.TimeoutTable as TT
 import           Happstack.Server.Internal.TimeoutTable (TimeoutTable)
-import           Network.Socket (Socket)
 import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, unsafeSendFileIterWith')
-import           Network.Socket.ByteString (sendAll)
-import qualified Network.Socket.ByteString.Lazy as LS (getContents)
 import           Prelude hiding (catch)
 import           System.IO (Handle, hClose, hIsEOF, hWaitForInput)
 import           System.IO.Unsafe (unsafeInterleaveIO)
@@ -80,11 +77,11 @@ cancelTimeout thandle =
           tt    = _timeoutTable thandle
 {-# INLINE cancelTimeout #-}
 
-sPutTickle :: TimeoutHandle -> Socket -> L.ByteString -> IO ()
-sPutTickle thandle sock cs =
-    do L.foldrChunks (\c rest -> sendAll sock c >> tickleTimeout thandle >> rest) (return ()) cs
-{-# INLINE sPutTickle #-}
-{-
+hPutTickle :: TimeoutHandle -> Handle -> L.ByteString -> IO ()
+hPutTickle thandle h cs =
+    do L.foldrChunks (\c rest -> B.hPut h c >> tickleTimeout thandle >> rest) (return ()) cs
+{-# INLINE hPutTickle #-}
+
 hGetContentsN :: Int -> TimeoutHandle -> Handle -> IO L.ByteString
 hGetContentsN k thandle h = lazyRead -- TODO close on exceptions
   where
@@ -105,10 +102,6 @@ hGetContentsN k thandle h = lazyRead -- TODO close on exceptions
 
 hGetContents' :: TimeoutHandle -> Handle -> IO L.ByteString
 hGetContents' thandle h = hGetContentsN L.defaultChunkSize thandle h
--}
-
-sGetContents' :: TimeoutHandle -> Socket -> IO L.ByteString
-sGetContents' thandle sock = LS.getContents sock -- hGetContentsN L.defaultChunkSize thandle h
 
 unsafeSendFileTickle :: TimeoutHandle -> Handle -> FilePath -> Offset -> ByteCount -> IO ()
 unsafeSendFileTickle thandle outp fp offset count =
