@@ -38,6 +38,7 @@ Library
                        Happstack.Server.Internal.Types
                        Happstack.Server.Internal.LowLevel
                        Happstack.Server.Internal.MessageWrap
+                       Happstack.Server.Internal.NoPush
                        Happstack.Server.Internal.Timeout
                        Happstack.Server.Internal.TimeoutTable
                        Happstack.Server.Internal.Monads
@@ -89,6 +90,7 @@ Library
                        mtl >= 1.1 && < 2.1,
                        murmur-hash,
                        network,
+                       network-bytestring,
                        old-locale,
                        old-time,
                        parsec < 4,

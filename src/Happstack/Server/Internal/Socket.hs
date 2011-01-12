@@ -19,10 +19,9 @@ import qualified Network.Socket as S
 import System.IO
 
 -- | alternative implementation of accept to work around EAI_AGAIN errors
-acceptLite :: S.Socket -> IO (Handle, S.HostName, S.PortNumber)
+acceptLite :: S.Socket -> IO (S.Socket, S.HostName, S.PortNumber)
 acceptLite sock = do
   (sock', addr) <- S.accept sock
-  h <- S.socketToHandle sock' ReadWriteMode
   (N.PortNumber p) <- N.socketPort sock'
   
   let peer = $(if supportsIPv6
@@ -48,5 +47,5 @@ acceptLite sock = do
                       _                          -> error "Unsupported socket"
                  |])
                      
-  return (h, peer, p)
+  return (sock', peer, p)
 
