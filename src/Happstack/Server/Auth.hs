@@ -11,6 +11,16 @@ import Happstack.Server.Types                    (Response)
 import Happstack.Server.Response                 (unauthorized, toResponse)
 
 -- | A simple HTTP basic authentication guard.
+--
+-- If authentication fails, this part will call 'mzero'.
+-- 
+-- example:
+--
+-- > main = simpleHTTP nullConf $ 
+-- >  msum [ basicAuth "127.0.0.1" (fromList [("happstack","rocks")]) $ ok "You are in the secret club"
+-- >       , ok "You are not in the secret club." 
+-- >       ]
+-- 
 basicAuth :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadPlus m) =>
    String -- ^ the realm name
    -> M.Map String String -- ^ the username password map

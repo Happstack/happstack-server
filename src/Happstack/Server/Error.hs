@@ -15,10 +15,11 @@ import Happstack.Server.Types           (Request, Response)
 -- a@ so that it can be use with 'simpleHTTP'.  Used with
 -- 'mapServerPartT'', e.g.,
 --
--- > simpleHTTP conf $ mapServerPartT' (spUnWrapErrorT failurePart)  $ myPart `catchError` errorPart
+-- > simpleHTTP conf $ mapServerPartT' (spUnWrapErrorT simpleErrorHandler)  $ myPart `catchError` errorPart
 --
--- Note that @failurePart@ will only be run if @errorPart@ threw an
--- error so it doesn\'t have to be very complex.
+-- Note that in this example, @simpleErrorHandler@ will only be run if @errorPart@ throws an error. You can replace @simpleErrorHandler@ with your own custom error handler.
+--
+-- see also: 'simpleErrorHandler'
 spUnwrapErrorT:: Monad m => (e -> ServerPartT m a)
               -> Request
               -> UnWebT (ErrorT e m) a
@@ -34,6 +35,8 @@ spUnwrapErrorT handler rq = \x -> do
 -- It returns the error message as a plain text message to the
 -- browser. More sophisticated behaviour can be achieved by calling
 -- your own custom error handler instead.
+--
+-- see also: 'spUnwrapErrorT'
 simpleErrorHandler :: (Monad m) => String -> ServerPartT m Response
 simpleErrorHandler err = ok $ toResponse $ ("An error occured: " ++ err)
 

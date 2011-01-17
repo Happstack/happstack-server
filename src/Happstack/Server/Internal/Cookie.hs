@@ -67,6 +67,8 @@ calcLife Expired =
 
 
 -- | Creates a cookie with a default version of 1, empty domain, a path of "/", and secure == False
+--
+-- see also: 'addCookie'
 mkCookie :: String  -- ^ cookie name
          -> String  -- ^ cookie value
          -> Cookie

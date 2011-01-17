@@ -87,6 +87,14 @@ errorwrapper binarylocation loglocation
 
 -- * Mime-Type / Content-Type
 
+-- |a 'Map' from file extensions to content-types
+-- 
+-- example:
+--
+-- > myMimeMap :: MimeMap
+-- > myMimeMap = Map.fromList [("gz","application/x-gzip"), ... ]
+--
+-- see also: 'mimeTypes'
 type MimeMap = Map String String
 
 -- | try to guess the content-type of a file based on its extension
@@ -120,6 +128,8 @@ asContentType :: (Monad m) =>
 asContentType = const . return
 
 -- | a list of common index files. Specifically: @index.html@, @index.xml@, @index.gif@
+-- 
+-- Typically used as an argument to 'serveDiretory'.
 defaultIxFiles :: [FilePath]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
