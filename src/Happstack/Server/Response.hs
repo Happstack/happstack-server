@@ -6,8 +6,6 @@ module Happstack.Server.Response
     , flatten
     , toResponseBS
       -- * Setting the Response Code
-    , setResponseCode
-    , resp
     , ok
     , noContent
     , internalServerError
@@ -20,6 +18,8 @@ module Happstack.Server.Response
     , found
     , movedPermanently
     , tempRedirect
+    , setResponseCode
+    , resp
     -- * Handling if-modified-since
     , ifModifiedSince
     ) where
@@ -51,9 +51,7 @@ toResponseBS contentType message =
     in setHeaderBS (B.pack "Content-Type") contentType res
 
 
--- | Used to convert a value into an HTTP 'Response'
---
--- Calling 'toResponse' will convert a value into a 'Response' body,
+-- | 'toResponse' will convert a value into a 'Response' body,
 -- set the @content-type@, and set a default @response code@.
 --
 -- Example:
@@ -156,13 +154,18 @@ modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
 modifyResponse = composeFilter
 {-# DEPRECATED modifyResponse "Use composeFilter" #-}
 
--- | Set the return code in your response.
-setResponseCode :: FilterMonad Response m => Int -> m ()
+-- | Set an arbitrary return code in your response.
+setResponseCode :: FilterMonad Response m => 
+                   Int -- ^ response code
+                -> m ()
 setResponseCode code
     = composeFilter $ \r -> r{rsCode = code}
 
 -- | Same as @'setResponseCode' status >> return val@.
-resp :: (FilterMonad Response m) => Int -> b -> m b
+resp :: (FilterMonad Response m) => 
+        Int -- ^ response code
+     -> b   -- ^ value to return
+     -> m b
 resp status val = setResponseCode status >> return val
 
 -- | Respond with @200 OK@.

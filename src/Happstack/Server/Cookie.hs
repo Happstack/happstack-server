@@ -19,7 +19,7 @@ import Happstack.Server.Internal.Cookie (Cookie(..), CookieLife(..), calcLife, m
 import Happstack.Server.Types           (Response, addHeader)
 import Happstack.Util.Common            (Seconds)
 
--- | Add the cookie with a timeout to the response.
+-- | Add the 'Cookie' to 'Response'.
 addCookie :: (MonadIO m, FilterMonad Response m) => CookieLife -> Cookie -> m ()
 addCookie life cookie =
     do l <- liftIO $ calcLife life
@@ -27,10 +27,10 @@ addCookie life cookie =
     where
       addHeaderM a v = composeFilter $ \res-> addHeader a v res
 
--- | Add the list of cookie timeout pairs to the response.
+-- | Add the list 'Cookie' to the 'Response'.
 addCookies :: (MonadIO m, FilterMonad Response m) => [(CookieLife, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
 
--- | Expire the cookie immediately and set the cookie value to @\"\"@
+-- | Expire the named cookie immediately and set the cookie value to @\"\"@
 expireCookie :: (MonadIO m, FilterMonad Response m) => String -> m () 
 expireCookie cookieName = addCookie Expired (mkCookie cookieName "")

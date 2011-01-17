@@ -72,9 +72,7 @@ type FileSaver = FilePath 		-- ^ tempdir
 		-> Int64 		-- ^ quota
 		-> FilePath 		-- ^ filename of field
 		-> L.ByteString 	-- ^ content to save
-		-> IO (Bool		-- ^ truncated?
-			, Int64		-- ^ saved bytes
-			, FilePath)	-- ^ saved filename
+		-> IO (Bool, Int64 , FilePath)	-- ^ truncated?, saved bytes, saved filename
 
 defaultFileSaver tmpDir diskQuota filename b =
     do (fn, h) <- openBinaryTempFile tmpDir filename

@@ -79,7 +79,7 @@ anyRequest x = withRequest $ \_ -> x
 -- @'ServerPartT' m@.  
 -- 
 -- Often used when transforming a monad with 'ServerPartT', since
--- 'simpleHTTP' requires a @'ServerPartT' 'IO' a@.  Refer to 'WebT'
+-- 'simpleHTTP' requires a @'ServerPartT' 'IO' a@.  Refer to 'UnWebT'
 -- for an explanation of the structure of the monad.
 --
 -- Here is an example.  Suppose you want to embed an 'ErrorT' into your
@@ -334,7 +334,7 @@ class Monad m => WebMonad a m | m->a where
     -- | 'WebMonad' provides a means to end the current computation
     -- and return a 'Response' immediately.  This provides an
     -- alternate escape route.  In particular it has a monadic value
-    -- of any type.  And unless you call @'setFilter' id@ first your
+    -- of any type.  And unless you call @'setFilter' 'id'@ first your
     -- response filters will be applied normally.
     --
     -- Extremely useful when you're deep inside a monad and decide

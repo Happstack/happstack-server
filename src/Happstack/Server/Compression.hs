@@ -1,6 +1,6 @@
 {-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
--- | Filters to transform your 'Response', such as automatically compressing the 'Response' body.
-module Happstack.Server.Filters
+-- | Filters for compressing the 'Response' body.
+module Happstack.Server.Compression
     ( compressedResponseFilter
     , compressWithFilter
     , gzipFilter
@@ -17,8 +17,8 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Codec.Compression.GZip as GZ
 import qualified Codec.Compression.Zlib as Z
 
--- | reads the \"Accept-Encoding\" header.  Then, if possible
--- will compress the response body with methods "gzip" or "deflate"
+-- | reads the @Accept-Encoding@ header.  Then, if possible
+-- will compress the response body with methods @gzip@ or @deflate@.
 --
 -- > main = 
 -- >   simpleHTTP nullConf $ 
@@ -49,7 +49,7 @@ compressedResponseFilter = do
       action coding identityAllowed
       return coding
 
--- | attempt to compress the body of the response with gzip.
+-- | attempt to compress the body of the response with @gzip@.
 --
 -- calls 'compressWithFilter' using 'GZ.compress'.
 --
@@ -61,7 +61,7 @@ gzipFilter::(FilterMonad Response m) =>
 gzipFilter = compressWithFilter GZ.compress
 
 -- | attempt compress the body of the response with zlib's
--- deflate method
+-- @deflate@ method
 --
 -- calls 'compressWithFilter' using 'Z.compress'.
 --
@@ -159,7 +159,7 @@ handlers =
     ,const $ fail "chose * as content encoding"
     ]
 
--- | unsupported:  a parser for the Accept-Encoding header
+-- | a parser for the Accept-Encoding header
 encodings :: GenParser Char st [([Char], Maybe Double)]
 encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
     where
@@ -202,5 +202,3 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
             _ <- char '.'
             fractionalPart<-option "" int
             return $ '.':fractionalPart
-
-

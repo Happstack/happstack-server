@@ -109,12 +109,11 @@ parseConfig args
 -- |start the server, and handle requests using the supplied
 -- 'ServerPart'.
 --
--- This function will not return, though it might throw an exception.
+-- This function will not return, though it may throw an exception.
 --
 -- NOTE: The server will only listen on IPv4 due to portability issues
 -- in the "Network" module. For IPv6 support, use
--- 'simpleHTTPWithSocket' with custom socket if you want different
--- behaviour.
+-- 'simpleHTTPWithSocket' with custom socket.
 simpleHTTP :: (ToMessage a) => Conf -> ServerPartT IO a -> IO ()
 simpleHTTP = simpleHTTP' id
 

@@ -12,7 +12,7 @@ import Happstack.Server.Response                 (badGateway, toResponse)
 import Happstack.Server.Client                   (getResponse)
 import Happstack.Server.Types                    (Request(rqPaths, rqHeaders, rqPeer), Response, setHeader, getHeader)
 
--- | The 'proxyServe' is for creating 'ServerPartT's that proxy.  The
+-- | 'proxyServe' is for creating a part that acts as a proxy.  The
 -- sole argument @['String']@ is a list of allowed domains for
 -- proxying.  This matches the domain part of the request and the
 -- wildcard * can be used. E.g.

@@ -1,4 +1,4 @@
--- | Support for working with @'ServerPartT' ('ErrorT' e m) a@
+-- | Some useful functions if you want to wrap the 'ServerPartT' monad transformer around the 'ErrorT' monad transformer. e.g., @'ServerPartT' ('ErrorT' e m) a@. This allows you to use 'throwError' and 'catchError' inside your monad.  
 module Happstack.Server.Error where
 
 import Control.Monad.Error              (Error, ErrorT(runErrorT))
@@ -11,11 +11,9 @@ import Happstack.Server.Types           (Request, Response)
 -- Error Handling
 --------------------------------------------------------------
 
--- | This is a for use with 'mapServerPartT'' It it unwraps the
--- interior monad for use with 'simpleHTTP'.  If you have a
--- @'ServerPartT' ('ErrorT' e m) a@, this will convert that monad into
--- a @'ServerPartT' m a@.  Used with 'mapServerPartT'' to allow
--- 'throwError' and 'catchError' inside your monad.  Eg.
+-- | Flatten @'ServerPartT' ('ErrorT' e m) a@ into a @'ServerPartT' m
+-- a@ so that it can be use with 'simpleHTTP'.  Used with
+-- 'mapServerPartT'', e.g.,
 --
 -- > simpleHTTP conf $ mapServerPartT' (spUnWrapErrorT failurePart)  $ myPart `catchError` errorPart
 --
@@ -31,11 +29,11 @@ spUnwrapErrorT handler rq = \x -> do
         Left e -> ununWebT $ runServerPartT (handler e) rq
         Right a -> return a
 
--- | An example error Handler to be used with 'spUnwrapErrorT', which
--- returns the error message as a plain text message to the browser.
---
--- Another possibility is to store the error message and then redirect
--- the user somewhere.
+-- | A simple error handler which can be used with 'spUnwrapErrorT'.
+-- 
+-- It returns the error message as a plain text message to the
+-- browser. More sophisticated behaviour can be achieved by calling
+-- your own custom error handler instead.
 simpleErrorHandler :: (Monad m) => String -> ServerPartT m Response
 simpleErrorHandler err = ok $ toResponse $ ("An error occured: " ++ err)
 

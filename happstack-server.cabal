@@ -29,11 +29,11 @@ Library
                        Happstack.Server
                        Happstack.Server.Auth
                        Happstack.Server.Cookie
+                       Happstack.Server.Compression
                        Happstack.Server.Client
                        Happstack.Server.Error
                        Happstack.Server.FileServe
                        Happstack.Server.FileServe.BuildingBlocks
-                       Happstack.Server.Filters
                        Happstack.Server.Internal.Cookie
                        Happstack.Server.Internal.Types
                        Happstack.Server.Internal.LowLevel

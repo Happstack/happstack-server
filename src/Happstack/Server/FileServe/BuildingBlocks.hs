@@ -108,7 +108,7 @@ guessContentType mimeMap filepath =
 guessContentTypeM :: (Monad m) => MimeMap -> (FilePath -> m String)
 guessContentTypeM mimeMap filePath = return $ fromMaybe "application/octet-stream" $ guessContentType mimeMap filePath
 
--- | return the fixed content type
+-- | returns a specific content type, completely ignoring the 'FilePath' argument. 
 --
 -- Use this with 'serveFile' if you want to explicitly specify the
 -- content-type.
@@ -119,7 +119,7 @@ asContentType :: (Monad m) =>
               -> (FilePath -> m String)
 asContentType = const . return
 
--- | a list of common index files. Specifically: index.html,index.xml, index.gif
+-- | a list of common index files. Specifically: @index.html@, @index.xml@, @index.gif@
 defaultIxFiles :: [FilePath]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
@@ -282,7 +282,7 @@ serveFileUsing serveFn mimeFn fp =
 -- 
 -- example 1:
 -- 
---  Serve using the specified content-type:
+--  Serve as a specific content-type:
 --
 -- > serveFile (asContentType "image/jpeg") "/srv/data/image.jpg"
 --
@@ -357,7 +357,7 @@ fileServe' serveFn mimeFn indexFn localpath = do
 --
 -- > fileServe ["index.html"] "path/to/files/on/disk"
 --
---  1. 'fileServe' does not support directory browsing. See 'serveDirectory'
+--  'fileServe' does not support directory browsing. See 'serveDirectory'
 --
 -- DEPRECATED: use 'serveDirectory' instead.
 --
@@ -563,8 +563,8 @@ data Browsing
 --
 -- > serveDirectory EnableBrowsing ["index.html"] "path/to/files/on/disk"
 --
--- if the requested path does not match a file or directory on the
--- disk, then servieDirectory calls 'mzero'.
+-- If the requested path does not match a file or directory on the
+-- disk, then 'serveDirectory' calls 'mzero'.
 --
 -- If the requested path is a file then the file is served normally. 
 --

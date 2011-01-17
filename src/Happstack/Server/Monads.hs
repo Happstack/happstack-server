@@ -6,13 +6,13 @@
 --
 --  2. 'FilterMonad' provides the ability to apply filters and transformations to a 'Response'
 --
---  3. 'WebMonad' provides a way to escape a computation and return a 'Response'
+--  3. 'WebMonad' provides a way to escape a computation early and return a 'Response'
 module Happstack.Server.Monads
     ( -- * ServerPartT
       ServerPartT
     , ServerPart
       -- * Happstack class
-    , Happstack
+    , Happstack(..)
       -- * ServerMonad
     , ServerMonad(..)
     , mapServerPartT
@@ -41,8 +41,10 @@ import Happstack.Server.Internal.Monads
 import Happstack.Server.Types            (Response, addHeader, getHeader, setHeader)
 import Happstack.Server.RqData           (HasRqData)
 
+-- | A class alias for all the classes a standard server monad (such as 'ServerPartT') is expected to have instances for. This allows you to keep your type signatures shorter and easier to understand.
 class ( ServerMonad m, WebMonad Response m, FilterMonad Response m
-      , MonadIO m, MonadPlus m, HasRqData m, Monad m, Functor m) => Happstack m 
+      , MonadIO m, MonadPlus m, HasRqData m, Monad m, Functor m) => Happstack m
+
 
 instance (Functor m, Monad m, MonadPlus m, MonadIO m) => Happstack (ServerPartT m)
 

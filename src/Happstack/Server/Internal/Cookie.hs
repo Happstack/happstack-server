@@ -29,6 +29,7 @@ import Happstack.Server.Internal.Clock (getApproximateUTCTime)
 import Text.ParserCombinators.Parsec hiding (token)
 import System.Locale         (defaultTimeLocale)
 
+-- | a type for HTTP cookies. Usually created using 'mkCookie'.
 data Cookie = Cookie
     { cookieVersion :: String
     , cookiePath    :: String
@@ -38,9 +39,7 @@ data Cookie = Cookie
     , secure        :: Bool
     } deriving(Show,Eq,Read,Typeable,Data)
 
--- | life time of a cookie
---
--- Specify the lifetime of a cookie.
+-- | Specify the lifetime of a cookie.
 --
 -- Note that we always set the max-age and expires headers because
 -- internet explorer does not honor max-age. You can specific 'MaxAge'
@@ -67,7 +66,7 @@ calcLife Expired =
           return $ Just (0, posixSecondsToUTCTime 0)
 
 
--- | Creates a cookie with a default version of 1, a path of "/", and secure == False
+-- | Creates a cookie with a default version of 1, empty domain, a path of "/", and secure == False
 mkCookie :: String  -- ^ cookie name
          -> String  -- ^ cookie value
          -> Cookie

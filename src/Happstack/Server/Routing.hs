@@ -2,11 +2,11 @@
 -- | Route an incoming 'Request' to a handler. For more in-depth documentation see this section of the Happstack Crash Course: <http://happstack.com/docs/crashcourse/RouteFilters.html>
 module Happstack.Server.Routing 
     ( -- * Route by request method
-      MatchMethod(..)
-    , methodM
+      methodM
     , methodOnly
     , methodSP
     , method
+    , MatchMethod(..)
       -- * Route by pathInfo
     , dir
     , dirs
@@ -31,6 +31,14 @@ import           Happstack.Server.Types           (Request(..), Method(..), getH
 import           Happstack.Util.Common            (readM)
 import           System.FilePath                  (makeRelative, splitDirectories)
 
+-- | instances of this class provide a variety of ways to match on the 'Request' method.
+--
+-- Examples
+-- 
+-- > methodM GET                  -- match GET
+-- > methodM [HEAD, GET]          -- match HEAD or GET
+-- > methodM (not . (==) DELETE)  -- match any method except DELETE
+-- > methodM ()                   -- match any method
 class MatchMethod m where matchMethod :: m -> Method -> Bool
 instance MatchMethod Method where matchMethod m = (== m)
 instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
@@ -95,7 +103,7 @@ methodOnly :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
 methodOnly meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
 
 -- | Guard against the method. Note, this function also guards against
--- any remaining path segments.
+-- any remaining path segments. Similar to 'methodM' but with a different type signature.
 --
 -- Example:
 --

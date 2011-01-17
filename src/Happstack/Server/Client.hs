@@ -1,3 +1,4 @@
+-- | a very simple interface for acting as an HTTP client. This is mostly used for things like "Happstack.Server.Proxy". You are more likely to want a library like http-enumerator <http://hackage.haskell.org/package/http-enumerator>.
 module Happstack.Server.Client where
 
 import Happstack.Server.Internal.Handler    (parseResponse, putRequest)
