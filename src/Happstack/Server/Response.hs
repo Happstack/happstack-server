@@ -28,6 +28,10 @@ import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
 import qualified Data.Map                        as M
+import qualified Data.Text                       as T
+import qualified Data.Text.Encoding              as T
+import qualified Data.Text.Lazy                  as LT
+import qualified Data.Text.Lazy.Encoding         as LT
 import           Happstack.Server.Monads         (FilterMonad(composeFilter))
 import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
 import           Happstack.Server.SURI           (ToSURI)
@@ -102,6 +106,14 @@ instance ToMessage String where
     toContentType _ = B.pack "text/plain; charset=UTF-8"
     toMessage = LU.fromString
 
+instance ToMessage T.Text where
+    toContentType _ = B.pack "text/plain; charset=UTF-8"
+    toMessage t = L.fromChunks [T.encodeUtf8 t]
+
+instance ToMessage LT.Text where
+    toContentType _ = B.pack "text/plain; charset=UTF-8"
+    toMessage = LT.encodeUtf8
+
 instance ToMessage Integer where
     toMessage = toMessage . show
 
@@ -109,7 +121,6 @@ instance ToMessage a => ToMessage (Maybe a) where
     toContentType _ = toContentType (undefined :: a)
     toMessage Nothing = toMessage "nothing"
     toMessage (Just x) = toMessage x
-
 
 instance ToMessage Html where
     toContentType _ = B.pack "text/html; charset=UTF-8"
