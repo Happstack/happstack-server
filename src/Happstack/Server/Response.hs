@@ -43,6 +43,16 @@ import qualified Text.XHtml                      as XHtml (Html, renderHtml)
 --
 -- Creates a 'Response' in a manner similar to the 'ToMessage' class,
 -- but without requiring an instance declaration.
+-- 
+-- example:
+-- 
+-- > import Data.ByteString.Char8 as C
+-- > import Data.ByteString.Lazy.Char8 as L
+-- > import Happstack.Server
+-- >
+-- > main = simpleHTTP nullConf $ ok $ toResponseBS (C.pack "text/plain") (L.pack "hello, world")
+--
+-- (note: 'C.pack' and 'L.pack' only work for ascii. For unicode strings you would need to use @utf8-string@, @text@, or something similar to create a valid 'ByteString').
 toResponseBS :: B.ByteString -- ^ content-type
              -> L.ByteString -- ^ response body
              -> Response
@@ -52,7 +62,7 @@ toResponseBS contentType message =
 
 
 -- | 'toResponse' will convert a value into a 'Response' body,
--- set the @content-type@, and set a default @response code@.
+-- set the @content-type@, and set the default response code for that type.
 --
 -- Example:
 --
@@ -130,6 +140,8 @@ instance (Xml a)=>ToMessage a where
 -- | alias for: @fmap toResponse@
 --
 -- turns @m a@ into @m 'Response'@ using 'toResponse'.
+--
+-- > main = simpleHTTP nullConf $ flatten $ do return "flatten me."
 flatten :: (ToMessage a, Functor f) => f a -> f Response
 flatten = fmap toResponse
 
@@ -155,6 +167,14 @@ modifyResponse = composeFilter
 {-# DEPRECATED modifyResponse "Use composeFilter" #-}
 
 -- | Set an arbitrary return code in your response.
+--
+-- A filter for setting the response code. Generally you will use a
+-- helper function like 'ok' or 'seeOther'.
+-- 
+-- > main = simpleHTTP nullConf $ do setResponseCode 200
+-- >                                 return "Everything is OK"
+-- 
+-- see also: 'resp'
 setResponseCode :: FilterMonad Response m => 
                    Int -- ^ response code
                 -> m ()
@@ -162,6 +182,11 @@ setResponseCode code
     = composeFilter $ \r -> r{rsCode = code}
 
 -- | Same as @'setResponseCode' status >> return val@.
+-- 
+-- Use this if you want to set a response code that does not already
+-- have a helper function. 
+-- 
+-- > main = simpleHTTP nullConf $ resp 200 "Everything is OK"
 resp :: (FilterMonad Response m) => 
         Int -- ^ response code
      -> b   -- ^ value to return
@@ -169,55 +194,85 @@ resp :: (FilterMonad Response m) =>
 resp status val = setResponseCode status >> return val
 
 -- | Respond with @200 OK@.
+-- 
+-- > main = simpleHTTP nullConf $ ok "Everything is OK"
 ok :: (FilterMonad Response m) => a -> m a
 ok = resp 200
 
 -- | Respond with @204 No Content@
 --
 -- A @204 No Content@ response may not contain a message-body. If you try to supply one, it will be dutifully ignored.
+--
+-- > main = simpleHTTP nullConf $ noContent "This will be ignored."
 noContent :: (FilterMonad Response m) => a -> m a
 noContent val = composeFilter (\r -> noContentLength (r { rsCode = 204, rsBody = L.empty })) >> return val
 
 -- | Respond with @500 Internal Server Error@.
+--
+-- > main = simpleHTTP nullConf $ internalServerError "Sorry, there was an internal server error."
 internalServerError :: (FilterMonad Response m) => a -> m a
 internalServerError = resp 500
 
 -- | Responds with @502 Bad Gateway@.
+--
+-- > main = simpleHTTP nullConf $ badGateway "Bad Gateway."
 badGateway :: (FilterMonad Response m) => a -> m a
 badGateway = resp 502
 
 -- | Respond with @400 Bad Request@.
+--
+-- > main = simpleHTTP nullConf $ badRequest "Bad Request."
 badRequest :: (FilterMonad Response m) => a -> m a
 badRequest = resp 400
 
 -- | Respond with @401 Unauthorized@.
+--
+-- > main = simpleHTTP nullConf $ unauthorized "You are not authorized."
 unauthorized :: (FilterMonad Response m) => a -> m a
 unauthorized = resp 401
 
 -- | Respond with @403 Forbidden@.
+--
+-- > main = simpleHTTP nullConf $ forbidden "Sorry, it is forbidden."
 forbidden :: (FilterMonad Response m) => a -> m a
 forbidden = resp 403
 
 -- | Respond with @404 Not Found@.
+-- 
+-- > main = simpleHTTP nullConf $ notFound "What you are looking for has not been found."
 notFound :: (FilterMonad Response m) => a -> m a
 notFound = resp 404
 
 -- | Respond with @303 See Other@.
+--
+-- > main = simpleHTTP nullConf $ seeOther "http://example.org/" "What you are looking for is now at http://example.org/"
+--
+-- NOTE: The second argument of 'seeOther' is the message body which will sent to the browser. According to the HTTP 1.1 spec,
+--
+-- @the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s).@
+--
+-- This is because pre-HTTP/1.1 user agents do not support 303. However, in practice you can probably just use @""@ as the second argument.
 seeOther :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 seeOther uri res = do modifyResponse $ redirect 303 uri
                       return res
 
 -- | Respond with @302 Found@.
+-- 
+-- You probably want 'seeOther'. This method is not in popular use anymore, and is generally treated like 303 by most user-agents anyway.
 found :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 found uri res = do modifyResponse $ redirect 302 uri
                    return res
 
 -- | Respond with @301 Moved Permanently@.
+--
+-- > main = simpleHTTP nullConf $ movedPermanently "http://example.org/" "What you are looking for is now at http://example.org/"
 movedPermanently :: (FilterMonad Response m, ToSURI a) => a -> res -> m res
 movedPermanently uri res = do modifyResponse $ redirect 301 uri
                               return res
 
 -- | Respond with @307 Temporary Redirect@.
+--
+-- > main = simpleHTTP nullConf $ tempRedirect "http://example.org/" "What you are looking for is temporarily at http://example.org/"
 tempRedirect :: (FilterMonad Response m, ToSURI a) => a -> res -> m res
 tempRedirect val res = do modifyResponse $ redirect 307 val
                           return res
