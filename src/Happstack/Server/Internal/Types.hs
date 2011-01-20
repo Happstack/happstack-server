@@ -70,7 +70,6 @@ nullConf :: Conf
 nullConf = Conf { port      = 8000
                 , validator = Nothing
                 , logAccess = Just logMAccess
-
                 }
 
 logMAccess host user time requestLine responseCode size referer userAgent =
