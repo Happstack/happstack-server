@@ -497,6 +497,21 @@ renderDirectoryContents localPath fps =
          H.head $ do
            H.title $ H.string "Directory Listing"
            H.meta  ! A.http_equiv (H.stringValue "Content-Type") ! A.content (H.stringValue "text/html;charset=utf-8")
+           H.style $ H.string $ unlines [ "table { margin: 0 auto; width: 760px; border-collapse: collapse; font-family: 'sans-serif'; }"
+                                        , "table, th, td { border: 1px solid #353948; }" 
+                                        , "td.size { text-align: right; font-size: 0.7em; width: 50px }"
+                                        , "td.date { text-align: right; font-size: 0.7em; width: 130px }"
+                                        , "td { padding-right: 1em; padding-left: 1em; }"
+                                        , "th.first { background-color: white; width: 24px }"
+                                        , "td.first { padding-right: 0; padding-left: 0; text-align: center }"
+                                        , "tr { background-color: white; }"
+                                        , "tr.alt { background-color: #A3B5BA}"
+                                        , "th { background-color: #3C4569; color: white; font-size: 1em; }"
+                                        , "h1 { width: 760px; margin: 1em auto; font-size: 1em }"
+                                        , "img { width: 20px }"
+                                        , "a { text-decoration: none }"
+                                        ]
+{-
            H.style $ H.string $ unlines [ "table { border-collapse: collapse; font-family: 'sans-serif'; }"
                                         , "table, th, td { border: 1px solid #98BF21; }" 
                                         , "td.size { text-align: right; }"
@@ -506,6 +521,7 @@ renderDirectoryContents localPath fps =
                                         , "tr.alt { background-color: #EAF2D3 }"
                                         , "th { background-color: #A7C942; color: white; font-size: 1.125em; }"
                                         ]
+-}
          H.body $ do
            H.h1 $ H.string "Directory Listing"
            renderDirectoryContentsTable fps'
@@ -534,11 +550,25 @@ renderDirectoryContentsTable fps =
                    H.td (mkKind kind)
                    H.td (H.a ! A.href (H.stringValue fp)  $ H.string fp)
                    H.td ! A.class_ (H.stringValue "date") $ (H.string $ maybe "-" (formatCalendarTime defaultTimeLocale "%d-%b-%Y %X %Z") modTime)
-                   H.td ! A.class_ (H.stringValue "size") $ (H.string $ maybe "-" show count)
+                   (maybe id (\c -> (! A.title (H.stringValue (show c)))) count)  (H.td ! A.class_ (H.stringValue "size") $ (H.string $ maybe "-" prettyShow count)) 
       mkKind :: EntryKind -> H.Html
       mkKind File        = return ()
       mkKind Directory   = H.string "➦"
       mkKind UnknownKind = return ()
+      prettyShow x
+        | x > 1024 = prettyShowK $ x `div` 1024
+        | otherwise = addCommas "B" x
+      prettyShowK x
+        | x > 1024 = prettyShowM $ x `div` 1024
+        | otherwise = addCommas "KB" x
+      prettyShowM x
+        | x > 1024 = prettyShowG $ x `div` 1024
+        | otherwise = addCommas "MB" x
+      prettyShowG x = addCommas "GB" x
+      addCommas s = (++ (' ' : s)) . reverse . addCommas' . reverse . show
+      addCommas' (a:b:c:d:e) = a : b : c : ',' : addCommas' (d : e)
+      addCommas' x = x
+
 
 -- | look up the meta data associated with a file
 getMetaData :: FilePath -- ^ path to directory on disk containing the entry
