@@ -94,6 +94,7 @@ apEither (Left errs)  _            = Left errs
 apEither _            (Left errs)  = Left errs
 apEither (Right f)    (Right a)    = Right (f a)
 
+-- | a list of errors
 newtype Errors a = Errors { unErrors :: [a] }
     deriving (Eq, Ord, Show, Read, Data, Typeable)
 
@@ -124,6 +125,7 @@ type RqEnv = ([(String, Input)], [(String, Input)], [(String, Cookie)])
 newtype RqData a = RqData { unRqData :: ReaderError RqEnv (Errors String) a }
     deriving (Functor, Monad, MonadPlus, Applicative, Alternative, MonadReader RqEnv )
 
+-- | A class for monads which contain a 'RqEnv'
 class HasRqData m where
     askRqEnv :: m RqEnv
     localRqEnv :: (RqEnv -> RqEnv) -> m a -> m a

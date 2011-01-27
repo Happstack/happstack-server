@@ -262,7 +262,7 @@ notFound = resp 404
 --
 -- @the entity of the response SHOULD contain a short hypertext note with a hyperlink to the new URI(s).@
 --
--- This is because pre-HTTP/1.1 user agents do not support 303. However, in practice you can probably just use @""@ as the second argument.
+-- This is because pre-HTTP\/1.1 user agents do not support 303. However, in practice you can probably just use @\"\"@ as the second argument.
 seeOther :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 seeOther uri res = do modifyResponse $ redirect 303 uri
                       return res

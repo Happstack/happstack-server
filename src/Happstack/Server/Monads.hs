@@ -48,16 +48,6 @@ class ( ServerMonad m, WebMonad Response m, FilterMonad Response m
 
 instance (Functor m, Monad m, MonadPlus m, MonadIO m) => Happstack (ServerPartT m)
 
--- | Used to ignore all your filters and immediately end the
--- computation.  A combination of 'ignoreFilters' and 'finishWith'.
-escape :: (WebMonad a m, FilterMonad a m) => m a -> m b
-escape gen = ignoreFilters >> gen >>= finishWith
-
--- | An alternate form of 'escape' that can be easily used within a do
--- block.
-escape' :: (WebMonad a m, FilterMonad a m) => a -> m b
-escape' a = ignoreFilters >> finishWith a
-
 -- | Get a header out of the request.
 getHeaderM :: (ServerMonad m) => String -> m (Maybe B.ByteString)
 getHeaderM a = askRq >>= return . (getHeader a)

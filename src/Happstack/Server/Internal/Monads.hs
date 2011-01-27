@@ -330,18 +330,33 @@ instance Monad m => Monad (WebT m) where
     {-# INLINE return #-}
     fail s = outputTraceMessage s (mkFailMessage s)
 
+-- | 'WebMonad' provides a means to end the current computation
+-- and return a 'Response' immediately.  This provides an
+-- alternate escape route.  In particular it has a monadic value
+-- of any type.  And unless you call @'setFilter' 'id'@ first your
+-- response filters will be applied normally.
+--
+-- Extremely useful when you're deep inside a monad and decide
+-- that you want to return a completely different content type,
+-- since it doesn't force you to convert all your return types to
+-- 'Response' early just to accommodate this.
+--
+-- see also: 'escape' and 'escape''
 class Monad m => WebMonad a m | m->a where
-    -- | 'WebMonad' provides a means to end the current computation
-    -- and return a 'Response' immediately.  This provides an
-    -- alternate escape route.  In particular it has a monadic value
-    -- of any type.  And unless you call @'setFilter' 'id'@ first your
-    -- response filters will be applied normally.
-    --
-    -- Extremely useful when you're deep inside a monad and decide
-    -- that you want to return a completely different content type,
-    -- since it doesn't force you to convert all your return types to
-    -- 'Response' early just to accommodate this.
-    finishWith :: a -> m b
+    -- abort the current computation and return a value
+    finishWith :: a -- ^ value to return (For 'ServerPart', 'a' will always be the type 'Response')
+               -> m b 
+
+-- | Used to ignore all your filters and immediately end the
+-- computation.  A combination of 'ignoreFilters' and 'finishWith'.
+escape :: (WebMonad a m, FilterMonad a m) => m a -> m b
+escape gen = ignoreFilters >> gen >>= finishWith
+
+-- | An alternate form of 'escape' that can be easily used within a do
+-- block.
+escape' :: (WebMonad a m, FilterMonad a m) => a -> m b
+escape' a = ignoreFilters >> finishWith a
+
 
 instance (Monad m) => WebMonad Response (WebT m) where
     finishWith r = WebT $ throwError r
