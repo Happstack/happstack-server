@@ -16,7 +16,7 @@ import Happstack.Server                      ( Request(..), Method(..), Response
                                              , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength)
 import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
 import Happstack.Server.Cookie
-import Happstack.Server.Filters
+import Happstack.Server.Internal.Compression
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.MessageWrap
