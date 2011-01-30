@@ -134,6 +134,7 @@ Executable happstack-server-tests
   Main-Is: Test.hs
   GHC-Options: -threaded
   hs-source-dirs: tests, src
+  Other-modules: Happstack.Server.Internal.NoPush
   if flag(tests)
     Buildable: True
     Build-depends: HUnit, parsec < 4
