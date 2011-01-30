@@ -47,8 +47,11 @@ data HttpVersion = HttpVersion Int Int
 instance Show HttpVersion where
   show (HttpVersion x y) = (show x) ++ "." ++ (show y)
 
+-- | 'True' if 'Request' is HTTP version @1.1@
 isHTTP1_1 :: Request -> Bool
 isHTTP1_1 rq = case rqVersion rq of HttpVersion 1 1 -> True; _ -> False
+
+-- | 'True' if 'Request' is HTTP version @1.0@
 isHTTP1_0 :: Request -> Bool
 isHTTP1_0 rq = case rqVersion rq of HttpVersion 1 0 -> True; _ -> False
 
@@ -61,8 +64,9 @@ continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq) 
 
 -- | HTTP configuration
 data Conf = Conf { port       :: Int -- ^ Port for the server to listen on.
-                 , validator  :: Maybe (Response -> IO Response)
-                 , logAccess  :: forall t. FormatTime t => Maybe (String -> String -> t -> String -> Int -> Integer -> String -> String -> IO ())
+                 , validator  :: Maybe (Response -> IO Response) -- ^ a function to validate the output on-the-fly
+                 , logAccess  :: forall t. FormatTime t => Maybe (String -> String -> t -> String -> Int -> Integer -> String -> String -> IO ()) -- ^ function to log access requests (see also: 'logMAccess')
+                 , timeout    :: Int -- ^ number of seconds to wait before killing an inactive thread
                  } 
 
 -- | Default configuration contains no validator and the port is set to 8000
@@ -70,8 +74,12 @@ nullConf :: Conf
 nullConf = Conf { port      = 8000
                 , validator = Nothing
                 , logAccess = Just logMAccess
+                , timeout   = 30
                 }
 
+-- | log access requests using hslogger and apache-style log formatting
+--
+-- see also: 'Conf'
 logMAccess host user time requestLine responseCode size referer userAgent =
     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host user time requestLine responseCode size referer userAgent
 
@@ -79,14 +87,28 @@ logMAccess host user time requestLine responseCode size referer userAgent =
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
                deriving(Show,Read,Eq,Ord,Typeable,Data)
 
-data HeaderPair = HeaderPair { hName :: ByteString, hValue :: [ByteString] } deriving (Read,Show)
+-- | an HTTP header
+data HeaderPair 
+    = HeaderPair { hName :: ByteString     -- ^ header name
+                 , hValue :: [ByteString]  -- ^ header value (or values if multiple occurances of the header are present)
+                 } 
+      deriving (Read,Show)
 -- | Combined headers.
-type Headers = M.Map ByteString HeaderPair -- lowercased name -> (realname, value)
 
+-- | a Map of HTTP headers
+-- 
+-- the Map key is the header converted to lowercase
+type Headers = M.Map ByteString HeaderPair -- ^ lowercased name -> (realname, value)
+
+-- | A flag value set in the 'Response' which controls how the
+-- @Content-Length@ header is set, and whether *chunked* output
+-- encoding is used.
+--
+-- see also: 'nullRsFlags', 'notContentLength', and 'chunked'
 data Length 
-    = ContentLength
-    | TransferEncodingChunked
-    | NoContentLength
+    = ContentLength             -- ^ automatically add a @Content-Length@ header to the 'Response'
+    | TransferEncodingChunked   -- ^ do not add a @Content-Length@ header. Do use @chunked@ output encoding
+    | NoContentLength           -- ^ do not set @Content-Length@ or @chunked@ output encoding.
       deriving (Eq, Ord, Read, Show, Enum)
 
 -- | Result flags
@@ -97,21 +119,28 @@ data RsFlags = RsFlags
 -- | Default RsFlags that will include the content-length header
 nullRsFlags :: RsFlags
 nullRsFlags = RsFlags { rsfLength = TransferEncodingChunked }
+
 -- | Do not automatically add a Content-Length field to the 'Response'
 noContentLength :: Response -> Response
 noContentLength res = res { rsFlags = flags } where flags = (rsFlags res) { rsfLength = NoContentLength }
+
 -- | Do not automatically add a Content-Length header. Do automatically use Transfer-Encoding: Chunked
 chunked :: Response -> Response
 chunked res         = res { rsFlags = flags } where flags = (rsFlags res) { rsfLength = TransferEncodingChunked }
 
+-- | a value extract from the @QUERY_STRING@ or 'Request' body
+--
+-- If the input value was a file, then it will be saved to a temporary file on disk and 'inputValue' will contain @Left pathToTempFile@.
 data Input = Input
     { inputValue       :: Either FilePath L.ByteString
     , inputFilename    :: Maybe FilePath
     , inputContentType :: ContentType
     } deriving (Show,Read,Typeable)
 
-type Host = (String,Int)
+-- | hostname & port
+type Host = (String, Int) -- ^ (hostname, port)
 
+-- | an HTTP Response
 data Response  = Response  { rsCode      :: Int,
                              rsHeaders   :: Headers,
                              rsFlags     :: RsFlags,
@@ -122,9 +151,9 @@ data Response  = Response  { rsCode      :: Int,
                              rsHeaders   :: Headers,
                              rsFlags     :: RsFlags,
                              rsValidator :: Maybe (Response -> IO Response),
-                             sfFilePath  :: FilePath,  -- file handle to send from
-                             sfOffset    :: Integer, -- offset to start at
-                             sfCount     :: Integer  -- number of bytes to send
+                             sfFilePath  :: FilePath,  -- ^ file handle to send from
+                             sfOffset    :: Integer,   -- ^ offset to start at
+                             sfCount     :: Integer    -- ^ number of bytes to send
                            }
                deriving (Show,Typeable)
 
@@ -134,6 +163,7 @@ instance Error Response where
       setHeader "Content-Type" "text/plain; charset=UTF-8" $ 
        result 500 str
 
+-- | an HTTP request
 data Request = Request { rqMethod      :: Method,
                          rqPaths       :: [String],
                          rqUri         :: String,
@@ -194,9 +224,10 @@ takeRequestBody rq =
 rqURL :: Request -> String
 rqURL rq = '/':intercalate "/" (rqPaths rq) ++ (rqQuery rq)
 
+-- | a class for working with types that contain HTTP headers
 class HasHeaders a where 
-    updateHeaders::(Headers->Headers)->a->a
-    headers::a->Headers
+    updateHeaders :: (Headers->Headers) -> a -> a -- ^ modify the headers
+    headers       :: a -> Headers -- ^ extract the headers
 
 instance HasHeaders Response where updateHeaders f rs = rs{rsHeaders=f $ rsHeaders rs}
                                    headers = rsHeaders
@@ -206,6 +237,7 @@ instance HasHeaders Request where updateHeaders f rq = rq{rqHeaders = f $ rqHead
 instance HasHeaders Headers where updateHeaders f = f
                                   headers = id
 
+-- | The body of an HTTP 'Request'
 newtype RqBody = Body { unBody :: L.ByteString } deriving (Read,Show,Typeable)
 
 -- | Sets the Response status code to the provided Int and lifts the computation
@@ -323,12 +355,20 @@ redirect :: (ToSURI s) => Int -> s -> Response -> Response
 redirect c s resp = setHeaderBS locationC (pack (render (toSURI s))) resp{rsCode = c}
 
 -- constants here
+
+-- | @Location@
 locationC :: ByteString
 locationC   = P.pack "Location"
+
+-- | @close@
 closeC :: ByteString
 closeC      = P.pack "close"
+
+-- | @Connection@
 connectionC :: ByteString
 connectionC = P.pack "Connection"
+
+-- | @Keep-Alive@
 keepaliveC :: ByteString
 keepaliveC  = P.pack "Keep-Alive"
 

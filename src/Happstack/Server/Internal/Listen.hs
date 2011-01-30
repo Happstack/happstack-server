@@ -73,7 +73,7 @@ listen' s conf hand = do
   let port' = port conf
   log' NOTICE ("Listening on port " ++ show port')
   tt <- TT.new
-  ttid <- timeoutThread tt
+  ttid <- timeoutThread (timeout conf) tt
   let work (s,hn,p) = do let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
                          tid <- myThreadId
                          let thandle = TimeoutHandle (hashString (show tid)) tid tt

@@ -36,8 +36,8 @@ data TimeoutHandle = TimeoutHandle
     , _timeoutTable    :: TimeoutTable
     }
 
-timeoutThread :: TimeoutTable -> IO ThreadId
-timeoutThread table = do
+timeoutThread :: Int -> TimeoutTable -> IO ThreadId
+timeoutThread timeout table = do
     forkIO $ loop `catch` (\(_::SomeException) -> killAll)
 
   where
@@ -55,7 +55,7 @@ timeoutThread table = do
         TT.killOlderThan (now - tIMEOUT) table
 
     -- timeout = 30 seconds
-    tIMEOUT = 30
+    tIMEOUT = fromIntegral timeout
 
     killAll = do
 --        debug "Backend.timeoutThread: shutdown, killing all connections"

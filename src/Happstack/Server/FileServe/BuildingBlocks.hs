@@ -421,10 +421,11 @@ fileServeStrict ixFiles localPath =
 
 -- * Index
 
+-- | attempt to serve index files 
 doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
-        => [String]
-        -> MimeMap
-        -> FilePath
+        => [FilePath] -- ^ list of possible index files (e.g., @index.html@)
+        -> MimeMap    -- ^ see also 'mimeTypes'
+        -> FilePath   -- ^ directory on disk to search for index files
         -> m Response
 doIndex ixFiles mimeMap localPath = doIndex' filePathSendFile (guessContentTypeM mimeMap) ixFiles localPath
 
