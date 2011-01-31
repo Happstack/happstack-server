@@ -19,6 +19,9 @@ source-repository head
 Flag base4
     Description: Choose the even newer, even smaller, split-up base package.
 
+Flag network_2_2_3
+    Description: Choose newer network library with merged in network-bytestring
+
 Flag tests
     Description: Build the testsuite, and include the tests in the library
     Default: False
@@ -90,8 +93,6 @@ Library
                        MaybeT,
                        mtl >= 1.1 && < 2.1,
                        murmur-hash,
-                       network,
-                       network-bytestring,
                        old-locale,
                        old-time,
                        parsec < 4,
@@ -105,6 +106,12 @@ Library
                        vector,
                        xhtml,
                        zlib
+  if flag(network_2_2_3)
+    Build-Depends:     network >= 2.2.3
+  else
+    Build-Depends:     network < 2.2.3, network-bytestring
+
+
 
   hs-source-dirs:      src
   if flag(tests)
