@@ -2,6 +2,8 @@
              DeriveDataTypeable, MultiParamTypeClasses, CPP, ScopedTypeVariables,
     ScopedTypeVariables #-}
 -- | Functions to allow you to use XSLT to transform your output. To use this, you would generally design your happstack application to output XML. The xslt filter will then run an external tool which performs the tranforms. The transformed result will then be sent to the http client as the Response.
+--
+-- NOTE: This module is currently looking for a maintainer. If you want to improve XSLT support in Happstack, please volunteer!
 module Happstack.Server.XSLT
     (xsltFile, xsltString, {- xsltElem, -} xsltFPS, xsltFPSIO, XSLPath,
      xslt, doXslt, xsltproc,saxon,procFPSIO,procLBSIO,XSLTCommand,XSLTCmd
