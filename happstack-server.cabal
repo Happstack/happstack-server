@@ -78,7 +78,7 @@ Library
                        Paths_happstack_server
 
   Build-Depends:       base,
-                       blaze-html == 0.2.*,
+                       blaze-html >= 0.3 && < 0.5,
                        bytestring,
                        containers,
                        directory,

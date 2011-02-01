@@ -497,7 +497,7 @@ renderDirectoryContents localPath fps =
        return $ H.html $ do 
          H.head $ do
            H.title $ H.string "Directory Listing"
-           H.meta  ! A.http_equiv (H.stringValue "Content-Type") ! A.content (H.stringValue "text/html;charset=utf-8")
+           H.meta  ! A.httpEquiv (H.stringValue "Content-Type") ! A.content (H.stringValue "text/html;charset=utf-8")
            H.style $ H.string $ unlines [ "table { margin: 0 auto; width: 760px; border-collapse: collapse; font-family: 'sans-serif'; }"
                                         , "table, th, td { border: 1px solid #353948; }" 
                                         , "td.size { text-align: right; font-size: 0.7em; width: 50px }"
