@@ -20,7 +20,8 @@ Flag base4
     Description: Choose the even newer, even smaller, split-up base package.
 
 Flag network_2_2_3
-    Description: Choose newer network library with merged in network-bytestring
+    Description: Choose newer network library with merged in network-bytestring. We can not really use this until hslogger is updated to allow it. (Or we ditch hslogger)
+    Default: False
 
 Flag tests
     Description: Build the testsuite, and include the tests in the library
