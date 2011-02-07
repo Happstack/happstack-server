@@ -118,9 +118,12 @@ sGetContents sock = loop where
   loop = unsafeInterleaveIO $ do
     s <- N.recv sock 65536
     if S.null s
-      then do shutdown sock ShutdownReceive `catch` (\e -> when (not $ isDoesNotExistError e) (throw e))
+      then do shutdown sock ShutdownReceive `catch` ignoreError
               return L.Empty
       else L.Chunk s `liftM` loop
+      where
+        ignoreError :: IOError -> IO ()
+        ignoreError _ = return ()
 
 
 sendFileTickle :: TimeoutHandle -> Socket -> FilePath -> Offset -> ByteCount -> IO ()
