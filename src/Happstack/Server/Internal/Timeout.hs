@@ -5,8 +5,8 @@
 module Happstack.Server.Internal.Timeout where
 
 import           Control.Concurrent            (ThreadId, forkIO, killThread, threadDelay, threadWaitWrite)
-import           Control.Exception             (catch, SomeException)
-import           Control.Monad                 (liftM)
+import           Control.Exception             (SomeException, catch, throw)
+import           Control.Monad                 (liftM, when)
 import qualified Data.ByteString.Char8         as B
 import qualified Data.ByteString.Lazy.Char8    as L
 import qualified Data.ByteString.Lazy.Internal as L
@@ -28,6 +28,7 @@ import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, sendFileI
 import           Network.Socket.ByteString (sendAll)
 import           Prelude hiding (catch)
 import           System.IO (Handle, hClose, hIsEOF, hWaitForInput)
+import           System.IO.Error (isDoesNotExistError)
 import           System.IO.Unsafe (unsafeInterleaveIO)
 
 data TimeoutHandle = TimeoutHandle
@@ -117,7 +118,8 @@ sGetContents sock = loop where
   loop = unsafeInterleaveIO $ do
     s <- N.recv sock 65536
     if S.null s
-      then shutdown sock ShutdownReceive >> return L.Empty
+      then do shutdown sock ShutdownReceive `catch` (\e -> when (not $ isDoesNotExistError e) (throw e))
+              return L.Empty
       else L.Chunk s `liftM` loop
 
 
