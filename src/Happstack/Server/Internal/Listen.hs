@@ -4,8 +4,9 @@ module Happstack.Server.Internal.Listen(listen, listen',listenOn) where
 import Happstack.Server.Internal.Types
 import Happstack.Server.Internal.Handler
 import Happstack.Server.Internal.Socket (acceptLite)
-import Happstack.Server.Internal.Timeout (TimeoutHandle(..), tickleTimeout, timeoutThread, cancelTimeout)
-import qualified Happstack.Server.Internal.TimeoutTable as TT
+-- import Happstack.Server.Internal.Timeout (TimeoutHandle(..), tickleTimeout, timeoutThread, cancelTimeout)
+import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register)
+-- import qualified Happstack.Server.Internal.TimeoutTable as TT
 import Control.Exception.Extensible as E
 import Control.Concurrent (forkIO, killThread, myThreadId)
 import Control.Monad (forever, when)
@@ -72,21 +73,19 @@ listen' s conf hand = do
 -}
   let port' = port conf
   log' NOTICE ("Listening on port " ++ show port')
-  tt <- TT.new
-  ttid <- timeoutThread (timeout conf) tt
+  tm <- initialize ((timeout conf) * 10^6)
   let work (s,hn,p) = do let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
                          tid <- myThreadId
-                         let thandle = TimeoutHandle (hashString (show tid)) tid tt
-                         tickleTimeout thandle
+                         thandle <- register tm (killThread tid)
                          request thandle conf s (hn,fromIntegral p) hand `E.catch` eh
                          -- remove thread from timeout table
-                         cancelTimeout thandle
+                         cancel thandle
                          sClose s
       loop = forever $ do w <- acceptLite s
                           forkIO $ work w
       pe e = log' ERROR ("ERROR in accept thread: " ++ show e)
       infi = loop `catchSome` pe >> infi
-  infi `finally` (sClose s >> killThread ttid)
+  infi `finally` (sClose s) --  >> killThread ttid)
 {--
 #ifndef mingw32_HOST_OS
 -}

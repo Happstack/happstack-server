@@ -37,19 +37,21 @@ import Happstack.Server.Internal.MessageWrap
 -- import Happstack.Server.Internal.NoPush
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
-import Happstack.Server.Internal.Timeout (TimeoutHandle(..), sGetContents', sPutTickle, tickleTimeout, sendFileTickle)
-import Happstack.Server.Internal.TimeoutTable (TimeoutTable)
+import qualified Happstack.Server.Internal.TimeoutManager as TM
+import Happstack.Server.Internal.TimeoutSocket (sGetContents, sPutTickle, sendFileTickle)
+-- import Happstack.Server.Internal.Timeout (TimeoutHandle(..), sGetContents', sPutTickle, tickleTimeout, sendFileTickle)
+-- import Happstack.Server.Internal.TimeoutTable (TimeoutTable)
 
 import System.Directory (removeFile)
 
-request :: TimeoutHandle -> Conf -> Socket -> Host -> (Request -> IO Response) -> IO ()
-request thandle conf sock host handler = rloop thandle conf sock host handler =<< sGetContents' thandle sock
+request :: TM.Handle -> Conf -> Socket -> Host -> (Request -> IO Response) -> IO ()
+request thandle conf sock host handler = rloop thandle conf sock host handler =<< sGetContents thandle sock
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
 required _   (Just a) = Right a
 
-rloop :: TimeoutHandle
+rloop :: TM.Handle
          -> Conf
          -> Socket
          -> Host
@@ -213,7 +215,7 @@ staticHeaders =
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
-putAugmentedResult :: TimeoutHandle -> Socket -> Request -> Response -> IO ()
+putAugmentedResult :: TM.Handle -> Socket -> Request -> Response -> IO ()
 putAugmentedResult thandle outp req res = do
     case res of
         -- standard bytestring response
@@ -233,7 +235,7 @@ putAugmentedResult thandle outp req res = do
                 off = sfOffset res
                 count = sfCount res
             sendTop (Just count) False
-            tickleTimeout thandle
+            TM.tickle thandle
             sendFileTickle thandle outp infp off count
 
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
@@ -245,7 +247,7 @@ putAugmentedResult thandle outp req res = do
                  , concatMap ph (M.elems allHeaders)   -- Print all headers
                  , [crlfC]
                  ]
-              -- tickleTimeout thandle
+              TM.tickle thandle
           chunk :: L.ByteString -> L.ByteString
           chunk Empty        = LC.pack "0\r\n\r\n"
           chunk (Chunk c cs) = Chunk (B.pack $ showHex (B.length c) "\r\n") (Chunk c (Chunk (B.pack "\r\n") (chunk cs)))

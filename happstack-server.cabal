@@ -46,6 +46,8 @@ Library
 --                       Happstack.Server.Internal.NoPush
                        Happstack.Server.Internal.Timeout
                        Happstack.Server.Internal.TimeoutTable
+                       Happstack.Server.Internal.TimeoutManager
+                       Happstack.Server.Internal.TimeoutSocket
                        Happstack.Server.Internal.Monads
                        Happstack.Server.Monads
                        Happstack.Server.Proxy
