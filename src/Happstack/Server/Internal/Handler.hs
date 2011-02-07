@@ -34,7 +34,7 @@ import Happstack.Server.Internal.Types
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.RFC822Headers
 import Happstack.Server.Internal.MessageWrap
-import Happstack.Server.Internal.NoPush
+-- import Happstack.Server.Internal.NoPush
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
 import Happstack.Server.Internal.Timeout (TimeoutHandle(..), sGetContents', sPutTickle, tickleTimeout, sendFileTickle)
@@ -102,7 +102,8 @@ rloop thandle conf sock host handler inputStr
                                   userAgent    = B.unpack $ fromMaybe (B.pack "") $ getHeader "User-Agent" req
                               logger host' user time requestLn responseCode size referer userAgent
 
-                     withNoPush sock $ putAugmentedResult thandle sock req res
+                     -- withNoPush sock $ putAugmentedResult thandle sock req res
+                     putAugmentedResult thandle sock req res
                      -- clean up tmp files
                      cleanupTempFiles req
                      when (continueHTTP req res) $ rloop thandle conf sock host handler nextRequest

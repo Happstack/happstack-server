@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
--- | This module provides three classes and some related functions
+-- | This module provides four classes and some related functions
 -- which provide 'ServerPartT' with much of its web-centric behavior.
 --
 --  1. 'ServerMonad' provides access to the HTTP 'Request'
@@ -7,6 +7,8 @@
 --  2. 'FilterMonad' provides the ability to apply filters and transformations to a 'Response'
 --
 --  3. 'WebMonad' provides a way to escape a computation early and return a 'Response'
+--
+--  4. 'HasRqData' which provides access to the decoded QUERY_STRING and request body/form data
 module Happstack.Server.Monads
     ( -- * ServerPartT
       ServerPartT

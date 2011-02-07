@@ -43,7 +43,7 @@ Library
                        Happstack.Server.Internal.Types
                        Happstack.Server.Internal.LowLevel
                        Happstack.Server.Internal.MessageWrap
-                       Happstack.Server.Internal.NoPush
+--                       Happstack.Server.Internal.NoPush
                        Happstack.Server.Internal.Timeout
                        Happstack.Server.Internal.TimeoutTable
                        Happstack.Server.Internal.Monads
