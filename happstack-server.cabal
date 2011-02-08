@@ -44,8 +44,6 @@ Library
                        Happstack.Server.Internal.LowLevel
                        Happstack.Server.Internal.MessageWrap
 --                       Happstack.Server.Internal.NoPush
-                       Happstack.Server.Internal.Timeout
-                       Happstack.Server.Internal.TimeoutTable
                        Happstack.Server.Internal.TimeoutManager
                        Happstack.Server.Internal.TimeoutSocket
                        Happstack.Server.Internal.Monads
@@ -64,8 +62,6 @@ Library
     Exposed-modules:   
                        Happstack.Server.Tests
   Other-modules:       
-                       Data.Concurrent.HashMap
-                       Data.Concurrent.HashMap.Internal
                        Happstack.Server.HTTPClient.HTTP
                        Happstack.Server.HTTPClient.Stream
                        Happstack.Server.HTTPClient.TCP
@@ -144,7 +140,7 @@ Executable happstack-server-tests
   Main-Is: Test.hs
   GHC-Options: -threaded
   hs-source-dirs: tests, src
-  Other-modules: Happstack.Server.Internal.NoPush
+--  Other-modules: Happstack.Server.Internal.NoPush
   if flag(tests)
     Buildable: True
     Build-depends: HUnit, parsec < 4

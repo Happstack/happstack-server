@@ -1,26 +1,22 @@
 {-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
 module Happstack.Server.Internal.Listen(listen, listen',listenOn) where
 
-import Happstack.Server.Internal.Types
-import Happstack.Server.Internal.Handler
-import Happstack.Server.Internal.Socket (acceptLite)
--- import Happstack.Server.Internal.Timeout (TimeoutHandle(..), tickleTimeout, timeoutThread, cancelTimeout)
+import Happstack.Server.Internal.Types          (Conf(..), Request, Response)
+import Happstack.Server.Internal.Handler        (request)
+import Happstack.Server.Internal.Socket         (acceptLite)
 import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register)
--- import qualified Happstack.Server.Internal.TimeoutTable as TT
-import Control.Exception.Extensible as E
-import Control.Concurrent (forkIO, killThread, myThreadId)
-import Control.Monad (forever, when)
-import Data.Concurrent.HashMap (hashString)
-import Network.BSD (getProtocolNumber)
-import Network(sClose, Socket)
+import Control.Exception.Extensible             as E
+import Control.Concurrent                       (forkIO, killThread, myThreadId)
+import Control.Monad                            (forever, when)
+import Network.BSD                              (getProtocolNumber)
+import Network                                  (sClose, Socket)
 import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption, 
                                  socket, Family(..), SockAddr, 
                                  SocketOption(..), SockAddr(..), 
                                  iNADDR_ANY, maxListenQueue, SocketType(..), 
                                  bindSocket)
-import qualified Network.Socket as Socket (listen)
-import System.IO
-import System.IO.Error (isFullError)
+import qualified Network.Socket                 as Socket (listen)
+import System.IO.Error                          (isFullError)
 {-
 #ifndef mingw32_HOST_OS
 -}
@@ -48,7 +44,7 @@ listenOn portm = do
         (\sock -> do
             setSocketOption sock ReuseAddr 1
             bindSocket sock (SockAddrInet (fromIntegral portm) iNADDR_ANY)
-            Socket.listen sock 1024
+            Socket.listen sock (max 1024 maxListenQueue)
             return sock
         )
 
@@ -73,14 +69,15 @@ listen' s conf hand = do
 -}
   let port' = port conf
   log' NOTICE ("Listening on port " ++ show port')
-  tm <- initialize ((timeout conf) * 10^6)
-  let work (s,hn,p) = do let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
-                         tid <- myThreadId
-                         thandle <- register tm (killThread tid)
-                         request thandle conf s (hn,fromIntegral p) hand `E.catch` eh
-                         -- remove thread from timeout table
-                         cancel thandle
-                         sClose s
+  tm <- initialize ((timeout conf) * (10^(6 :: Int)))
+  let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
+      work (sock, hn, p) = 
+          do tid <- myThreadId
+             thandle <- register tm (killThread tid)
+             request thandle conf sock (hn,fromIntegral p) hand `E.catch` eh
+             -- remove thread from timeout table
+             cancel thandle
+             sClose sock
       loop = forever $ do w <- acceptLite s
                           forkIO $ work w
       pe e = log' ERROR ("ERROR in accept thread: " ++ show e)

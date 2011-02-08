@@ -1,10 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables, ScopedTypeVariables #-}
 
-module Happstack.Server.Internal.Handler(request-- version,required
-  ,parseResponse,putRequest
--- ,unchunkBody,val,testChunk,pack
-) where
---    ,fsepC,crlfC,pversion
+module Happstack.Server.Internal.Handler
+    ( request
+    , parseResponse 
+    , putRequest
+    ) where
+
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
 import Control.Concurrent (newMVar, newEmptyMVar, tryTakeMVar)
@@ -13,7 +14,6 @@ import Control.Monad
 import Data.List(elemIndex)
 import Data.Char(toLower)
 import Data.Maybe ( fromMaybe, fromJust, isJust, isNothing )
-import Data.Time.Clock
 import Prelude hiding (last)
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as B
@@ -21,13 +21,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Lazy.Internal (ByteString(Chunk, Empty))
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map as M
-import System.IO
-import System.IO.Error (isDoesNotExistError)
-import Network.Socket (Socket)
-import Network.Socket.ByteString (sendAll)
-import Numeric
 import Data.Int (Int64)
-import Data.Word (Word)
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.Clock
 import Happstack.Server.Internal.Types
@@ -39,10 +33,12 @@ import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
 import qualified Happstack.Server.Internal.TimeoutManager as TM
 import Happstack.Server.Internal.TimeoutSocket (sGetContents, sPutTickle, sendFileTickle)
--- import Happstack.Server.Internal.Timeout (TimeoutHandle(..), sGetContents', sPutTickle, tickleTimeout, sendFileTickle)
--- import Happstack.Server.Internal.TimeoutTable (TimeoutTable)
-
+import Network.Socket (Socket)
+import Network.Socket.ByteString (sendAll)
+import Numeric
 import System.Directory (removeFile)
+import System.IO
+import System.IO.Error (isDoesNotExistError)
 
 request :: TM.Handle -> Conf -> Socket -> Host -> (Request -> IO Response) -> IO ()
 request thandle conf sock host handler = rloop thandle conf sock host handler =<< sGetContents thandle sock
