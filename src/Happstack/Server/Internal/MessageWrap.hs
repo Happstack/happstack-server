@@ -47,21 +47,30 @@ bodyInput :: (MonadIO m) => BodyPolicy -> Request -> m ([(String, Input)], Maybe
 bodyInput _ req | (rqMethod req /= POST) && (rqMethod req /= PUT) = return ([], Nothing)
 bodyInput bodyPolicy req =
   liftIO $
-    let ctype = getHeader "content-type" req >>= parseContentType . P.unpack
-        getBS (Body bs) = bs
-    in do mbi <- tryTakeMVar (rqInputsBody req)
-          case mbi of
-            (Just bi) ->
-                do putMVar (rqInputsBody req) bi
-                   return (bi, Nothing)
-            Nothing ->
-                 do rqBody <- takeRequestBody req
-                    case rqBody of
-                      Nothing          -> return ([], Just $ "bodyInput: Request body was already consumed.")
-                      (Just (Body bs)) -> 
-                          do r@(inputs, err) <- decodeBody bodyPolicy ctype bs
-                             putMVar (rqInputsBody req) inputs
-                             return r
+    do let ctype = getHeader "content-type" req >>= parseContentType . P.unpack
+           getBS (Body bs) = bs
+       if (isDecodable ctype)
+          then do 
+            mbi <- tryTakeMVar (rqInputsBody req)
+            case mbi of
+              (Just bi) ->
+                  do putMVar (rqInputsBody req) bi
+                     return (bi, Nothing)
+              Nothing ->
+                  do rqBody <- takeRequestBody req
+                     case rqBody of
+                       Nothing          -> return ([], Just $ "bodyInput: Request body was already consumed.")
+                       (Just (Body bs)) -> 
+                           do r@(inputs, err) <- decodeBody bodyPolicy ctype bs
+                              putMVar (rqInputsBody req) inputs
+                              return r
+          else return ([], Nothing)
+    where
+      isDecodable :: Maybe ContentType -> Bool
+      isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
+      isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
+      isDecodable (Just (ContentType "multipart" "form-data" ps))              = True
+      isDecodable (Just _)                                                     = False
 
 -- | Decodes application\/x-www-form-urlencoded inputs.      
 -- TODO: should any of the [] be error conditions?
