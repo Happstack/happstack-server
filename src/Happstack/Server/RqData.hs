@@ -175,6 +175,8 @@ mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 
 -- | use 'read' to convert a 'String' to a value of type 'a'
 --
+-- > look "key" `checkRq` (readRq "key")
+-- 
 -- use with 'checkRq'
 readRq :: (Read a) => 
           String -- ^ name of key (only used for error reporting)

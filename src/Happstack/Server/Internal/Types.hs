@@ -196,8 +196,8 @@ instance Show Request where
 --
 -- IMPORTANT: You can really only call this function once. Subsequent
 -- calls will return 'Nothing'.
-takeRequestBody :: Request -> IO (Maybe RqBody)
-takeRequestBody rq = tryTakeMVar (rqBody rq) 
+takeRequestBody :: (MonadIO m) => Request -> m (Maybe RqBody)
+takeRequestBody rq = liftIO $ tryTakeMVar (rqBody rq) 
 -- takeRequestBody rq = return (rqBody rq)
 
 
