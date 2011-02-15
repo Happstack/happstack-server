@@ -19,6 +19,7 @@ module Happstack.Server.Internal.Types
 
 
 import Control.Monad.Error (Error(strMsg))
+import Control.Monad.Trans (MonadIO(liftIO))
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Data.Data (Data)
