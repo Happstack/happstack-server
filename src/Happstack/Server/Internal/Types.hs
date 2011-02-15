@@ -156,7 +156,25 @@ data Response  = Response  { rsCode      :: Int,
                              sfOffset    :: Integer,   -- ^ offset to start at
                              sfCount     :: Integer    -- ^ number of bytes to send
                            }
-               deriving (Show,Typeable)
+               deriving (Typeable)
+
+instance Show Response where
+    showsPrec _ res@Response{}  =
+        showString   "================== Response ================" .
+        showString "\nrsCode      = " . shows      (rsCode res)     .
+        showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
+        showString "\nrsFlags     = " . shows      (rsFlags res)    .
+        showString "\nrsBody      = " . shows      (rsBody res)     .
+        showString "\nrsValidator = " . shows      (rsValidator res)
+    showsPrec _ res@SendFile{}  =
+        showString   "================== Response ================" .
+        showString "\nrsCode      = " . shows      (rsCode res)     .
+        showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
+        showString "\nrsFlags     = " . shows      (rsFlags res)    .
+        showString "\nrsValidator = " . shows      (rsValidator res).
+        showString "\nsfFilePath  = " . shows      (sfFilePath res) .
+        showString "\nsfOffset    = " . shows      (sfOffset res)   .
+        showString "\nsfCount     = " . shows      (sfCount res)
 
 -- what should the status code be ?
 instance Error Response where
