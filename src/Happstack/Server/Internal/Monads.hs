@@ -151,6 +151,10 @@ instance (Monad m, MonadReader r m) => MonadReader r (ServerPartT m) where
     ask = lift ask
     local fn m = withRequest $ \rq-> local fn (runServerPartT m rq)
 
+instance (Monad m, MonadState s m) => MonadState s (ServerPartT m) where
+    get = lift get
+    put = lift . put
+
 instance Monad m => FilterMonad Response (ServerPartT m) where
     setFilter = anyRequest . setFilter
     composeFilter = anyRequest . composeFilter
