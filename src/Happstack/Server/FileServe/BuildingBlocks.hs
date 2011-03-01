@@ -222,7 +222,7 @@ filePathSendFile contentType fp =
        rq      <- askRq
        return $ sendFileResponse contentType fp (Just (toUTCTime modtime, rq)) 0 count
 
--- | Send the specified file with the specified mime-type using Lazy ByteStrings
+-- | Send the specified file with the specified mime-type using lazy ByteStrings
 --
 -- NOTE: assumes file exists and is readable by the server. See 'serveFileUsing'.
 --
@@ -239,7 +239,7 @@ filePathLazy contentType fp =
        rq       <- askRq
        return $ lazyByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
 
--- | Send the specified file with the specified mime-type using Lazy ByteStrings
+-- | Send the specified file with the specified mime-type using strict ByteStrings
 --
 -- NOTE: assumes file exists and is readable by the server. See 'serveFileUsing'.
 --
