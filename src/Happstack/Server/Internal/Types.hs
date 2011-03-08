@@ -12,7 +12,7 @@ module Happstack.Server.Internal.Types
      Conf(..), nullConf, result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
-     RsFlags(..), nullRsFlags, noContentLength,
+     RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
      HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
      Host, ContentType(..)
     ) where
@@ -117,7 +117,7 @@ data RsFlags = RsFlags
     { rsfLength :: Length
     } deriving (Show,Read,Typeable)
 
--- | Default RsFlags that will include the content-length header
+-- | Default RsFlags: automatically use @Transfer-Encoding: Chunked@.
 nullRsFlags :: RsFlags
 nullRsFlags = RsFlags { rsfLength = TransferEncodingChunked }
 
@@ -128,6 +128,11 @@ noContentLength res = res { rsFlags = flags } where flags = (rsFlags res) { rsfL
 -- | Do not automatically add a Content-Length header. Do automatically use Transfer-Encoding: Chunked
 chunked :: Response -> Response
 chunked res         = res { rsFlags = flags } where flags = (rsFlags res) { rsfLength = TransferEncodingChunked }
+
+-- | Automatically add a Content-Length header. Do not use Transfer-Encoding: Chunked
+contentLength :: Response -> Response
+contentLength res   = res { rsFlags = flags } where flags = (rsFlags res) { rsfLength = ContentLength }
+
 
 -- | a value extract from the @QUERY_STRING@ or 'Request' body
 --

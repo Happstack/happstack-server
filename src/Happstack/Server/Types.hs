@@ -10,7 +10,7 @@ module Happstack.Server.Types
      Conf(..), nullConf, result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
-     RsFlags(..), nullRsFlags, noContentLength,
+     RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
      HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
      Host, ContentType(..)
     ) where
