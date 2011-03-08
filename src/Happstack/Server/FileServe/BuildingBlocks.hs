@@ -59,7 +59,7 @@ import Happstack.Server.Response   (ToMessage(toResponse), ifModifiedSince, forb
 import Happstack.Server.Types      (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
 import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
 import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)
-import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile)
+import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
 import System.Locale (defaultTimeLocale, rfc822DateFormat)
 import System.Log.Logger (Priority(DEBUG), logM)
 import System.Time (CalendarTime, formatCalendarTime, toCalendarTime, toUTCTime)
@@ -216,9 +216,8 @@ filePathSendFile :: (ServerMonad m, MonadIO m)
                  -> FilePath -- ^ path to file on disk
                  -> m Response
 filePathSendFile contentType fp =
-    do handle  <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
+    do count   <- liftIO $ withBinaryFile fp ReadMode hFileSize -- garbage collection should close this
        modtime <- liftIO $ getModificationTime fp
-       count   <- liftIO $ hFileSize handle
        rq      <- askRq
        return $ sendFileResponse contentType fp (Just (toUTCTime modtime, rq)) 0 count
 
@@ -232,7 +231,7 @@ filePathLazy :: (ServerMonad m, MonadIO m)
                  -> FilePath -- ^ path to file on disk
                  -> m Response
 filePathLazy contentType fp =
-    do handle  <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
+    do handle   <- liftIO $ openBinaryFile fp ReadMode -- garbage collection should close this
        contents <- liftIO $ L.hGetContents handle
        modtime  <- liftIO $ getModificationTime fp
        count    <- liftIO $ hFileSize handle
@@ -251,7 +250,7 @@ filePathStrict :: (ServerMonad m, MonadIO m)
 filePathStrict contentType fp =
     do contents <- liftIO $ S.readFile fp
        modtime  <- liftIO $ getModificationTime fp
-       count    <- liftIO $ bracket (openBinaryFile fp ReadMode) hClose hFileSize
+       count    <- liftIO $ withBinaryFile fp ReadMode hFileSize
        rq       <- askRq
        return $ strictByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
 
