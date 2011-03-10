@@ -60,8 +60,8 @@ isHTTP1_0 rq = case rqVersion rq of HttpVersion 1 0 -> True; _ -> False
 -- | isHTTP1_0 && hasKeepAlive || isHTTP1_1 && hasNotConnectionClose
 continueHTTP :: Request -> Response -> Bool
 --continueHTTP rq res = isHTTP1_1 rq && getHeader' connectionC rq /= Just closeC && rsfContentLength (rsFlags res)
-continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq) ||
-                      (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq)) && (rsfLength (rsFlags res) /= NoContentLength)
+continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq   && rsfLength (rsFlags res) == ContentLength) ||
+                      (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq) && rsfLength (rsFlags res) /= NoContentLength)
 
 -- | HTTP configuration
 data Conf = Conf { port       :: Int -- ^ Port for the server to listen on.
