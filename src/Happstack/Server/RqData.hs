@@ -9,6 +9,8 @@ module Happstack.Server.RqData
       -- ** Form Values and Query Parameters
       look
     , looks
+    , lookText
+    , lookTexts
     , lookBS
     , lookBSs
     , lookRead
