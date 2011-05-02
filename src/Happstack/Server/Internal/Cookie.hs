@@ -37,6 +37,7 @@ data Cookie = Cookie
     , cookieName    :: String
     , cookieValue   :: String
     , secure        :: Bool
+    , httpOnly      :: Bool
     } deriving(Show,Eq,Read,Typeable,Data)
 
 -- | Specify the lifetime of a cookie.
@@ -66,13 +67,14 @@ calcLife Expired =
           return $ Just (0, posixSecondsToUTCTime 0)
 
 
--- | Creates a cookie with a default version of 1, empty domain, a path of "/", and secure == False
+-- | Creates a cookie with a default version of 1, empty domain, a
+-- path of "/", secure == False and httpOnly == False
 --
 -- see also: 'addCookie'
 mkCookie :: String  -- ^ cookie name
          -> String  -- ^ cookie value
          -> Cookie
-mkCookie key val = Cookie "1" "/" "" key val False
+mkCookie key val = Cookie "1" "/" "" key val False False
 
 -- | Set a Cookie in the Result.
 -- The values are escaped as per RFC 2109, but some browsers may
@@ -98,7 +100,9 @@ mkCookieHeader mLife cookie =
         s f   = '\"' : concatMap e (f cookie) ++ "\""
         e c | fctl c || c == '"' = ['\\',c]
             | otherwise          = [c]
-    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ] ++ if secure cookie then ["Secure"] else [])
+    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ] ++ 
+                                 (if secure cookie then ["Secure"] else []) ++
+                                 (if httpOnly cookie then ["HttpOnly"] else []))
 
 fctl :: Char -> Bool
 fctl ch = ch == chr 127 || ch <= chr 31
@@ -125,7 +129,7 @@ cookiesParser = cookies
             val<-value
             path<-option "" $ try (cookieSep >> cookie_path)
             domain<-option "" $ try (cookieSep >> cookie_domain)
-            return $ Cookie ver path domain (low name) val False
+            return $ Cookie ver path domain (low name) val False False
           cookie_version = cookie_special "$Version"
           cookie_path = cookie_special "$Path"
           cookie_domain = cookie_special "$Domain"
