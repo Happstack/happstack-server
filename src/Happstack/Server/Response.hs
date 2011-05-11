@@ -14,6 +14,7 @@ module Happstack.Server.Response
     , unauthorized
     , forbidden
     , notFound
+    , requestEntityTooLarge
     , seeOther
     , found
     , movedPermanently
@@ -253,6 +254,12 @@ forbidden = resp 403
 -- > main = simpleHTTP nullConf $ notFound "What you are looking for has not been found."
 notFound :: (FilterMonad Response m) => a -> m a
 notFound = resp 404
+
+-- | Respond with @413 Request Entity Too Large@.
+--
+-- > main = simpleHTTP nullConf $ requestEntityTooLarge "That's too big for me to handle."
+requestEntityTooLarge :: (FilterMonad Response m) => a -> m a
+requestEntityTooLarge = resp 413
 
 -- | Respond with @303 See Other@.
 --
