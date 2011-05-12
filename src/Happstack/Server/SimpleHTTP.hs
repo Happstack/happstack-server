@@ -42,6 +42,7 @@ module Happstack.Server.SimpleHTTP
     , simpleHTTPWithSocket
     , simpleHTTPWithSocket'
     , bindPort
+    , bindIPv4
     , parseConfig
     -- * Re-exported modules
     -- ** Basic ServerMonad functionality
@@ -84,7 +85,7 @@ import Happstack.Server.Validation
 import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
 import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), UnWebT, unFilterFun, mapServerPartT, runServerPartT, ununWebT)
-import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn) -- So that we can disambiguate 'Writer.listen'
+import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn, listenOnIPv4) -- So that we can disambiguate 'Writer.listen'
 import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), nullConf, setHeader)
 import Network                                   (Socket)
 import qualified Paths_happstack_server          as Cabal
@@ -153,6 +154,8 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
 --
 -- Note: It's important to use the same conf (or at least the same
 -- port) for 'bindPort' and 'simpleHTTPWithSocket'.
+--
+-- see also: 'bindPort', 'bindIPv4'
 simpleHTTPWithSocket :: (ToMessage a) => Socket -> Conf -> ServerPartT IO a -> IO ()
 simpleHTTPWithSocket = simpleHTTPWithSocket' id
 
@@ -162,11 +165,26 @@ simpleHTTPWithSocket' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnW
 simpleHTTPWithSocket' toIO socket conf hs =
     Listen.listen' socket conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
 
--- | Bind port and return the socket for 'simpleHTTPWithSocket'. This
+-- | Bind port and return the socket for use with 'simpleHTTPWithSocket'. This
 -- function always binds to IPv4 ports until Network module is fixed
 -- to support IPv6 in a portable way.
 bindPort :: Conf -> IO Socket
 bindPort conf = Listen.listenOn (port conf)
+
+-- | Bind to ip and port and return the socket for use with 'simpleHTTPWithSocket'.
+-- >
+-- > import Happstack.Server
+-- >
+-- > main = do let conf = nullConf
+-- >               addr = "127.0.0.1"
+-- >           s <- bindIPv4 addr (port conf)
+-- >           simpleHTTPWithSocket s conf $ ok $ toResponse $ 
+-- >             "now listening on ip addr " ++ addr ++ 
+-- >             " and port " ++ show (port conf)
+bindIPv4 :: String  -- ^ IP address to bind to (must be an IP address and not a host name)
+         -> Int     -- ^ port number to bind to
+         -> IO Socket
+bindIPv4 addr prt = Listen.listenOnIPv4 addr prt
 
 -- | Takes your 'WebT', if it is 'mempty' it returns 'Nothing' else it
 -- converts the value to a 'Response' and applies your filter to it.

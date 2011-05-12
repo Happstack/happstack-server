@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
-module Happstack.Server.Internal.Listen(listen, listen',listenOn) where
+module Happstack.Server.Internal.Listen(listen, listen',listenOn,listenOnIPv4) where
 
 import Happstack.Server.Internal.Types          (Conf(..), Request, Response)
 import Happstack.Server.Internal.Handler        (request)
@@ -15,7 +15,7 @@ import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption,
                                  SocketOption(..), SockAddr(..), 
                                  iNADDR_ANY, maxListenQueue, SocketType(..), 
                                  bindSocket)
-import qualified Network.Socket                 as Socket (listen)
+import qualified Network.Socket                 as Socket (listen, inet_addr)
 import System.IO.Error                          (isFullError)
 {-
 #ifndef mingw32_HOST_OS
@@ -48,6 +48,21 @@ listenOn portm = do
             return sock
         )
 
+listenOnIPv4 :: String  -- ^ IP address to listen on (must be an IP address not a host name)
+             -> Int     -- ^ port number to listen on
+             -> IO Socket
+listenOnIPv4 ip portm = do
+    proto <- getProtocolNumber "tcp"
+    hostAddr <- Socket.inet_addr ip
+    E.bracketOnError
+        (socket AF_INET Stream proto)
+        (sClose)
+        (\sock -> do
+            setSocketOption sock ReuseAddr 1
+            bindSocket sock (SockAddrInet (fromIntegral portm) hostAddr)
+            Socket.listen sock (max 1024 maxListenQueue)
+            return sock
+        )
 
 -- | Bind and listen port
 listen :: Conf -> (Request -> IO Response) -> IO ()
