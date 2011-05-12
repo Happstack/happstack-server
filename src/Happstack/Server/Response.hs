@@ -33,7 +33,7 @@ import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
 import qualified Data.Text.Lazy                  as LT
 import qualified Data.Text.Lazy.Encoding         as LT
-import           Happstack.Server.Monads         (FilterMonad(composeFilter))
+import           Happstack.Server.Internal.Monads         (FilterMonad(composeFilter))
 import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
 import           Happstack.Server.SURI           (ToSURI)
 import           System.Locale                   (defaultTimeLocale)

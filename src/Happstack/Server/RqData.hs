@@ -70,10 +70,10 @@ import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
 import           Data.Text.Lazy                 (Text)
 import qualified Data.Text.Lazy.Encoding        as Text
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
-import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), ServerPartT, escape')
-import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), readInputsBody)
+import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), FilterMonad, WebMonad, ServerPartT, escape)
+import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), readInputsBody)
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
-import Happstack.Server.Response                (internalServerError, requestEntityTooLarge)
+import Happstack.Server.Response                (internalServerError, requestEntityTooLarge, toResponse)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad, MonadPlus)
@@ -148,7 +148,7 @@ instance (MonadIO m) => HasRqData (ServerPartT m) where
                            then readInputsBody rq
                            else return (Just [])
            case mbi of
-             Nothing   -> escape' $ internalServerError (toResponse "askRqEnv failed because the request body has not been decoded yet. Try using 'decodeBody'.")
+             Nothing   -> escape $ internalServerError (toResponse "askRqEnv failed because the request body has not been decoded yet. Try using 'decodeBody'.")
              (Just bi) -> return (rqInputsQuery rq, bi, rqCookies rq)
     rqDataError e = mzero
     localRqEnv f m =
@@ -448,13 +448,13 @@ lookPairsBS =
 -- Only the first call to 'decodeBody' will have any effect. Calling
 -- it a second time, even with different quota values, will do
 -- nothing.
-decodeBody :: (ServerMonad m, MonadPlus m, MonadIO m) => BodyPolicy -> m ()
+decodeBody :: (ServerMonad m, MonadPlus m, MonadIO m, FilterMonad Response m, WebMonad Response m) => BodyPolicy -> m ()
 decodeBody bp =
     do rq <- askRq
        (_, me) <- bodyInput bp rq
        case me of
          Nothing -> return ()
-         Just e  -> escape' $ requestEntityTooLarge (toResponse e) -- FIXME: is this the best way to report the error
+         Just e  -> escape $ requestEntityTooLarge (toResponse e) -- FIXME: is this the best way to report the error
 
 -- | run 'RqData' in a 'ServerMonad'.
 --
