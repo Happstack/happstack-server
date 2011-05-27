@@ -146,7 +146,7 @@ cookiesParser = cookies
           -- Parsers based on RFC 2068
           quoted_string = do
             char '"'
-            r <-many (oneOf qdtext)
+            r <-many ((try quotedPair) <|> (oneOf qdtext))
             char '"'
             return r
 
@@ -160,6 +160,7 @@ cookiesParser = cookies
           octet         = map chr [0..255]
           text          = octet \\ ctl
           qdtext        = text \\ "\""
+          quotedPair    = char '\\' >> anyChar
 
 -- | Get all cookies from the HTTP request. The cookies are ordered per RFC from
 -- the most specific to the least specific. Multiple cookies with the same

@@ -38,21 +38,25 @@ cookieParserTest =
     "cookieParserTest" ~:
     [parseCookies "$Version=1;Cookie1=value1;$Path=\"/testpath\";$Domain=example.com;cookie2=value2"
         @?= (Right [
-            Cookie "1" "/testpath" "example.com" "cookie1" "value1" False
-          , Cookie "1" "" "" "cookie2" "value2" False
+            Cookie "1" "/testpath" "example.com" "cookie1" "value1" False False
+          , Cookie "1" "" "" "cookie2" "value2" False False
           ])
     ,parseCookies "  \t $Version = \"1\" ; cookie1 = \"randomcrap!@#%^&*()-_+={}[]:;'<>,.?/\\|\" , $Path=/  "
         @?= (Right [
-            Cookie "1" "/" "" "cookie1" "randomcrap!@#%^&*()-_+={}[]:;'<>,.?/\\|" False
+            Cookie "1" "/" "" "cookie1" "randomcrap!@#%^&*()-_+={}[]:;'<>,.?/|" False False
           ])
     ,parseCookies " cookie1 = value1  "
         @?= (Right [
-            Cookie "" "" "" "cookie1" "value1" False
+            Cookie "" "" "" "cookie1" "value1" False False
           ])
     ,parseCookies " $Version=\"1\";buggygooglecookie = valuewith=whereitshouldnotbe  "
         @?= (Right [
-            Cookie "1" "" "" "buggygooglecookie" "valuewith=whereitshouldnotbe" False
+            Cookie "1" "" "" "buggygooglecookie" "valuewith=whereitshouldnotbe" False False
           ])
+    , parseCookies "foo=\"\\\"bar\\\"\""
+        @?= (Right [
+              Cookie "" "" ""  "foo" "\"bar\"" False False
+             ])
     ]
 
 acceptEncodingParserTest :: Test
