@@ -58,7 +58,7 @@ import Happstack.Server.Monads     (Happstack, ServerMonad(askRq), FilterMonad, 
 import Happstack.Server.Response   (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types      (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
 import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
-import System.FilePath ((</>), addTrailingPathSeparator, joinPath, takeExtension)
+import System.FilePath ((</>), addTrailingPathSeparator, joinPath, splitDirectories, takeExtension)
 import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
 import System.Locale (defaultTimeLocale, rfc822DateFormat)
 import System.Log.Logger (Priority(DEBUG), logM)
@@ -342,7 +342,7 @@ fileServe' :: ( WebMonad Response m
            -> m Response
 fileServe' serveFn mimeFn indexFn localpath = do
     rq <- askRq
-    let safepath = filter (\x->not (null x) && x /= ".." && x /= ".") (rqPaths rq)
+    let safepath = filter (\x->not (null x) && x /= ".." && x /= ".") $ splitDirectories $ joinPath (rqPaths rq)
         fp = joinPath  (localpath:safepath)
     fe <- liftIO $ doesFileExist fp
     de <- liftIO $ doesDirectoryExist fp
