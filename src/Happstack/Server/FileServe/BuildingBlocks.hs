@@ -36,6 +36,7 @@ module Happstack.Server.FileServe.BuildingBlocks
      -- * Other
      blockDotFiles,
      defaultIxFiles,
+     isSafePath,
      tryIndex,
      doIndex,
      doIndex',
@@ -58,7 +59,7 @@ import Happstack.Server.Monads     (Happstack, ServerMonad(askRq), FilterMonad, 
 import Happstack.Server.Response   (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types      (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
 import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
-import System.FilePath ((</>), addTrailingPathSeparator, joinPath, splitDirectories, takeExtension)
+import System.FilePath ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, splitDirectories, takeExtension, isValid)
 import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
 import System.Locale (defaultTimeLocale, rfc822DateFormat)
 import System.Log.Logger (Priority(DEBUG), logM)
@@ -340,25 +341,40 @@ fileServe' :: ( WebMonad Response m
            -> (FilePath -> m Response)
            -> FilePath           -- ^ file/directory to serve
            -> m Response
-fileServe' serveFn mimeFn indexFn localpath = do
+fileServe' serveFn mimeFn indexFn localPath = do
     rq <- askRq
-    let safepath = filter (\x->not (null x) && x /= ".." && x /= ".") $ splitDirectories $ joinPath (rqPaths rq)
-        fp = joinPath  (localpath:safepath)
-    fe <- liftIO $ doesFileExist fp
-    de <- liftIO $ doesDirectoryExist fp
-    let status | de   = "DIR"
-               | fe   = "file"
-               | True = "NOT FOUND"
-    liftIO $ logM "Happstack.Server.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
-    if de
-        then if last (rqUri rq) == '/'
---             then indexFn serveFn mimeFn (ixFiles++defaultIxFiles) fp
-             then indexFn fp
-             else do let path' = addTrailingPathSeparator (rqUri rq)
-                     seeOther path' (toResponse path')
-        else if fe 
-                then serveFileUsing serveFn mimeFn fp
-                else mzero
+    if (not $ isSafePath (rqPaths rq))
+       then do liftIO $ logM "Happstack.Server.FileServe" DEBUG ("fileServe: unsafe filepath " ++ show (rqPaths rq))
+               mzero
+       else do let fp = joinPath (localPath : rqPaths rq)
+               fe <- liftIO $ doesFileExist fp
+               de <- liftIO $ doesDirectoryExist fp
+               let status | de   = "DIR"
+                          | fe   = "file"
+                          | True = "NOT FOUND"
+               liftIO $ logM "Happstack.Server.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
+               if de
+                  then if last (rqUri rq) == '/'
+                          then indexFn fp
+                          else do let path' = addTrailingPathSeparator (rqUri rq)
+                                  seeOther path' (toResponse path')
+                  else if fe 
+                          then serveFileUsing serveFn mimeFn fp
+                          else mzero
+
+isSafePath :: [FilePath] -> Bool
+isSafePath [] = True
+isSafePath (s:ss) =
+     isValid s 
+  && (all (not . isPathSeparator) s) 
+  && not (hasDrive s)
+  && not (isParent s)
+  && isSafePath ss
+
+-- note: could be different on other OSs
+isParent :: FilePath -> Bool
+isParent ".." = True
+isParent _    = False
 
 -- | Serve files from a directory and its subdirectories using 'sendFile'.
 -- 
