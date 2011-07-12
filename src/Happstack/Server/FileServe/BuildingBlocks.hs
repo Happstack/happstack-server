@@ -33,6 +33,11 @@ module Happstack.Server.FileServe.BuildingBlocks
      asContentType,
      guessContentType,
      guessContentTypeM,
+     -- * Directory Browsing
+     EntryKind(..),
+     browseIndex,
+     renderDirectoryContents,
+     renderDirectoryContentsTable,
      -- * Other
      blockDotFiles,
      defaultIxFiles,
