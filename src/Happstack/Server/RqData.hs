@@ -60,6 +60,7 @@ import Control.Monad 				(MonadPlus(mzero), liftM)
 import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
 import Control.Monad.Error 			(Error(noMsg, strMsg))
 import Control.Monad.Trans                      (MonadIO(..))
+import qualified Data.ByteString.Char8          as P
 import qualified Data.ByteString.Lazy.Char8     as L
 import qualified Data.ByteString.Lazy.UTF8      as LU
 import Data.Char 				(toLower)
@@ -71,7 +72,8 @@ import           Data.Text.Lazy                 (Text)
 import qualified Data.Text.Lazy.Encoding        as Text
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), FilterMonad, WebMonad, ServerPartT, escape)
-import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), readInputsBody)
+import Happstack.Server.Internal.RFC822Headers  (parseContentType)
+import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), getHeader, readInputsBody)
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 import Happstack.Server.Response                (internalServerError, requestEntityTooLarge, toResponse)
 
@@ -144,8 +146,19 @@ instance HasRqData RqData where
 instance (MonadIO m) => HasRqData (ServerPartT m) where
     askRqEnv =
         do rq  <- askRq
-           mbi <- liftIO $ readInputsBody rq
+           mbi <- liftIO $ if ((rqMethod rq == POST) || (rqMethod rq == PUT)) && (isDecodable (ctype rq))
+                           then readInputsBody rq
+                           else return (Just [])
            return (rqInputsQuery rq, mbi, rqCookies rq)
+        where
+          ctype :: Request -> Maybe ContentType
+          ctype req = parseContentType . P.unpack =<< getHeader "content-type" req
+          isDecodable :: Maybe ContentType -> Bool
+          isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
+          isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
+          isDecodable (Just (ContentType "multipart" "form-data" ps))              = True
+          isDecodable (Just _)                                                     = False
+
     rqDataError e = mzero
     localRqEnv f m =
         do rq <- askRq
