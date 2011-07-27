@@ -5,7 +5,7 @@ module Happstack.Server.Internal.MessageWrap (
 	,defaultInputIter
    ) where
 
-import Control.Concurrent.MVar (tryTakeMVar, putMVar)
+import Control.Concurrent.MVar (tryTakeMVar, tryPutMVar, putMVar)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -44,33 +44,35 @@ defaultBodyPolicy tmpDir md mr mh =
                }
 
 bodyInput :: (MonadIO m) => BodyPolicy -> Request -> m ([(String, Input)], Maybe String)
-bodyInput _ req | (rqMethod req /= POST) && (rqMethod req /= PUT) = return ([], Nothing)
-bodyInput bodyPolicy req =
-  liftIO $
-    do let ctype = getHeader "content-type" req >>= parseContentType . P.unpack
-           getBS (Body bs) = bs
-       if (isDecodable ctype)
-          then do 
-            mbi <- tryTakeMVar (rqInputsBody req)
-            case mbi of
-              (Just bi) ->
-                  do putMVar (rqInputsBody req) bi
-                     return (bi, Nothing)
-              Nothing ->
-                  do rqBody <- takeRequestBody req
-                     case rqBody of
-                       Nothing          -> return ([], Just $ "bodyInput: Request body was already consumed.")
-                       (Just (Body bs)) -> 
-                           do r@(inputs, err) <- decodeBody bodyPolicy ctype bs
-                              putMVar (rqInputsBody req) inputs
-                              return r
-          else return ([], Nothing)
+bodyInput _ req | ((rqMethod req /= POST) && (rqMethod req /= PUT)) || (not (isDecodable ctype)) = 
+    do _ <- liftIO $ tryPutMVar (rqInputsBody req) []
+       return ([], Nothing)
     where
+      ctype :: Maybe ContentType
+      ctype = parseContentType . P.unpack =<< getHeader "content-type" req
       isDecodable :: Maybe ContentType -> Bool
       isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
       isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
       isDecodable (Just (ContentType "multipart" "form-data" ps))              = True
       isDecodable (Just _)                                                     = False
+
+bodyInput bodyPolicy req =
+  liftIO $
+    do let getBS (Body bs) = bs
+           ctype = parseContentType . P.unpack =<< getHeader "content-type" req
+       mbi <- tryTakeMVar (rqInputsBody req)
+       case mbi of
+         (Just bi) ->
+             do putMVar (rqInputsBody req) bi
+                return (bi, Nothing)
+         Nothing ->
+             do rqBody <- takeRequestBody req
+                case rqBody of
+                  Nothing          -> return ([], Just $ "bodyInput: Request body was already consumed.")
+                  (Just (Body bs)) -> 
+                      do r@(inputs, err) <- decodeBody bodyPolicy ctype bs
+                         putMVar (rqInputsBody req) inputs
+                         return r
 
 -- | Decodes application\/x-www-form-urlencoded inputs.      
 -- TODO: should any of the [] be error conditions?

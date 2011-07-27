@@ -121,7 +121,7 @@ runReaderError = runReaderT . unReaderError
 
 -- | the environment used to lookup query parameters. It consists of
 -- the triple: (query string inputs, body inputs, cookie inputs)
-type RqEnv = ([(String, Input)], [(String, Input)], [(String, Cookie)])
+type RqEnv = ([(String, Input)], Maybe [(String, Input)], [(String, Cookie)])
 
 -- | An applicative functor and monad for looking up key/value pairs
 -- in the QUERY_STRING, Request body, and cookies.
@@ -143,19 +143,15 @@ instance HasRqData RqData where
 -- instance (MonadPlus m, MonadIO m, ServerMonad m) => (HasRqData m) where
 instance (MonadIO m) => HasRqData (ServerPartT m) where
     askRqEnv =
-        do rq <- askRq
-           mbi <- liftIO $ if ((rqMethod rq) == POST) || ((rqMethod rq) == PUT)
-                           then readInputsBody rq
-                           else return (Just [])
-           case mbi of
-             Nothing   -> escape $ internalServerError (toResponse "askRqEnv failed because the request body has not been decoded yet. Try using 'decodeBody'.")
-             (Just bi) -> return (rqInputsQuery rq, bi, rqCookies rq)
+        do rq  <- askRq
+           mbi <- liftIO $ readInputsBody rq
+           return (rqInputsQuery rq, mbi, rqCookies rq)
     rqDataError e = mzero
     localRqEnv f m =
         do rq <- askRq
-           b  <- liftM (fromMaybe []) $ liftIO $ readInputsBody rq
+           b  <- liftIO $ readInputsBody rq
            let (q', b', c') = f (rqInputsQuery rq, b, rqCookies rq)
-           bv <- liftIO $ newMVar b'
+           bv <- liftIO $ newMVar (fromMaybe [] b')
            let rq' = rq { rqInputsQuery = q'
                         , rqInputsBody = bv
                         , rqCookies = c'
@@ -249,6 +245,12 @@ instance FromData a => FromData (Maybe a) where
 lookups :: (Eq a) => a -> [(a, b)] -> [b]
 lookups a = map snd . filter ((a ==) . fst)
 
+fromMaybeBody :: String -> String -> Maybe [(String, Input)] -> [(String, Input)]
+fromMaybeBody funName fieldName mBody =
+    case mBody of
+      Nothing -> error $ funName ++ " " ++ fieldName ++ " failed because the request body has not been decoded yet. Try using 'decodeBody' to decode the body. Or the 'queryString' filter to ignore the body."
+      (Just body) -> body
+
 -- | Gets the first matching named input parameter
 -- 
 -- Searches the QUERY_STRING followed by the Request body.
@@ -256,7 +258,8 @@ lookups a = map snd . filter ((a ==) . fst)
 -- see also: 'lookInputs'
 lookInput :: (Monad m, HasRqData m) => String -> m Input
 lookInput name
-    = do (query, body, _cookies) <- askRqEnv
+    = do (query, mBody, _cookies) <- askRqEnv
+         let body = fromMaybeBody "lookInput" name mBody
          case lookup name (query ++ body) of
            Just i  -> return $ i
            Nothing -> rqDataError (strMsg $ "Parameter not found: " ++ name)
@@ -268,7 +271,8 @@ lookInput name
 -- see also: 'lookInput'
 lookInputs :: (Monad m, HasRqData m) => String -> m [Input]
 lookInputs name
-    = do (query, body, _cookies) <- askRqEnv
+    = do (query, mBody, _cookies) <- askRqEnv
+         let body = fromMaybeBody "lookInputs" name mBody
          return $ lookups name (query ++ body)
 
 -- | Gets the first matching named input parameter as a lazy 'ByteString'
@@ -416,7 +420,8 @@ lookFile n =
 -- see also: 'lookPairsBS'
 lookPairs :: (Monad m, HasRqData m) => m [(String, Either FilePath String)]
 lookPairs = 
-    do (query, body, _cookies) <- askRqEnv
+    do (query, mBody, _cookies) <- askRqEnv
+       let body = fromMaybeBody "lookPairs" "" mBody
        return $ map (\(n,vbs)->(n, (\e -> case e of Left fp -> Left fp ; Right bs -> Right (LU.toString bs)) $ inputValue vbs)) (query ++ body)
 
 -- | gets all the input parameters
@@ -427,7 +432,8 @@ lookPairs =
 -- see also: 'lookPairs'
 lookPairsBS :: (Monad m, HasRqData m) => m [(String, Either FilePath L.ByteString)]
 lookPairsBS = 
-    do (query, body, _cookies) <- askRqEnv
+    do (query, mBody, _cookies) <- askRqEnv
+       let body = fromMaybeBody "lookPairsBS" "" mBody
        return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ body)
 
 -- | The POST\/PUT body of a Request is not received or decoded unless
@@ -555,7 +561,7 @@ body rqData = localRqEnv f rqData
 queryString ::  (HasRqData m) => m a -> m a
 queryString rqData = localRqEnv f rqData
     where
-      f (query, _body, _cookies) = (query, [], [])
+      f (query, _body, _cookies) = (query, Just [], [])
 
 right :: (MonadPlus m) => Either a b -> m b
 right (Right a) = return a
@@ -564,7 +570,7 @@ right (Left e) = mzero
 bytestring :: (HasRqData m) => m a -> m a
 bytestring rqData = localRqEnv f rqData
     where
-      f (query, body, cookies) = (filter bsf query, filter bsf body, cookies)
+      f (query, body, cookies) = (filter bsf query, filter bsf <$> body, cookies)
       bsf (_, i) =
           case inputValue i of
             (Left  _fp) -> False
