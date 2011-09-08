@@ -137,6 +137,13 @@ instance ToMessage Blaze.Html where
 
 instance ToMessage Response where
     toResponse = id
+
+instance ToMessage L.ByteString where
+    toResponse bs = Response 200 M.empty nullRsFlags bs Nothing
+
+instance ToMessage B.ByteString where
+    toResponse bs = toResponse (L.fromChunks [bs])
+
 {-
 
 -- This instances causes awful error messages. I am removing it and
