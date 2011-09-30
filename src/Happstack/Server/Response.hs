@@ -14,6 +14,7 @@ module Happstack.Server.Response
     , unauthorized
     , forbidden
     , notFound
+    , prettyResponse
     , requestEntityTooLarge
     , seeOther
     , found
@@ -301,3 +302,22 @@ movedPermanently uri res = do modifyResponse $ redirect 301 uri
 tempRedirect :: (FilterMonad Response m, ToSURI a) => a -> res -> m res
 tempRedirect val res = do modifyResponse $ redirect 307 val
                           return res
+
+-- | A nicely formatted rendering of a 'Response'
+prettyResponse :: Response -> String
+prettyResponse res@Response{}  =
+    showString   "================== Response ================" .
+    showString "\nrsCode      = " . shows      (rsCode res)     .
+    showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
+    showString "\nrsFlags     = " . shows      (rsFlags res)    .
+    showString "\nrsBody      = " . shows      (rsBody res)     .
+    showString "\nrsValidator = " . shows      (rsValidator res)
+prettyResponse res@SendFile{}  =
+    showString   "================== Response ================" .
+    showString "\nrsCode      = " . shows      (rsCode res)     .
+    showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
+    showString "\nrsFlags     = " . shows      (rsFlags res)    .
+    showString "\nrsValidator = " . shows      (rsValidator res).
+    showString "\nsfFilePath  = " . shows      (sfFilePath res) .
+    showString "\nsfOffset    = " . shows      (sfOffset res)   .
+    showString "\nsfCount     = " . shows      (sfCount res)
