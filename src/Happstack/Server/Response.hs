@@ -311,7 +311,7 @@ prettyResponse res@Response{}  =
     showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
     showString "\nrsFlags     = " . shows      (rsFlags res)    .
     showString "\nrsBody      = " . shows      (rsBody res)     .
-    showString "\nrsValidator = " . shows      (rsValidator res)
+    showString "\nrsValidator = " $ show       (rsValidator res)
 prettyResponse res@SendFile{}  =
     showString   "================== Response ================" .
     showString "\nrsCode      = " . shows      (rsCode res)     .
@@ -320,4 +320,4 @@ prettyResponse res@SendFile{}  =
     showString "\nrsValidator = " . shows      (rsValidator res).
     showString "\nsfFilePath  = " . shows      (sfFilePath res) .
     showString "\nsfOffset    = " . shows      (sfOffset res)   .
-    showString "\nsfCount     = " . shows      (sfCount res)
+    showString "\nsfCount     = " $ show       (sfCount res)    
