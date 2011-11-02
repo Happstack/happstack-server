@@ -3,6 +3,8 @@
 module Happstack.Server.SURI where
 import Data.Maybe
 import Data.Generics
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LazyText
 import Happstack.Util.Common(mapFst)
 import qualified Network.URI as URI
 
@@ -66,7 +68,8 @@ instance ToSURI SURI where toSURI=id
 instance ToSURI URI.URI where toSURI=SURI
 instance ToSURI String where 
     toSURI = maybe (SURI $ URI.URI "" Nothing "" "" "") id . parse
-
+instance ToSURI Text.Text where toSURI = toSURI . Text.unpack
+instance ToSURI LazyText.Text where toSURI = toSURI . LazyText.unpack
 
 --handling obtaining things from URI paths
 class FromPath x where fromPath::String->x
