@@ -78,8 +78,20 @@ guardRq f = do
     rq <- askRq
     unless (f rq) mzero
 
+-- | Guard against the method only (as opposed to 'methodM').
+--
+-- Example:
+--
+-- > handler :: ServerPart Response
+-- > handler =
+-- >     do methodOnly [GET, HEAD]
+-- >        ...
+method :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
+method meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
+
+
 -- | Guard against the method. This function also guards against
--- *any remaining path segments*. See 'methodOnly' for the version
+-- *any remaining path segments*. See 'method' for the version
 -- that guards only by method.
 --
 -- Example:
@@ -88,6 +100,13 @@ guardRq f = do
 -- > handler =
 -- >     do methodM [GET, HEAD]
 -- >        ...
+-- 
+-- NOTE: This function is largely retained for backwards
+-- compatibility. The fact that implicitly calls 'nullDir' is often
+-- forgotten and leads to confusion. It is probably better to just use
+-- 'method' and call 'nullDir' explicitly.
+-- 
+-- This function will likely be deprecated in the future.
 methodM :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
 methodM meth = methodOnly meth >> nullDir
 
@@ -100,7 +119,8 @@ methodM meth = methodOnly meth >> nullDir
 -- >     do methodOnly [GET, HEAD]
 -- >        ...
 methodOnly :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
-methodOnly meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
+methodOnly = method
+{-# DEPRECATED methodOnly "this function is just an alias for method now" #-}
 
 -- | Guard against the method. Note, this function also guards against
 -- any remaining path segments. Similar to 'methodM' but with a different type signature.
@@ -109,16 +129,11 @@ methodOnly meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
 --
 -- > handler :: ServerPart Response
 -- > handler = methodSP [GET, HEAD] $ subHandler
+-- 
+-- NOTE: This style of combinator is going to be deprecated in the
+-- future. It is better to just use 'method'.
 methodSP :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m b-> m b
 methodSP m handle = methodM m >> handle
-
--- | Guard against the method. Note, this function also guards against any
--- remaining path segments.
---
--- DEPRECATED:  Use 'methodSP', 'methodM', or 'methodOnly'
-method :: (MatchMethod method, Monad m) => method -> WebT m a -> ServerPartT m a
-method m handle = methodSP m (anyRequest handle)
-{-# DEPRECATED method "you should be able to use methodSP" #-}
 
 -- | guard which only succeeds if there are no remaining path segments
 --
