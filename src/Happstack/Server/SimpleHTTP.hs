@@ -44,6 +44,7 @@ module Happstack.Server.SimpleHTTP
     , bindPort
     , bindIPv4
     , parseConfig
+    , waitForTermination
     -- * Re-exported modules
     -- ** Basic ServerMonad functionality
     , module Happstack.Server.Monads
@@ -94,6 +95,12 @@ import System.Console.GetOpt                     ( OptDescr(Option)
                                                  , ArgOrder(Permute)
                                                  , getOpt
                                                  )
+#ifdef UNIX
+import Control.Concurrent.MVar
+import System.Posix.Signals hiding (Handler)
+import System.Posix.IO ( stdInput )
+import System.Posix.Terminal ( queryTerminal )
+#endif
 
 -- | An array of 'OptDescr', useful for processing command line
 -- options into an 'Conf' for 'simpleHTTP'.
@@ -205,3 +212,26 @@ notFoundHtml =
     ++ "It is just not here</p>"
     ++ "</body></html>"
     where ver = DV.showVersion Cabal.version
+
+
+-- | Wait for a signal.
+--   On unix, a signal is sigINT or sigTERM (aka Control-C).
+--  
+-- On windows, the signal is entering: e <return>
+waitForTermination :: IO ()
+waitForTermination
+    = do
+#ifdef UNIX
+         istty <- queryTerminal stdInput
+         mv <- newEmptyMVar
+         installHandler softwareTermination (CatchOnce (putMVar mv ())) Nothing
+         case istty of
+           True  -> do installHandler keyboardSignal (CatchOnce (putMVar mv ())) Nothing
+                       return ()
+           False -> return ()
+         takeMVar mv
+#else
+         let loop 'e' = return () 
+             loop _   = getChar >>= loop
+         loop 'c'
+#endif
