@@ -35,10 +35,10 @@ import           System.FilePath                  (makeRelative, splitDirectorie
 --
 -- Examples
 -- 
--- > methodM GET                  -- match GET
--- > methodM [HEAD, GET]          -- match HEAD or GET
--- > methodM (not . (==) DELETE)  -- match any method except DELETE
--- > methodM ()                   -- match any method
+-- > method GET                  -- match GET
+-- > method [HEAD, GET]          -- match HEAD or GET
+-- > method (not . (==) DELETE)  -- match any method except DELETE
+-- > method ()                   -- match any method
 class MatchMethod m where matchMethod :: m -> Method -> Bool
 instance MatchMethod Method where matchMethod m = (== m)
 instance MatchMethod [Method] where matchMethod methods = (`elem` methods)

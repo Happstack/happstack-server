@@ -179,6 +179,7 @@ bindPort :: Conf -> IO Socket
 bindPort conf = Listen.listenOn (port conf)
 
 -- | Bind to ip and port and return the socket for use with 'simpleHTTPWithSocket'.
+--
 -- >
 -- > import Happstack.Server
 -- >
@@ -188,6 +189,7 @@ bindPort conf = Listen.listenOn (port conf)
 -- >           simpleHTTPWithSocket s conf $ ok $ toResponse $ 
 -- >             "now listening on ip addr " ++ addr ++ 
 -- >             " and port " ++ show (port conf)
+--
 bindIPv4 :: String  -- ^ IP address to bind to (must be an IP address and not a host name)
          -> Int     -- ^ port number to bind to
          -> IO Socket
