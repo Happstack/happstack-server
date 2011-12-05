@@ -34,6 +34,7 @@ module Happstack.Server.RqData
     , checkRq
     , checkRqM        
     , readRq
+    , unsafeReadRq
     -- * Handling POST\/PUT Requests
     , decodeBody
     -- ** Body Policy
