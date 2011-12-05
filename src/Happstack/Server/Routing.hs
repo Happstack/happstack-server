@@ -27,7 +27,6 @@ import qualified Data.ByteString.Char8            as B
 import           Happstack.Server.Monads          (ServerPartT, ServerMonad(..))
 import           Happstack.Server.Internal.Monads (WebT, anyRequest)
 import           Happstack.Server.Types           (Request(..), Method(..), FromReqURI(..), getHeader, rqURL)
-import           Happstack.Util.Common            (readM)
 import           System.FilePath                  (makeRelative, splitDirectories)
 
 -- | instances of this class provide a variety of ways to match on the 'Request' method.

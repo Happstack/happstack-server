@@ -69,6 +69,7 @@ Library
                        Happstack.Server.Internal.Handler
                        Happstack.Server.Internal.LazyLiner
                        Happstack.Server.Internal.Listen
+                       Happstack.Server.Internal.LogFormat
                        Happstack.Server.Internal.Multipart
                        Happstack.Server.Internal.RFC822Headers
                        Happstack.Server.Internal.Socket
@@ -78,15 +79,14 @@ Library
 
   Build-Depends:       base,
                        blaze-html >= 0.3 && < 0.5,
+                       base64-bytestring == 0.1.*,
                        bytestring,
                        containers,
                        directory,
                        extensible-exceptions,
                        filepath,
---                       HaXml >= 1.13 && < 1.14,
                        hslogger >= 1.0.2,
                        happstack-data >= 6.0 && < 6.1,
-                       happstack-util >= 6.0 && < 6.1,
                        html,
                        MaybeT,
                        mtl >= 1.1 && < 2.1,

@@ -39,7 +39,7 @@ import Happstack.Server.SURI
 import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
-import Happstack.Util.LogFormat (formatRequestCombined)
+import Happstack.Server.Internal.LogFormat (formatRequestCombined)
 import Numeric (readDec)
 import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()

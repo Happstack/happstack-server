@@ -1,11 +1,12 @@
 {-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable #-}
 -- | A wrapper and type class so that functions like 'seeOther' can take a URI which is represented by a 'String', 'URI.URI', or other instance of 'ToSURI'. 
 module Happstack.Server.SURI where
+
+import Control.Arrow (first)
 import Data.Maybe
 import Data.Generics
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LazyText
-import Happstack.Util.Common(mapFst)
 import qualified Network.URI as URI
 
 -- | Retrieves the path component from the URI
@@ -49,6 +50,9 @@ instance Show SURI where
     showsPrec d (SURI uri) = showsPrec d $ show uri
 instance Read SURI where
     readsPrec d = mapFst fromJust .  filter (isJust . fst) . mapFst parse . readsPrec d 
+      where
+        mapFst :: (a -> b) -> [(a,x)] -> [(b,x)]
+        mapFst = map . first
 
 instance Ord SURI where
     compare a b = show a `compare` show b

@@ -24,7 +24,6 @@ import Data.List             ((\\), intersperse)
 import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format      (formatTime)
-import Happstack.Util.Common (Seconds)
 import Happstack.Server.Internal.Clock (getApproximateUTCTime)
 import Text.ParserCombinators.Parsec hiding (token)
 import System.Locale         (defaultTimeLocale)
@@ -49,13 +48,13 @@ data Cookie = Cookie
 --
 data CookieLife
     = Session         -- ^ session cookie - expires when browser is closed
-    | MaxAge Seconds  -- ^ life time of cookie in seconds
+    | MaxAge Int      -- ^ life time of cookie in seconds
     | Expires UTCTime -- ^ cookie expiration date
     | Expired         -- ^ cookie already expired
       deriving (Eq, Ord, Read, Show, Typeable)
 
 -- convert 'CookieLife' to the argument needed for calling 'mkCookieHeader'
-calcLife :: CookieLife -> IO (Maybe (Seconds, UTCTime))
+calcLife :: CookieLife -> IO (Maybe (Int, UTCTime))
 calcLife Session = return Nothing
 calcLife (MaxAge s) =
           do now <- getApproximateUTCTime
@@ -89,7 +88,7 @@ mkCookie key val = Cookie "1" "/" "" key val False False
 --
 -- See 'CookieLife' and 'calcLife' for a convenient way of calculating
 -- the first argument to this function.
-mkCookieHeader :: Maybe (Seconds, UTCTime) -> Cookie -> String
+mkCookieHeader :: Maybe (Int, UTCTime) -> Cookie -> String
 mkCookieHeader mLife cookie =
     let l = [("Domain=",  cookieDomain cookie)
             ,("Max-Age=", maybe "" (show . max 0 . fst) mLife)

@@ -3,10 +3,11 @@
 module Happstack.Server.Auth where
 
 import Control.Monad                             (MonadPlus(mzero, mplus))
+import Data.ByteString.Base64                    as Base64
 import qualified Data.ByteString.Char8           as B
+import Data.Char                                 (chr)
 import qualified Data.Map                        as M
-import qualified Happstack.Crypto.Base64         as Base64
-import Happstack.Server.Monads                   (FilterMonad, ServerMonad, WebMonad, escape, getHeaderM, setHeaderM)
+import Happstack.Server.Monads                   (Happstack, FilterMonad, ServerMonad, WebMonad, escape, getHeaderM, setHeaderM)
 import Happstack.Server.Types                    (Response)
 import Happstack.Server.Response                 (unauthorized, toResponse)
 
@@ -21,7 +22,7 @@ import Happstack.Server.Response                 (unauthorized, toResponse)
 -- >       , ok "You are not in the secret club." 
 -- >       ]
 -- 
-basicAuth :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadPlus m) =>
+basicAuth :: (Happstack m) =>
    String -- ^ the realm name
    -> M.Map String String -- ^ the username password map
    -> m a -- ^ the part to guard
@@ -32,14 +33,20 @@ basicAuth realmName authMap xs = basicAuthImpl `mplus` xs
         aHeader <- getHeaderM "authorization"
         case aHeader of
             Nothing -> err
-            Just x -> case parseHeader x of
-                (name, ':':password) | validLogin name password -> mzero
-                                     | otherwise -> err
-                _  -> err
+            Just x -> 
+                do r <- parseHeader x 
+                   case r of
+                     (name, ':':password) | validLogin name password -> mzero
+                                          | otherwise -> err
+                     _  -> err
     validLogin name password = M.lookup name authMap == Just password
-    parseHeader = break (':'==) . Base64.decode . B.unpack . B.drop 6
+    parseHeader h = 
+      case Base64.decode . B.drop 6 $ h of
+        (Left _)   -> err
+        (Right bs) -> return (break (':'==) (B.unpack bs))
     headerName  = "WWW-Authenticate"
     headerValue = "Basic realm=\"" ++ realmName ++ "\""
+    err :: (Happstack m) => m a
     err = escape $ do
             setHeaderM headerName headerValue
             unauthorized $ toResponse "Not authorized"

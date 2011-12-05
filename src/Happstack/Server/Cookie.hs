@@ -17,7 +17,6 @@ import Data.Time.Clock                  (UTCTime)
 import Happstack.Server.Internal.Monads (FilterMonad, composeFilter)
 import Happstack.Server.Internal.Cookie (Cookie(..), CookieLife(..), calcLife, mkCookie, mkCookieHeader)
 import Happstack.Server.Types           (Response, addHeader)
-import Happstack.Util.Common            (Seconds)
 
 -- | Add the 'Cookie' to 'Response'.
 --

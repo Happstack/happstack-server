@@ -15,7 +15,6 @@ import Happstack.Server.Internal.Types as H
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.RFC822Headers (parseContentType)
 import Happstack.Server.SURI as SURI
-import Happstack.Util.Common
 
 queryInput :: SURI -> [(String, Input)]
 queryInput uri = formDecode (case SURI.query uri of
@@ -116,3 +115,23 @@ multipartDecode inputWorker ps inp =
 -- | Get the path components from a String.
 pathEls :: String -> [String]
 pathEls = (drop 1) . map SURI.unEscape . splitList '/' 
+
+-- | Repeadly splits a list by the provided separator and collects the results
+splitList :: Eq a => a -> [a] -> [[a]]
+splitList _   [] = []
+splitList sep list = h:splitList sep t
+	where (h,t)=split (==sep) list
+
+-- | Repeatedly splits a list and collects the results
+splitListBy :: (a -> Bool) -> [a] -> [[a]]
+splitListBy _ [] = []
+splitListBy f list = h:splitListBy f t
+	where (h,t)=split f list
+
+-- | Split is like break, but the matching element is dropped.
+split :: (a -> Bool) -> [a] -> ([a], [a])
+split f s = (left,right)
+	where
+	(left,right')=break f s
+	right = if null right' then [] else tail right'
+							

@@ -12,6 +12,8 @@ module Happstack.Server.XSLT
 
 import System.Log.Logger
 
+import Control.Concurrent              (forkIO)
+import Control.Concurrent.MVar         (newEmptyMVar, putMVar, takeMVar)
 import Control.Monad
 import Control.Monad.Trans
 import qualified Data.ByteString.Char8           as B
@@ -19,14 +21,15 @@ import Happstack.Server.SimpleHTTP
 
 import Happstack.Server.Types
 -- import Happstack.Server.MinHaXML
-import Happstack.Util.Common(runCommand)
 import Control.Exception.Extensible(bracket,try,SomeException)
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Lazy.Char8 as L
 import System.Directory(removeFile)
 import System.Environment(getEnv)
+import System.Exit (ExitCode(..))
 import System.IO
 import System.IO.Unsafe(unsafePerformIO)
+import System.Process (runInteractiveProcess, waitForProcess)
 -- import Text.XML.HaXml.Verbatim(verbatim)
 import Happstack.Data hiding (Element)
 
@@ -185,3 +188,27 @@ doXslt cmd xslPath res =
        return $ setHeader "Content-Type" "text/html" $
               setHeader "Content-Length" (show $ L.length new) $
               res { rsBody = new }
+              
+-- | Run an external command. Upon failure print status
+--   to stderr.
+runCommand :: String -> [String] -> IO ()
+runCommand cmd args = do 
+    (_, outP, errP, pid) <- runInteractiveProcess cmd args Nothing Nothing
+    let pGetContents h = do mv <- newEmptyMVar
+                            let put [] = putMVar mv []
+                                put xs = last xs `seq` putMVar mv xs
+                            forkIO (hGetContents h >>= put)
+                            takeMVar mv
+    os <- pGetContents outP
+    es <- pGetContents errP
+    ec <- waitForProcess pid
+    case ec of
+      ExitSuccess   -> return ()
+      ExitFailure e ->
+          do hPutStrLn stderr ("Running process "++unwords (cmd:args)++" FAILED ("++show e++")")
+             hPutStrLn stderr os
+             hPutStrLn stderr es
+             hPutStrLn stderr "Raising error..."
+             fail "Running external command failed"
+
+

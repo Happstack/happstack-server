@@ -1,12 +1,13 @@
 module Happstack.Server.SURI.ParseURI(parseURIRef) where
 
+import qualified Data.ByteString          as BB
 import qualified Data.ByteString.Internal as BB
 import qualified Data.ByteString.Unsafe   as BB
 import Data.ByteString.Char8 as BC
 import Prelude hiding(break,length,null,drop,splitAt)
 import Network.URI
 
-import Happstack.Util.ByteStringCompat
+-- import Happstack.Util.ByteStringCompat
 
 parseURIRef :: ByteString -> URI
 parseURIRef fs =
@@ -79,3 +80,22 @@ unsafeHead = BB.w2c . BB.unsafeHead
 unsafeIndex :: ByteString -> Int -> Char
 unsafeIndex s = BB.w2c . BB.unsafeIndex s
 
+-- | Semantically equivalent to break on strings
+{-# INLINE breakChar #-}
+breakChar :: Char -> ByteString -> (ByteString, ByteString)
+breakChar ch = BB.break ((==) x) where x = BB.c2w ch
+
+-- | 'breakCharEnd' behaves like breakChar, but from the end of the
+-- ByteString.
+--
+-- > breakCharEnd ('b') (pack "aabbcc") == ("aab","cc")
+--
+-- and the following are equivalent:
+--
+-- > breakCharEnd 'c' "abcdef"
+-- > let (x,y) = break (=='c') (reverse "abcdef")
+-- > in (reverse (drop 1 y), reverse x)
+--
+{-# INLINE breakCharEnd #-}
+breakCharEnd :: Char -> ByteString -> (ByteString, ByteString)
+breakCharEnd c p = BB.breakEnd ((==) x) p where x = BB.c2w c
