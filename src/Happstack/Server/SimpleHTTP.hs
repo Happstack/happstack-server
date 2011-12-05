@@ -87,7 +87,7 @@ import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
 import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), UnWebT, unFilterFun, mapServerPartT, runServerPartT, ununWebT)
 import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn, listenOnIPv4) -- So that we can disambiguate 'Writer.listen'
-import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), nullConf, setHeader)
+import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), nullConf, readDec', setHeader)
 import Network                                   (Socket)
 import qualified Paths_happstack_server          as Cabal
 import System.Console.GetOpt                     ( OptDescr(Option)
@@ -105,7 +105,7 @@ import System.Posix.Terminal ( queryTerminal )
 -- | An array of 'OptDescr', useful for processing command line
 -- options into an 'Conf' for 'simpleHTTP'.
 ho :: [OptDescr (Conf -> Conf)]
-ho = [Option [] ["http-port"] (ReqArg (\h c -> c { port = read h }) "port") "port to bind http server"]
+ho = [Option [] ["http-port"] (ReqArg (\h c -> c { port = readDec' h }) "port") "port to bind http server"]
 
 -- | Parse command line options into a 'Conf'.
 parseConfig :: [String] -> Either [String] Conf

@@ -2,7 +2,7 @@
 module Happstack.Server.Client where
 
 import Happstack.Server.Internal.Handler    (parseResponse, putRequest)
-import Happstack.Server.Internal.Types      (Response, Request, getHeader)
+import Happstack.Server.Internal.Types      (Response, Request, getHeader, readDec')
 import Data.Maybe                           (fromJust)
 import qualified Data.ByteString.Char8      as B
 import qualified Data.ByteString.Lazy.Char8 as L 
@@ -14,7 +14,7 @@ import System.IO                            (BufferMode(NoBuffering), hFlush, hS
 getResponse :: Request -> IO (Either String Response)
 getResponse rq = withSocketsDo $ do
   let (hostName,p) = span (/=':') $ fromJust $ fmap B.unpack $ getHeader "host" rq 
-      portInt = if null p then 80 else read $ tail p
+      portInt = if null p then 80 else readDec' $ tail p
       portId = PortNumber $ toEnum $ portInt
   h <- connectTo hostName portId 
   hSetBuffering h NoBuffering

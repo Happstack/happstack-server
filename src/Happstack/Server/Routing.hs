@@ -13,7 +13,6 @@ module Happstack.Server.Routing
     , nullDir
     , trailingSlash
     , anyPath
-    , FromReqURI(..)
     , path
     , uriRest
     -- * Route by host
@@ -27,7 +26,7 @@ import           Control.Monad                    (MonadPlus(mzero,mplus), unles
 import qualified Data.ByteString.Char8            as B
 import           Happstack.Server.Monads          (ServerPartT, ServerMonad(..))
 import           Happstack.Server.Internal.Monads (WebT, anyRequest)
-import           Happstack.Server.Types           (Request(..), Method(..), getHeader, rqURL)
+import           Happstack.Server.Types           (Request(..), Method(..), FromReqURI(..), getHeader, rqURL)
 import           Happstack.Util.Common            (readM)
 import           System.FilePath                  (makeRelative, splitDirectories)
 
@@ -44,30 +43,6 @@ instance MatchMethod Method where matchMethod m = (== m)
 instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
 instance MatchMethod (Method -> Bool) where matchMethod f = f
 instance MatchMethod () where matchMethod () _ = True
-
--- | This class is used by 'path' to parse a path component into a
--- value.  
--- 
--- The instances for number types ('Int', 'Float', etc) use 'readM' to
--- parse the path component.
---
--- The instance for 'String', on the other hand, returns the
--- unmodified path component.
---
--- See the following section of the Happstack Crash Course for
--- detailed instructions using and extending 'FromReqURI':
---
---  <http://www.happstack.com/docs/crashcourse/RouteFilters.html#FromReqURI>
-
-class FromReqURI a where
-    fromReqURI :: String -> Maybe a
-
-instance FromReqURI String  where fromReqURI = Just
-instance FromReqURI Int     where fromReqURI = readM
-instance FromReqURI Integer where fromReqURI = readM
-instance FromReqURI Float   where fromReqURI = readM
-instance FromReqURI Double  where fromReqURI = readM
-
 
 -------------------------------------
 -- guards

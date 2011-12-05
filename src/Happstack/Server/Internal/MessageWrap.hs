@@ -116,14 +116,3 @@ multipartDecode inputWorker ps inp =
 -- | Get the path components from a String.
 pathEls :: String -> [String]
 pathEls = (drop 1) . map SURI.unEscape . splitList '/' 
-
--- | Like 'Read' except Strings and Chars not quoted.
-class (Read a)=>ReadString a where readString::String->a; readString =read 
-
-instance ReadString Int 
-instance ReadString Double 
-instance ReadString Float 
-instance ReadString SURI.SURI where readString = read . show
-instance ReadString [Char] where readString=id
-instance ReadString Char where 
-    readString s= if length t==1 then head t else read t where t=trim s 

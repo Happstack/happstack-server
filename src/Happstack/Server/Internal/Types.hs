@@ -14,7 +14,8 @@ module Happstack.Server.Internal.Types
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
      HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
-     Host, ContentType(..)
+     Host, ContentType(..),
+     readDec', readM, FromReqURI(..)
     ) where
 
 
@@ -30,14 +31,16 @@ import qualified Data.ByteString.Char8 as P
 import Data.ByteString.Char8 (ByteString,pack)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.UTF8  as LU (fromString)
+import Data.Int   (Int, Int8, Int16, Int32, Int64)
 import Data.Maybe
 import Data.List
+import Data.Word  (Word, Word8, Word16, Word32, Word64)
 import Happstack.Server.SURI
 import Data.Char (toLower)
-
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Util.LogFormat (formatRequestCombined)
+import Numeric (readDec)
 import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()
 
@@ -396,3 +399,61 @@ connectionC = P.pack "Connection"
 keepaliveC :: ByteString
 keepaliveC  = P.pack "Keep-Alive"
 
+readDec' :: (Num a) => String -> a
+readDec' s =
+  case readDec s of
+    [(n,[])] -> n
+    _    -> error "readDec' failed."
+    
+-- | Read in any monad.
+readM :: (Monad m, Read t) => String -> m t
+readM s = case reads s of
+            [(v,"")] -> return v
+            _        -> fail "readM: parse error"
+            
+-- |convert a 'ReadS a' result to 'Maybe a'
+fromReadS :: [(a, String)] -> Maybe a
+fromReadS [(n,[])] = Just n
+fromReadS _        = Nothing
+    
+-- | This class is used by 'path' to parse a path component into a
+-- value.
+-- 
+-- The instances for number types ('Int', 'Float', etc) use 'readM' to
+-- parse the path component.
+--
+-- The instance for 'String', on the other hand, returns the
+-- unmodified path component.
+--
+-- See the following section of the Happstack Crash Course for
+-- detailed instructions using and extending 'FromReqURI':
+--
+--  <http://www.happstack.com/docs/crashcourse/RouteFilters.html#FromReqURI>
+
+class FromReqURI a where
+    fromReqURI :: String -> Maybe a
+
+instance FromReqURI String  where fromReqURI = Just
+instance FromReqURI Char    where fromReqURI s = case s of [c] -> Just c ; _ -> Nothing
+instance FromReqURI Int     where fromReqURI = fromReadS . readDec
+instance FromReqURI Int8    where fromReqURI = fromReadS . readDec
+instance FromReqURI Int16   where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Int32   where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Int64   where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Integer where fromReqURI = fromReadS . readDec
+instance FromReqURI Word    where fromReqURI = fromReadS . readDec
+instance FromReqURI Word8   where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Word16  where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Word32  where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Word64  where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Float   where fromReqURI = readM
+instance FromReqURI Double  where fromReqURI = readM
+instance FromReqURI Bool    where 
+  fromReqURI s =
+    let s' = map toLower s in
+    case s' of
+      "0"     -> Just False
+      "false" -> Just False
+      "1"     -> Just True
+      "True"  -> Just True
+      _       -> Nothing

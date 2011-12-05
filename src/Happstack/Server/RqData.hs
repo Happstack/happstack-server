@@ -73,7 +73,7 @@ import qualified Data.Text.Lazy.Encoding        as Text
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), FilterMonad, WebMonad, ServerPartT, escape)
 import Happstack.Server.Internal.RFC822Headers  (parseContentType)
-import Happstack.Server.Types                   (ContentType(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), getHeader, readInputsBody)
+import Happstack.Server.Types                   (ContentType(..), FromReqURI(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), getHeader, readInputsBody)
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 import Happstack.Server.Response                (internalServerError, requestEntityTooLarge, toResponse)
 
@@ -187,17 +187,40 @@ mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 
 -- | use 'read' to convert a 'String' to a value of type 'a'
 --
+-- > look "key" `checkRq` (unsafeReadRq "key")
+-- 
+-- use with 'checkRq'
+--
+-- NOTE: This function is marked unsafe because some Read instances
+-- are vulnerable to attacks that attempt to create an out of memory
+-- condition. For example:
+--
+-- > read "1e10000000000000" :: Integer
+--
+-- see also: 'readRq'
+unsafeReadRq :: (Read a) => 
+          String -- ^ name of key (only used for error reporting)
+       -> String -- ^ 'String' to 'read'
+       -> Either String a -- ^ 'Left' on error, 'Right' on success
+unsafeReadRq key val =
+    case reads val of
+      [(a,[])] -> Right a
+      _        -> Left $ "readRq failed while parsing key: " ++ key ++ " which has the value: " ++ val
+      
+-- | use 'fromReqURI' to convert a 'String' to a value of type 'a'
+--
 -- > look "key" `checkRq` (readRq "key")
 -- 
 -- use with 'checkRq'
-readRq :: (Read a) => 
+readRq :: (FromReqURI a) => 
           String -- ^ name of key (only used for error reporting)
        -> String -- ^ 'String' to 'read'
        -> Either String a -- ^ 'Left' on error, 'Right' on success
 readRq key val =
-    case reads val of
-      [(a,[])] -> Right a
+    case fromReqURI val of
+      (Just a) -> Right a
       _        -> Left $ "readRq failed while parsing key: " ++ key ++ " which has the value: " ++ val
+
 
 -- | convert or validate a value
 --
@@ -373,7 +396,7 @@ lookCookieValue :: (Functor m, Monad m, HasRqData m) => String -> m String
 lookCookieValue = fmap cookieValue . lookCookie
 
 -- | gets the named cookie as the requested Read type
-readCookieValue :: (Functor m, Monad m, HasRqData m, Read a) => String -> m a
+readCookieValue :: (Functor m, Monad m, HasRqData m, FromReqURI a) => String -> m a
 readCookieValue name = fmap cookieValue (lookCookie name) `checkRq` (readRq name)
 
 -- | Gets the first matching named input parameter and decodes it using 'Read'
@@ -383,7 +406,7 @@ readCookieValue name = fmap cookieValue (lookCookie name) `checkRq` (readRq name
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookReads'
-lookRead :: (Functor m, Monad m, HasRqData m, Read a) => String -> m a
+lookRead :: (Functor m, Monad m, HasRqData m, FromReqURI a) => String -> m a
 lookRead name = look name `checkRq` (readRq name)
 
 -- | Gets all matches for the named input parameter and decodes them using 'Read'
@@ -393,7 +416,7 @@ lookRead name = look name `checkRq` (readRq name)
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookReads'
-lookReads :: (Functor m, Monad m, HasRqData m, Read a) => String -> m [a]
+lookReads :: (Functor m, Monad m, HasRqData m, FromReqURI a) => String -> m [a]
 lookReads name = 
     do vals <- looks name
        mapM (\v -> (return v) `checkRq` (readRq name)) vals

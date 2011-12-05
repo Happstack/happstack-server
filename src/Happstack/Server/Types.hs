@@ -12,7 +12,8 @@ module Happstack.Server.Types
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
      HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
-     Host, ContentType(..)
+     Host, ContentType(..),
+     readDec', FromReqURI(..)
     ) where
 
 import Happstack.Server.Internal.Types

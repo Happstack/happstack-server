@@ -135,6 +135,7 @@ import Control.Exception.Extensible as Exception
 import Network.URI
 import Happstack.Server.HTTPClient.Stream
 import Happstack.Server.HTTPClient.TCP
+import Happstack.Server.Internal.Types (readDec')
 
 
 -- Util
@@ -627,7 +628,7 @@ simpleHTTP r =
     where
         port auth = if null (uriPort auth)
             then 80
-            else read $ uriPort auth
+            else readDec' $ uriPort auth
             
 
 -- | Like 'simpleHTTP', but acting on an already opened stream.
@@ -790,7 +791,7 @@ sendHTTPPipelined conn rqs =
                     do { rslt <- case tc of
                           Nothing -> 
                               case cl of
-                                  Just x  -> linearTransfer conn (read x :: Int)
+                                  Just x  -> linearTransfer conn (readDec' x :: Int)
                                   Nothing -> hopefulTransfer conn ""
                           Just x  -> 
                               case map toLower (trim x) of
@@ -838,7 +839,7 @@ receiveHTTP conn = do rq <- getRequestHead
 	       rslt <- case tc of
                           Nothing ->
                               case cl of
-                                  Just x  -> linearTransfer conn (read x :: Int)
+                                  Just x  -> linearTransfer conn (readDec' x :: Int)
                                   Nothing -> return (Right ([], "")) -- hopefulTransfer ""
                           Just x  ->
                               case map toLower (trim x) of

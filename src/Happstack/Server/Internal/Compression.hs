@@ -177,7 +177,7 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
             encoding <- many1 (alphaNum <|> char '-') <|> string "*"
             ws
             quality<-optionMaybe qual
-            return (encoding, fmap read quality)
+            return (encoding, fmap readDec' quality)
 
         qual :: GenParser Char st String
         qual = do
