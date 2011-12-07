@@ -15,7 +15,7 @@ module Happstack.Server.Internal.Types
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
      HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
      Host, ContentType(..),
-     readDec', readM, FromReqURI(..)
+     readDec', fromReadS, readM, FromReqURI(..)
     ) where
 
 
