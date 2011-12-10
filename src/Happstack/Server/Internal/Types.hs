@@ -40,7 +40,7 @@ import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
-import Numeric (readDec)
+import Numeric (readDec, readSigned)
 import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()
 
@@ -435,17 +435,17 @@ class FromReqURI a where
 
 instance FromReqURI String  where fromReqURI = Just
 instance FromReqURI Char    where fromReqURI s = case s of [c] -> Just c ; _ -> Nothing
-instance FromReqURI Int     where fromReqURI = fromReadS . readDec
-instance FromReqURI Int8    where fromReqURI = fromReadS . readDec
-instance FromReqURI Int16   where fromReqURI = fromReadS . readDec                                  
-instance FromReqURI Int32   where fromReqURI = fromReadS . readDec                                  
-instance FromReqURI Int64   where fromReqURI = fromReadS . readDec                                  
-instance FromReqURI Integer where fromReqURI = fromReadS . readDec
+instance FromReqURI Int     where fromReqURI = fromReadS . readSigned readDec
+instance FromReqURI Int8    where fromReqURI = fromReadS . readSigned readDec
+instance FromReqURI Int16   where fromReqURI = fromReadS . readSigned readDec
+instance FromReqURI Int32   where fromReqURI = fromReadS . readSigned readDec
+instance FromReqURI Int64   where fromReqURI = fromReadS . readSigned readDec
+instance FromReqURI Integer where fromReqURI = fromReadS . readSigned readDec
 instance FromReqURI Word    where fromReqURI = fromReadS . readDec
-instance FromReqURI Word8   where fromReqURI = fromReadS . readDec                                  
-instance FromReqURI Word16  where fromReqURI = fromReadS . readDec                                  
-instance FromReqURI Word32  where fromReqURI = fromReadS . readDec                                  
-instance FromReqURI Word64  where fromReqURI = fromReadS . readDec                                  
+instance FromReqURI Word8   where fromReqURI = fromReadS . readDec
+instance FromReqURI Word16  where fromReqURI = fromReadS . readDec
+instance FromReqURI Word32  where fromReqURI = fromReadS . readDec
+instance FromReqURI Word64  where fromReqURI = fromReadS . readDec
 instance FromReqURI Float   where fromReqURI = readM
 instance FromReqURI Double  where fromReqURI = readM
 instance FromReqURI Bool    where 
