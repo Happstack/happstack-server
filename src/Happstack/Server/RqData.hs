@@ -526,7 +526,7 @@ decodeBody bp =
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
-getDataFn :: (HasRqData m, ServerMonad m, MonadIO m) => 
+getDataFn :: (HasRqData m, ServerMonad m) =>
              RqData a -- ^ 'RqData' monad to evaluate
           -> m (Either [String] a) -- ^ return 'Left' errors or 'Right' a
 getDataFn rqData =
@@ -538,7 +538,7 @@ getDataFn rqData =
 -- 
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
-withDataFn :: (HasRqData m, MonadIO m, MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
+withDataFn :: (HasRqData m, MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
 withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 
 -- | A variant of 'getDataFn' that uses 'FromData' to chose your
@@ -568,14 +568,14 @@ withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
-getData :: (HasRqData m, MonadIO m, ServerMonad m, FromData a) => m (Either [String] a)
+getData :: (HasRqData m, ServerMonad m, FromData a) => m (Either [String] a)
 getData = getDataFn fromData
 
 -- | similar to 'getData' except it calls a subhandler on success or 'mzero' on failure.
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
-withData :: (HasRqData m, MonadIO m, FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
+withData :: (HasRqData m, FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
 withData = withDataFn fromData
 
 -- | limit the scope to the Request body
