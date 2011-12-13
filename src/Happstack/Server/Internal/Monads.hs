@@ -7,8 +7,13 @@ import Control.Applicative                       (Applicative, pure, (<*>), Alte
 
 import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
+import Control.Monad.Base                        ( MonadBase, liftBase )
 import Control.Monad.Trans                       ( MonadTrans, lift
                                                  , MonadIO, liftIO
+                                                 )
+import Control.Monad.Trans.Control               ( MonadTransControl(..)
+                                                 , MonadBaseControl(..)
+                                                 , ComposeSt, defaultLiftBaseWith, defaultRestoreM
                                                  )
 import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
                                                  , MonadReader, ask, local
@@ -23,7 +28,7 @@ import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
                                                  , Error, MonadError, throwError
                                                  , catchError, mapErrorT
                                                  )
-import Control.Monad.Maybe                       (MaybeT(MaybeT), runMaybeT)
+import Control.Monad.Trans.Maybe                 (MaybeT(MaybeT), runMaybeT)
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
 import Data.Char                                 (ord)
 import Data.List                                 (inits, isPrefixOf, stripPrefix, tails)
@@ -48,9 +53,24 @@ type ServerPart a = ServerPartT IO a
 newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
     deriving (Monad, MonadPlus, Functor)
 
+instance MonadBase b m => MonadBase b (ServerPartT m) where
+    liftBase = lift . liftBase
+
 instance (MonadIO m) => MonadIO (ServerPartT m) where
     liftIO = ServerPartT . liftIO
     {-# INLINE liftIO #-}
+
+instance MonadTransControl ServerPartT where
+    newtype StT ServerPartT a = StSP {unStSP :: StT WebT (StT (ReaderT Request) a)}
+    liftWith f = ServerPartT $ liftWith $ \runReader ->
+                                 liftWith $ \runWeb ->
+                                   f $ liftM StSP . runWeb . runReader . unServerPartT
+    restoreT = ServerPartT . restoreT . restoreT . liftM unStSP
+
+instance MonadBaseControl b m => MonadBaseControl b (ServerPartT m) where
+    newtype StM (ServerPartT m) b = StMSP {unStMSP :: ComposeSt ServerPartT m b}
+    liftBaseWith = defaultLiftBaseWith StMSP
+    restoreM     = defaultRestoreM     unStMSP
 
 -- | Particularly useful when combined with 'runWebT' to produce
 -- a @m ('Maybe' 'Response')@ from a 'Request'.
@@ -228,11 +248,24 @@ filterFun :: (a -> a) -> FilterFun a
 filterFun = Set . Dual . Endo
 
 newtype FilterT a m b = FilterT { unFilterT :: WriterT (FilterFun a) m b }
-   deriving (Monad, MonadTrans, Functor)
+   deriving (Functor, Applicative, Monad, MonadTrans)
+
+instance MonadBase b m => MonadBase b (FilterT a m) where
+    liftBase = lift . liftBase
 
 instance (MonadIO m) => MonadIO (FilterT a m) where
     liftIO = FilterT . liftIO
     {-# INLINE liftIO #-}
+
+instance MonadTransControl (FilterT a) where
+    newtype StT (FilterT a) b = StFilter {unStFilter :: StT (WriterT (FilterFun a)) b}
+    liftWith f = FilterT $ liftWith $ \run -> f $ liftM StFilter . run . unFilterT
+    restoreT = FilterT . restoreT . liftM unStFilter
+
+instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
+    newtype StM (FilterT a m) b = StMFilter {unStMFilter :: ComposeSt (FilterT a) m b}
+    liftBaseWith = defaultLiftBaseWith StMFilter
+    restoreM     = defaultRestoreM     unStMFilter
 
 -- | A set of functions for manipulating filters.  
 --
@@ -270,9 +303,29 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
     deriving (Functor)
 
+instance MonadBase b m => MonadBase b (WebT m) where
+    liftBase = lift . liftBase
+
 instance (MonadIO m) => MonadIO (WebT m) where
     liftIO = WebT . liftIO
     {-# INLINE liftIO #-}
+
+instance MonadTransControl WebT where
+    newtype StT WebT a = StWeb {unStWeb :: StT MaybeT
+                                             (StT (FilterT Response)
+                                               (StT (ErrorT Response) a))}
+    liftWith f = WebT $ liftWith $ \runError ->
+                          liftWith $ \runFilter ->
+                            liftWith $ \runMaybe ->
+                              f $ liftM StWeb . runMaybe .
+                                                  runFilter .
+                                                    runError . unWebT
+    restoreT = WebT . restoreT . restoreT . restoreT . liftM unStWeb
+
+instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
+    newtype StM (WebT m) b = StMWeb {unStMWeb :: ComposeSt WebT m b}
+    liftBaseWith = defaultLiftBaseWith StMWeb
+    restoreM     = defaultRestoreM     unStMWeb
 
 -- | 'UnWebT' is almost exclusively used with 'mapServerPartT'. If you
 -- are not using 'mapServerPartT' then you do not need to wrap your
