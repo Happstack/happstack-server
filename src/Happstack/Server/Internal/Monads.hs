@@ -68,7 +68,7 @@ instance MonadTransControl ServerPartT where
     restoreT = ServerPartT . restoreT . restoreT . liftM unStSP
 
 instance MonadBaseControl b m => MonadBaseControl b (ServerPartT m) where
-    newtype StM (ServerPartT m) b = StMSP {unStMSP :: ComposeSt ServerPartT m b}
+    newtype StM (ServerPartT m) a = StMSP {unStMSP :: ComposeSt ServerPartT m a}
     liftBaseWith = defaultLiftBaseWith StMSP
     restoreM     = defaultRestoreM     unStMSP
 
@@ -263,7 +263,7 @@ instance MonadTransControl (FilterT a) where
     restoreT = FilterT . restoreT . liftM unStFilter
 
 instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
-    newtype StM (FilterT a m) b = StMFilter {unStMFilter :: ComposeSt (FilterT a) m b}
+    newtype StM (FilterT a m) c = StMFilter {unStMFilter :: ComposeSt (FilterT a) m c}
     liftBaseWith = defaultLiftBaseWith StMFilter
     restoreM     = defaultRestoreM     unStMFilter
 
@@ -323,7 +323,7 @@ instance MonadTransControl WebT where
     restoreT = WebT . restoreT . restoreT . restoreT . liftM unStWeb
 
 instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
-    newtype StM (WebT m) b = StMWeb {unStMWeb :: ComposeSt WebT m b}
+    newtype StM (WebT m) a = StMWeb {unStMWeb :: ComposeSt WebT m a}
     liftBaseWith = defaultLiftBaseWith StMWeb
     restoreM     = defaultRestoreM     unStMWeb
 
