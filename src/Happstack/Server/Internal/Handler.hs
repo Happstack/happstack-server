@@ -344,7 +344,7 @@ chunkedC = P.pack "chunked"
 
 -- Response code names
 
-responseMessage :: (Num t) => t -> B.ByteString
+responseMessage :: (Num t, Show t, Eq t) => t -> B.ByteString
 responseMessage 100 = P.pack " 100 Continue\r\n"
 responseMessage 101 = P.pack " 101 Switching Protocols\r\n"
 responseMessage 200 = P.pack " 200 OK\r\n"

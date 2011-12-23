@@ -399,7 +399,7 @@ connectionC = P.pack "Connection"
 keepaliveC :: ByteString
 keepaliveC  = P.pack "Keep-Alive"
 
-readDec' :: (Num a) => String -> a
+readDec' :: (Num a, Eq a) => String -> a
 readDec' s =
   case readDec s of
     [(n,[])] -> n
