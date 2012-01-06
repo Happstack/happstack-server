@@ -106,6 +106,10 @@ methodOnly = method
 -- 
 -- NOTE: This style of combinator is going to be deprecated in the
 -- future. It is better to just use 'method'.
+--
+-- > handler :: ServerPart Response
+-- > handler = method [GET, HEAD] >> nullDir >> subHandler
+{-# DEPRECATED methodSP "use method instead." #-}
 methodSP :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m b-> m b
 methodSP m handle = methodM m >> handle
 
