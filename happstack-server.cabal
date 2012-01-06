@@ -89,7 +89,7 @@ Library
                        happstack-data >= 6.0 && < 6.1,
                        html,
                        monad-control >= 0.3 && < 0.4,
-                       mtl >= 1.1 && < 2.1,
+                       mtl >= 2 && < 2.1,
                        old-locale,
                        old-time,
                        parsec < 4,
