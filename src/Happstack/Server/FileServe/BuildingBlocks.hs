@@ -57,6 +57,7 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as S
 import Data.Data  (Data, Typeable)
+import Data.List  (sort)
 import Data.Maybe (fromMaybe, maybe)
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -500,7 +501,7 @@ browseIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m, T
              -> m Response
 browseIndex renderFn serveFn mimeFn ixFiles localPath =
     do c       <- liftIO $ getDirectoryContents localPath
-       listing <- renderFn localPath $ filter (/= ".") c
+       listing <- renderFn localPath $ filter (/= ".") (sort c)
        ok $ toResponse $ listing
 
 data EntryKind = File | Directory | UnknownKind deriving (Eq, Ord, Read, Show, Data, Typeable, Enum)
