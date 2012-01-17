@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, UndecidableInstances  #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, TypeFamilies, UndecidableInstances  #-}
 {-| This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. Look in "Happstack.Server.Monads" instead.
 -}
 module Happstack.Server.Internal.Monads where

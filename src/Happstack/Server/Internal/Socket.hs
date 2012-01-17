@@ -1,5 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Happstack.Server.Internal.Socket(acceptLite) where
+module Happstack.Server.Internal.Socket
+    ( acceptLite
+    , sockAddrToHostName
+    ) where
 
 import Data.List (intersperse)
 import Data.Word (Word32)
@@ -50,8 +53,12 @@ acceptLite :: S.Socket -> IO (S.Socket, S.HostName, S.PortNumber)
 acceptLite sock = do
   (sock', addr) <- S.accept sock
   (N.PortNumber p) <- N.socketPort sock'
-  
-  let peer = $(if supportsIPv6
+  let peer = sockAddrToHostName addr
+  return (sock', peer, p)
+
+sockAddrToHostName ::  S.SockAddr -> S.HostName
+sockAddrToHostName addr =
+    $(if supportsIPv6
                  then
                  return $ CaseE (VarE (mkName "addr")) 
                             [Match 
@@ -73,6 +80,3 @@ acceptLite sock = do
                       (S.SockAddrInet _ ha)      -> showHostAddress ha
                       _                          -> error "Unsupported socket"
                  |])
-                     
-  return (sock', peer, p)
-

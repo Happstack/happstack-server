@@ -1,8 +1,11 @@
 {-# LANGUAGE FlexibleInstances, PatternGuards, ScopedTypeVariables, TypeSynonymInstances #-}
 -- | Route an incoming 'Request' to a handler. For more in-depth documentation see this section of the Happstack Crash Course: <http://happstack.com/docs/crashcourse/RouteFilters.html>
 module Happstack.Server.Routing 
-    ( -- * Route by request method
-      methodM
+    ( -- * Route by scheme
+      http
+    , https
+      -- * Route by request method
+    , methodM
     , methodOnly
     , methodSP
     , method
@@ -52,6 +55,31 @@ guardRq f = do
     rq <- askRq
     unless (f rq) mzero
 
+
+-- | guard which checks that an insecure connection was made via http://
+--
+-- Example:
+--
+-- > handler :: ServerPart Response
+-- > handler =
+-- >     do https
+-- >        ...
+http :: (ServerMonad m, MonadPlus m) => m ()
+http = guardRq (not . rqSecure)
+
+
+-- | guard which checks that a secure connection was made via https://
+--
+-- Example:
+--
+-- > handler :: ServerPart Response
+-- > handler =
+-- >     do https
+-- >        ...
+https :: (ServerMonad m, MonadPlus m) => m ()
+https = guardRq rqSecure
+
+
 -- | Guard against the method only (as opposed to 'methodM').
 --
 -- Example:
@@ -62,7 +90,6 @@ guardRq f = do
 -- >        ...
 method :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
 method meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
-
 
 -- | Guard against the method. This function also guards against
 -- *any remaining path segments*. See 'method' for the version

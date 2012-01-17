@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             6.4.6
+Version:             6.5.1
 Synopsis:            Web related tools and services.
 Description:         Happstack Server provides an HTTP server and a rich set of functions for routing requests, handling query parameters, generating responses, working with cookies, serving files, and more. For in-depth documentation see the Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>
 License:             BSD3
@@ -27,6 +27,11 @@ Flag tests
     Description: Build the testsuite, and include the tests in the library
     Default: False
 
+Flag disable-https
+     Description: Compile server with out https:// support
+     Default: False
+     Manual: True
+
 Library
 
   Exposed-modules:
@@ -44,6 +49,8 @@ Library
                        Happstack.Server.Internal.LowLevel
                        Happstack.Server.Internal.MessageWrap
 --                       Happstack.Server.Internal.NoPush
+                       Happstack.Server.Internal.TLS
+                       Happstack.Server.Internal.TimeoutIO
                        Happstack.Server.Internal.TimeoutManager
                        Happstack.Server.Internal.TimeoutSocket
                        Happstack.Server.Internal.Monads
@@ -57,7 +64,6 @@ Library
                        Happstack.Server.Types
                        Happstack.Server.Validation
                        Happstack.Server.XSLT
-
   if flag(tests)
     Exposed-modules:   
                        Happstack.Server.Tests
@@ -103,12 +109,19 @@ Library
                        utf8-string >= 0.3.4 && < 0.4,
                        xhtml,
                        zlib
+  if !flag(disable-https)
+    Exposed-modules:
+                       Happstack.Server.Internal.TimeoutSocketTLS
+    Build-Depends:
+                       HsOpenSSL == 0.10.*
+    Extra-Libraries:   crypto++ ssl
+  else
+    CPP-Options:       -DDISABLE_HTTPS
+
   if flag(network_2_2_3)
     Build-Depends:     network >= 2.2.3
   else
     Build-Depends:     network < 2.2.3, network-bytestring
-
-
 
   hs-source-dirs:      src
   if flag(tests)

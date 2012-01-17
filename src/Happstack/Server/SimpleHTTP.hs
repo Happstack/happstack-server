@@ -1,4 +1,4 @@
-
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -41,6 +41,7 @@ module Happstack.Server.SimpleHTTP
     , simpleHTTP''
     , simpleHTTPWithSocket
     , simpleHTTPWithSocket'
+    , httpsOnSocket
     , bindPort
     , bindIPv4
     , parseConfig
@@ -87,7 +88,8 @@ import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
 import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), UnWebT, unFilterFun, mapServerPartT, runServerPartT, ununWebT)
 import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn, listenOnIPv4) -- So that we can disambiguate 'Writer.listen'
-import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), nullConf, readDec', setHeader)
+import Happstack.Server.Internal.TLS             (httpsOnSocket)
+import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), HTTPS, nullConf, readDec', setHeader)
 import Network                                   (Socket)
 import qualified Paths_happstack_server          as Cabal
 import System.Console.GetOpt                     ( OptDescr(Option)
@@ -157,20 +159,20 @@ simpleHTTP'' hs req =  (runWebT $ runServerPartT hs req) >>= (return . (maybe st
 -- >     -- do other stuff as root here
 -- >     getUserEntryForName "www" >>= setUserID . userID
 -- >     -- finally start handling incoming requests
--- >     tid <- forkIO $ simpleHTTPWithSocket socket conf impl
+-- >     tid <- forkIO $ simpleHTTPWithSocket socket Nothing conf impl
 --
 -- Note: It's important to use the same conf (or at least the same
 -- port) for 'bindPort' and 'simpleHTTPWithSocket'.
 --
 -- see also: 'bindPort', 'bindIPv4'
-simpleHTTPWithSocket :: (ToMessage a) => Socket -> Conf -> ServerPartT IO a -> IO ()
+simpleHTTPWithSocket :: (ToMessage a) => Socket -> Maybe HTTPS -> Conf -> ServerPartT IO a -> IO ()
 simpleHTTPWithSocket = simpleHTTPWithSocket' id
 
 -- | Like 'simpleHTTP'' with a socket.
 simpleHTTPWithSocket' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
-                      -> Socket -> Conf -> ServerPartT m a -> IO ()
-simpleHTTPWithSocket' toIO socket conf hs =
-    Listen.listen' socket conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
+                      -> Socket -> Maybe HTTPS -> Conf -> ServerPartT m a -> IO ()
+simpleHTTPWithSocket' toIO socket https conf hs =
+    Listen.listen' socket https conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
 
 -- | Bind port and return the socket for use with 'simpleHTTPWithSocket'. This
 -- function always binds to IPv4 ports until Network module is fixed

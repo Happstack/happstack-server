@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, FlexibleInstances, RankNTypes #-}
 
 module Happstack.Server.Internal.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
@@ -9,7 +9,7 @@ module Happstack.Server.Internal.Types
      setHeader, setHeaderBS, setHeaderUnsafe,
      addHeader, addHeaderBS, addHeaderUnsafe,
      setRsCode, -- setCookie, setCookies,
-     Conf(..), nullConf, result, resultBS,
+     Conf(..), nullConf, TLSConf(..), HTTPS(..), result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
@@ -40,6 +40,7 @@ import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
+import Happstack.Server.Internal.TLS 
 import Numeric (readDec, readSigned)
 import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()
@@ -68,6 +69,7 @@ continueHTTP rq res = (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq  
 
 -- | HTTP configuration
 data Conf = Conf { port       :: Int -- ^ Port for the server to listen on.
+                 , tls        :: Maybe TLSConf
                  , validator  :: Maybe (Response -> IO Response) -- ^ a function to validate the output on-the-fly
                  , logAccess  :: forall t. FormatTime t => Maybe (String -> String -> t -> String -> Int -> Integer -> String -> String -> IO ()) -- ^ function to log access requests (see also: 'logMAccess')
                  , timeout    :: Int -- ^ number of seconds to wait before killing an inactive thread
@@ -76,6 +78,7 @@ data Conf = Conf { port       :: Int -- ^ Port for the server to listen on.
 -- | Default configuration contains no validator and the port is set to 8000
 nullConf :: Conf
 nullConf = Conf { port      = 8000
+                , tls       = Nothing
                 , validator = Nothing
                 , logAccess = Just logMAccess
                 , timeout   = 30
@@ -191,7 +194,8 @@ instance Error Response where
        result 500 str
 
 -- | an HTTP request
-data Request = Request { rqMethod      :: Method,
+data Request = Request { rqSecure      :: Bool,
+                         rqMethod      :: Method,
                          rqPaths       :: [String],
                          rqUri         :: String,
                          rqQuery       :: String,
@@ -207,6 +211,7 @@ data Request = Request { rqMethod      :: Method,
 instance Show Request where
     showsPrec _ rq =
         showString   "================== Request =================" .
+        showString "\nrqSecure      = " . shows      (rqMethod rq) .
         showString "\nrqMethod      = " . shows      (rqMethod rq) .
         showString "\nrqPaths       = " . shows      (rqPaths rq) .
         showString "\nrqUri         = " . showString (rqUri rq) .

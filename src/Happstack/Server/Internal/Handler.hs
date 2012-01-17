@@ -31,8 +31,8 @@ import Happstack.Server.Internal.MessageWrap
 -- import Happstack.Server.Internal.NoPush
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
+import Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import qualified Happstack.Server.Internal.TimeoutManager as TM
-import Happstack.Server.Internal.TimeoutSocket (sGetContents, sPutTickle, sendFileTickle)
 import Network.Socket (Socket)
 import Network.Socket.ByteString (sendAll)
 import Numeric
@@ -40,21 +40,21 @@ import System.Directory (removeFile)
 import System.IO
 import System.IO.Error (isDoesNotExistError)
 
-request :: TM.Handle -> Conf -> Socket -> Host -> (Request -> IO Response) -> IO ()
-request thandle conf sock host handler = rloop thandle conf sock host handler =<< sGetContents thandle sock
+request :: TimeoutIO -> Conf -> Host -> (Request -> IO Response) -> IO ()
+request timeoutIO conf host handler =
+    rloop timeoutIO conf host handler =<< toGetContents timeoutIO
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
 required _   (Just a) = Right a
 
-rloop :: TM.Handle
+rloop :: TimeoutIO
          -> Conf
-         -> Socket
          -> Host
          -> (Request -> IO Response)
          -> L.ByteString
          -> IO ()
-rloop thandle conf sock host handler inputStr
+rloop timeoutIO conf host handler inputStr
     | L.null inputStr = return ()
     | otherwise
     = join $
@@ -80,7 +80,7 @@ rloop thandle conf sock host handler inputStr
                -> return $
                   do bodyRef        <- newMVar (Body body)
                      bodyInputRef   <- newEmptyMVar
-                     let req = Request m (pathEls (path u)) (path u) (query u)
+                     let req = Request (toSecure timeoutIO) m (pathEls (path u)) (path u) (query u)
                                   (queryInput u) bodyInputRef cookies v headers bodyRef host
 
                      let ioseq act = act >>= \x -> x `seq` return x
@@ -101,10 +101,10 @@ rloop thandle conf sock host handler inputStr
                               logger host' user time requestLn responseCode size referer userAgent
 
                      -- withNoPush sock $ putAugmentedResult thandle sock req res
-                     putAugmentedResult thandle sock req res
+                     putAugmentedResult timeoutIO req res
                      -- clean up tmp files
                      cleanupTempFiles req
-                     when (continueHTTP req res) $ rloop thandle conf sock host handler nextRequest
+                     when (continueHTTP req res) $ rloop timeoutIO conf host handler nextRequest
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()
@@ -211,8 +211,8 @@ staticHeaders =
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
-putAugmentedResult :: TM.Handle -> Socket -> Request -> Response -> IO ()
-putAugmentedResult thandle outp req res = do
+putAugmentedResult :: TimeoutIO -> Request -> Response -> IO ()
+putAugmentedResult timeoutIO req res = do
     case res of
         -- standard bytestring response
         Response {} -> do
@@ -222,7 +222,7 @@ putAugmentedResult thandle outp req res = do
                      (let body = if chunked
                                  then chunk (rsBody res)
                                  else rsBody res
-                      in sPutTickle thandle outp body)
+                      in toPutLazy timeoutIO body)
         -- zero-copy sendfile response
         -- the handle *should* be closed by the garbage collector
 
@@ -231,19 +231,19 @@ putAugmentedResult thandle outp req res = do
                 off = sfOffset res
                 count = sfCount res
             sendTop (Just count) False
-            TM.tickle thandle
-            sendFileTickle thandle outp infp off count
+            TM.tickle (toHandle timeoutIO)
+            toSendFile timeoutIO infp off count
 
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl chunked = do
               allHeaders <- augmentHeaders req res cl chunked
-              sendAll outp $ B.concat $ concat
+              toPut timeoutIO $ B.concat $ concat
                  [ (pversion $ rqVersion req)          -- Print HTTP version
                  , [responseMessage $ rsCode res]      -- Print responseCode
                  , concatMap ph (M.elems allHeaders)   -- Print all headers
                  , [crlfC]
                  ]
-              TM.tickle thandle
+              TM.tickle (toHandle timeoutIO)
           chunk :: L.ByteString -> L.ByteString
           chunk Empty        = LC.pack "0\r\n\r\n"
           chunk (Chunk c cs) = Chunk (B.pack $ showHex (B.length c) "\r\n") (Chunk c (Chunk (B.pack "\r\n") (chunk cs)))

@@ -7,7 +7,7 @@ module Happstack.Server.Types
      setHeader, setHeaderBS, setHeaderUnsafe,
      addHeader, addHeaderBS, addHeaderUnsafe,
      setRsCode, -- setCookie, setCookies,
-     Conf(..), nullConf, result, resultBS,
+     Conf(..), nullConf, TLSConf(..), HTTPS(..), result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,

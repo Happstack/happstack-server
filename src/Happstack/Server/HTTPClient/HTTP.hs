@@ -141,7 +141,7 @@ import Happstack.Server.Internal.Types (readDec')
 -- Util
 import Data.Bits ((.&.))
 import Data.Char
-import Data.List (partition,elemIndex,intersperse)
+import Data.List (foldl', elemIndex, intersperse, partition)
 import Control.Monad (when,forM)
 import Numeric (readHex)
 import Text.ParserCombinators.ReadP
@@ -1011,7 +1011,7 @@ urlEncode [] = []
 urlEncodeVars :: [(String,String)] -> String
 urlEncodeVars ((n,v):t) =
     let (same,diff) = partition ((==n) . fst) t
-    in urlEncode n ++ '=' : foldl (\x y -> x ++ ',' : urlEncode y) (urlEncode $ v) (map snd same)
+    in urlEncode n ++ '=' : foldl' (\x y -> x ++ ',' : urlEncode y) (urlEncode $ v) (map snd same)
        ++ urlEncodeRest diff
        where urlEncodeRest [] = []
              urlEncodeRest diff = '&' : urlEncodeVars diff
