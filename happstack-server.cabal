@@ -63,7 +63,6 @@ Library
                        Happstack.Server.SimpleHTTP
                        Happstack.Server.Types
                        Happstack.Server.Validation
-                       Happstack.Server.XSLT
   if flag(tests)
     Exposed-modules:   
                        Happstack.Server.Tests
@@ -92,7 +91,6 @@ Library
                        extensible-exceptions,
                        filepath,
                        hslogger >= 1.0.2,
-                       happstack-data >= 6.0 && < 6.1,
                        html,
                        monad-control >= 0.3 && < 0.4,
                        mtl >= 2 && < 2.1,
