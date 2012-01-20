@@ -1,27 +1,25 @@
 module Happstack.Server.Internal.Multipart where
 
-import           Control.Monad (MonadPlus(mplus), foldM)
-import qualified Data.ByteString.Lazy.Char8    as L
-import qualified Data.ByteString.Internal      as B
-import           Data.ByteString.Lazy.Internal (ByteString(Chunk, Empty))
-import           Data.ByteString.Lazy.Internal as L
-import qualified Data.ByteString.Lazy.UTF8     as LU
-import qualified Data.ByteString.Char8         as S
-import           Data.List (intercalate)
-import           Data.Maybe (fromMaybe)
-import           Data.Int (Int64)
-import           Text.ParserCombinators.Parsec (ParseError, parse)
+import           Control.Monad                   (MonadPlus(mplus))
+import qualified Data.ByteString.Lazy.Char8      as L
+import           Data.ByteString.Lazy.Internal   (ByteString(Chunk, Empty))
+import qualified Data.ByteString.Lazy.UTF8       as LU
+import qualified Data.ByteString.Char8           as S
+import           Data.Maybe                      (fromMaybe)
+import           Data.Int                        (Int64)
+import           Text.ParserCombinators.Parsec   (parse)
 import           Happstack.Server.Internal.Types (Input(..))
-import           Happstack.Server.Internal.RFC822Headers ( ContentType(..), ContentDisposition(..), Header
-                                                         , getContentDisposition, getContentType, pHeaders)
-import           System.IO (Handle, hClose, openBinaryTempFile)
+import           Happstack.Server.Internal.RFC822Headers 
+                                                  ( ContentType(..), ContentDisposition(..), Header
+                                                  , getContentDisposition, getContentType, pHeaders)
+import           System.IO                        (Handle, hClose, openBinaryTempFile)
 
 -- | similar to the normal 'span' function, except the predicate gets the whole rest of the lazy bytestring, not just one character.
 --
 -- TODO: this function has not been profiled.
 spanS :: (L.ByteString -> Bool) -> L.ByteString -> (L.ByteString, L.ByteString)
 spanS f cs0 = spanS' 0 cs0
-  where spanS' n Empty = (Empty, Empty)
+  where spanS' _ Empty = (Empty, Empty)
         spanS' n bs@(Chunk c cs)
             | n >= S.length c = 
                 let (x, y) = spanS' 0 cs
@@ -32,7 +30,7 @@ spanS f cs0 = spanS' 0 cs0
 
 takeWhileS :: (L.ByteString -> Bool) -> L.ByteString -> L.ByteString
 takeWhileS f cs0 = takeWhile' 0 cs0
-  where takeWhile' n Empty = Empty
+  where takeWhile' _ Empty = Empty
         takeWhile' n bs@(Chunk c cs)
             | n >= S.length c = Chunk c (takeWhile' 0 cs)
             | not (f (Chunk (S.drop n c) cs)) = (Chunk (S.take n c) Empty)
@@ -74,6 +72,7 @@ type FileSaver = FilePath 		-- ^ tempdir
 		-> L.ByteString 	-- ^ content to save
 		-> IO (Bool, Int64 , FilePath)	-- ^ truncated?, saved bytes, saved filename
 
+defaultFileSaver :: FilePath -> Int64 -> FilePath -> ByteString -> IO (Bool, Int64, FilePath)
 defaultFileSaver tmpDir diskQuota filename b =
     do (fn, h) <- openBinaryTempFile tmpDir filename
        (trunc, len) <- hPutLimit diskQuota h b
@@ -123,8 +122,8 @@ hPutLimit maxCount h bs = hPutLimit' maxCount h 0 bs
 {-# INLINE hPutLimit #-}
 
 hPutLimit' :: Int64 -> Handle -> Int64 -> L.ByteString -> IO (Bool, Int64)
-hPutLimit' _maxCount h count Empty = return (False, count)
-hPutLimit'  maxCount h count (Chunk c cs)
+hPutLimit' _maxCount _h count Empty = return (False, count)
+hPutLimit'  maxCount h  count (Chunk c cs)
     | (count + fromIntegral (S.length c)) > maxCount =
         do S.hPut h (S.take (fromIntegral (maxCount - count)) c)
            return (True, maxCount)
@@ -146,6 +145,7 @@ bodyPartToInput inputWorker (BodyPart rawHS b) =
                   cont (BodyWork ctype ps b)
 
               cd -> return $ Failed Nothing ("Expected content-disposition: form-data but got " ++ show cd)
+         (BodyResult {}) -> return $ Failed Nothing "bodyPartToInput: Got unexpected BodyResult."
 
 bodyPartsToInputs :: InputWorker -> [BodyPart] -> IO ([(String,Input)], Maybe String)
 bodyPartsToInputs _ [] = 
@@ -184,8 +184,8 @@ defaultInputType = ContentType "text" "plain" [] -- FIXME: use some default enco
 parseMultipartBody :: L.ByteString -> L.ByteString -> ([BodyPart], Maybe String)
 parseMultipartBody boundary s =
     case dropPreamble boundary s of
-      (partData, Just e)  -> ([], Just e)
-      (partData, Nothing) -> splitParts boundary partData
+      (_partData, Just e)  -> ([], Just e)
+      (partData,  Nothing) -> splitParts boundary partData
 
 dropPreamble :: L.ByteString -> L.ByteString -> (L.ByteString, Maybe String)
 dropPreamble b s | isBoundary b s = (dropLine s, Nothing)

@@ -36,7 +36,7 @@ compressedResponseFilter = do
 
     installHandler accept = do
       let eEncoding = bestEncoding allEncodings $ BS.unpack accept
-      (coding,identityAllowed,action) <- case eEncoding of
+      (coding, identityAllowed, action) <- case eEncoding of
           Left _ -> do
             setResponseCode 406
             finishWith $ toResponse ""
@@ -46,6 +46,7 @@ compressedResponseFilter = do
                                      , fromMaybe (fail badEncoding)
                                           (lookup a allEncodingHandlers)
                                      )
+          Right [] -> fail badEncoding
       action coding identityAllowed
       return coding
 

@@ -25,10 +25,9 @@ module Happstack.Server.Routing
     , guardRq
     ) where
 
-import           Control.Monad                    (MonadPlus(mzero,mplus), unless)
+import           Control.Monad                    (MonadPlus(mzero), unless)
 import qualified Data.ByteString.Char8            as B
-import           Happstack.Server.Monads          (ServerPartT, ServerMonad(..))
-import           Happstack.Server.Internal.Monads (WebT, anyRequest)
+import           Happstack.Server.Monads          (ServerMonad(..))
 import           Happstack.Server.Types           (Request(..), Method(..), FromReqURI(..), getHeader, rqURL)
 import           System.FilePath                  (makeRelative, splitDirectories)
 

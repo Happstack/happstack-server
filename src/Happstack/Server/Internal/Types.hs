@@ -24,14 +24,13 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Data.Data (Data)
-import Data.IORef (IORef, atomicModifyIORef, readIORef)
 import Data.Time.Format (FormatTime(..))
 import Data.Typeable(Typeable)
 import qualified Data.ByteString.Char8 as P
 import Data.ByteString.Char8 (ByteString,pack)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.UTF8  as LU (fromString)
-import Data.Int   (Int, Int8, Int16, Int32, Int64)
+import Data.Int   (Int8, Int16, Int32, Int64)
 import Data.Maybe
 import Data.List
 import Data.Word  (Word, Word8, Word16, Word32, Word64)
@@ -95,6 +94,16 @@ nullConf =
 -- | log access requests using hslogger and apache-style log formatting
 --
 -- see also: 'Conf'
+logMAccess :: forall t. FormatTime t =>
+              String  -- ^ host
+           -> String  -- ^ user
+           -> t       -- ^ time
+           -> String  -- ^ requestLine
+           -> Int     -- ^ responseCode
+           -> Integer -- ^ size
+           -> String  -- ^ referer
+           -> String  -- ^ userAgent
+           -> IO ()
 logMAccess host user time requestLine responseCode size referer userAgent =
     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host user time requestLine responseCode size referer userAgent
 

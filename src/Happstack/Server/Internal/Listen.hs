@@ -131,7 +131,7 @@ listen' s mhttps conf hand = do
                                      return ())
                                    `E.catch` sslException)
                  sslException :: SSL.SomeSSLException -> IO ()
-                 sslException e = return ()
+                 sslException e = log' ERROR ("SSL exception in https accept thread: " ++ show e)
                  pe e = log' ERROR ("ERROR in https accept thread: " ++ show e)
                  infi = loop `catchSome` pe >> infi
              log' NOTICE ("Listening for https:// on port " ++ show (tlsPort $ fromJust (tls conf)))

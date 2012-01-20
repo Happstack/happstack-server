@@ -14,7 +14,7 @@ module Happstack.Server.Monads
       ServerPartT
     , ServerPart
       -- * Happstack class
-    , Happstack(..)
+    , Happstack
       -- * ServerMonad
     , ServerMonad(..)
     , mapServerPartT

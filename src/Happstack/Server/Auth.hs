@@ -5,10 +5,8 @@ module Happstack.Server.Auth where
 import Control.Monad                             (MonadPlus(mzero, mplus))
 import Data.ByteString.Base64                    as Base64
 import qualified Data.ByteString.Char8           as B
-import Data.Char                                 (chr)
 import qualified Data.Map                        as M
-import Happstack.Server.Monads                   (Happstack, FilterMonad, ServerMonad, WebMonad, escape, getHeaderM, setHeaderM)
-import Happstack.Server.Types                    (Response)
+import Happstack.Server.Monads                   (Happstack, escape, getHeaderM, setHeaderM)
 import Happstack.Server.Response                 (unauthorized, toResponse)
 
 -- | A simple HTTP basic authentication guard.

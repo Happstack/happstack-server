@@ -28,13 +28,10 @@ import Happstack.Server.Internal.Types
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.RFC822Headers
 import Happstack.Server.Internal.MessageWrap
--- import Happstack.Server.Internal.NoPush
 import Happstack.Server.SURI(SURI(..),path,query)
 import Happstack.Server.SURI.ParseURI
 import Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import qualified Happstack.Server.Internal.TimeoutManager as TM
-import Network.Socket (Socket)
-import Network.Socket.ByteString (sendAll)
 import Numeric
 import System.Directory (removeFile)
 import System.IO
@@ -65,18 +62,18 @@ rloop timeoutIO conf host handler inputStr
                       let (m,u,v) = requestLine rql
                       headers' <- parseHeaders "host" (L.unpack headerStr)
                       let headers = mkHeaders headers'
-                      let contentLength = fromMaybe 0 $ fmap fst (P.readInt =<< getHeaderUnsafe contentlengthC headers)
+                      let contentLen = fromMaybe 0 $ fmap fst (P.readInt =<< getHeaderUnsafe contentlengthC headers)
                       (body, nextRequest) <- case () of
-                          () | contentLength < 0               -> fail "negative content-length"
+                          () | contentLen < 0               -> fail "negative content-length"
                              | isJust $ getHeaderBS transferEncodingC headers ->
                                  return $ consumeChunks restStr
-                             | otherwise                       -> return (L.splitAt (fromIntegral contentLength) restStr)
+                             | otherwise                       -> return (L.splitAt (fromIntegral contentLen) restStr)
                       let cookies = [ (cookieName c, c) | cl <- fromMaybe [] (fmap getCookies (getHeader "Cookie" headers)), c <- cl ] -- Ugle
-                      return (m, u, cookies, v, headers, body, host, nextRequest)
+                      return (m, u, cookies, v, headers, body, nextRequest)
 
          case parseRequest of
            Left err -> error $ "failed to parse HTTP request: " ++ err
-           Right (m, u, cookies, v, headers, body, host, nextRequest)
+           Right (m, u, cookies, v, headers, body, nextRequest)
                -> return $
                   do bodyRef        <- newMVar (Body body)
                      bodyInputRef   <- newEmptyMVar
@@ -207,7 +204,7 @@ method r = fj $ lookup r mtable
 staticHeaders :: Headers
 staticHeaders =
     foldr (uncurry setHeaderBS) (mkHeaders [])
-    [ (serverC, happsC) ]
+    [ (serverC, happstackC) ]
 
 -- FIXME: we should not be controlling the response headers in mysterious ways in this low level code
 -- headers should be set by application code and the core http engine should be very lean.
@@ -216,10 +213,10 @@ putAugmentedResult timeoutIO req res = do
     case res of
         -- standard bytestring response
         Response {} -> do
-            let chunked = rsfLength (rsFlags res) == TransferEncodingChunked && isHTTP1_1 req
-            sendTop (if chunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) chunked
+            let isChunked = rsfLength (rsFlags res) == TransferEncodingChunked && isHTTP1_1 req
+            sendTop (if isChunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) isChunked
             when (rqMethod req /= HEAD)
-                     (let body = if chunked
+                     (let body = if isChunked
                                  then chunk (rsBody res)
                                  else rsBody res
                       in toPutLazy timeoutIO body)
@@ -235,8 +232,8 @@ putAugmentedResult timeoutIO req res = do
             toSendFile timeoutIO infp off count
 
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
-          sendTop cl chunked = do
-              allHeaders <- augmentHeaders req res cl chunked
+          sendTop cl isChunked = do
+              allHeaders <- augmentHeaders req res cl isChunked
               toPut timeoutIO $ B.concat $ concat
                  [ (pversion $ rqVersion req)          -- Print HTTP version
                  , [responseMessage $ rsCode res]      -- Print responseCode
@@ -249,7 +246,7 @@ putAugmentedResult timeoutIO req res = do
           chunk (Chunk c cs) = Chunk (B.pack $ showHex (B.length c) "\r\n") (Chunk c (Chunk (B.pack "\r\n") (chunk cs)))
 
 augmentHeaders :: Request -> Response -> Maybe Integer -> Bool -> IO Headers
-augmentHeaders req res mcl chunked = do
+augmentHeaders req res mcl isChunked = do
     -- TODO: Hoist static headers to the toplevel.
     raw <- getApproximateTime
     let stdHeaders = staticHeaders `M.union`
@@ -264,7 +261,7 @@ augmentHeaders req res mcl chunked = do
                                             | otherwise -> []
                               TransferEncodingChunked
                                   -- we check 'chunked' because we might not use this mode if the client is http 1.0
-                                  | chunked   -> [(transferEncodingC, HeaderPair transferEncodingC [chunkedC])]
+                                  | isChunked -> [(transferEncodingC, HeaderPair transferEncodingC [chunkedC])]
                                   | otherwise -> []
 
                      )
@@ -307,7 +304,7 @@ http10 = P.pack "HTTP/1.0"
 http11 :: B.ByteString
 http11 = P.pack "HTTP/1.1"
 
--- Constants
+-- * ByteString Constants
 
 connectionC :: B.ByteString
 connectionC      = P.pack "Connection"
@@ -321,8 +318,8 @@ crlfC :: B.ByteString
 crlfC            = P.pack "\r\n"
 fsepC :: B.ByteString
 fsepC            = P.pack ": "
-contentTypeC :: B.ByteString
-contentTypeC     = P.pack "Content-Type"
+-- contentTypeC :: B.ByteString
+-- contentTypeC     = P.pack "Content-Type"
 contentLengthC :: B.ByteString
 contentLengthC   = P.pack "Content-Length"
 contentlengthC :: B.ByteString
@@ -333,10 +330,10 @@ dateCLower :: B.ByteString
 dateCLower       = P.map toLower dateC
 serverC :: B.ByteString
 serverC          = P.pack "Server"
-happsC :: B.ByteString
-happsC           = P.pack $ "Happstack/" ++ DV.showVersion Paths.version
-textHtmlC :: B.ByteString
-textHtmlC        = P.pack "text/html; charset=utf-8"
+happstackC :: B.ByteString
+happstackC           = P.pack $ "Happstack/" ++ DV.showVersion Paths.version
+-- textHtmlC :: B.ByteString
+-- textHtmlC        = P.pack "text/html; charset=utf-8"
 transferEncodingC :: B.ByteString
 transferEncodingC = P.pack "Transfer-Encoding"
 chunkedC :: B.ByteString

@@ -9,7 +9,6 @@ import Control.Concurrent.MVar (tryTakeMVar, tryPutMVar, putMVar)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Lazy.Char8 as L
-import Data.Maybe
 import Data.Int (Int64)
 import Happstack.Server.Internal.Types as H
 import Happstack.Server.Internal.Multipart
@@ -52,24 +51,23 @@ bodyInput _ req | ((rqMethod req /= POST) && (rqMethod req /= PUT)) || (not (isD
       isDecodable :: Maybe ContentType -> Bool
       isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
       isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
-      isDecodable (Just (ContentType "multipart" "form-data" ps))              = True
+      isDecodable (Just (ContentType "multipart" "form-data" _ps))             = True
       isDecodable (Just _)                                                     = False
 
 bodyInput bodyPolicy req =
   liftIO $
-    do let getBS (Body bs) = bs
-           ctype = parseContentType . P.unpack =<< getHeader "content-type" req
+    do let ctype = parseContentType . P.unpack =<< getHeader "content-type" req
        mbi <- tryTakeMVar (rqInputsBody req)
        case mbi of
          (Just bi) ->
              do putMVar (rqInputsBody req) bi
                 return (bi, Nothing)
          Nothing ->
-             do rqBody <- takeRequestBody req
-                case rqBody of
+             do rqbody <- takeRequestBody req
+                case rqbody of
                   Nothing          -> return ([], Just $ "bodyInput: Request body was already consumed.")
                   (Just (Body bs)) -> 
-                      do r@(inputs, err) <- decodeBody bodyPolicy ctype bs
+                      do r@(inputs, _err) <- decodeBody bodyPolicy ctype bs
                          putMVar (rqInputsBody req) inputs
                          return r
 
@@ -107,9 +105,9 @@ multipartDecode :: InputWorker
                 -> [(String,String)] -- ^ Content-type parameters
                 -> L.ByteString      -- ^ Request body
                 -> IO ([(String,Input)], Maybe String) -- ^ Input variables and values.
-multipartDecode inputWorker ps inp =
+multipartDecode worker ps inp =
     case lookup "boundary" ps of
-         Just b  -> multipartBody inputWorker (L.pack b) inp
+         Just b  -> multipartBody worker (L.pack b) inp
          Nothing -> return ([], Just $ "boundary not found in parameters: " ++ show ps)
 
 -- | Get the path components from a String.

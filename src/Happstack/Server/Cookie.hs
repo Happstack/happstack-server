@@ -11,9 +11,6 @@ module Happstack.Server.Cookie
     where
 
 import Control.Monad.Trans              (MonadIO(..))
-import Data.Data                        (Data)
-import Data.Typeable                    (Typeable)
-import Data.Time.Clock                  (UTCTime)
 import Happstack.Server.Internal.Monads (FilterMonad, composeFilter)
 import Happstack.Server.Internal.Cookie (Cookie(..), CookieLife(..), calcLife, mkCookie, mkCookieHeader)
 import Happstack.Server.Types           (Response, addHeader)
@@ -47,4 +44,4 @@ addCookies = mapM_ (uncurry addCookie)
 -- >      ok $ "The cookie has been expired."
 
 expireCookie :: (MonadIO m, FilterMonad Response m) => String -> m () 
-expireCookie cookieName = addCookie Expired (mkCookie cookieName "")
+expireCookie name = addCookie Expired (mkCookie name "")

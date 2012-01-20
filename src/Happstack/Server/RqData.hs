@@ -30,6 +30,7 @@ module Happstack.Server.RqData
     -- body for matches keys. 
     , body
     , queryString
+    , bytestring
     -- * Validation and Parsing
     , checkRq
     , checkRqM        
@@ -57,7 +58,7 @@ module Happstack.Server.RqData
 
 import Control.Applicative 			(Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
 import Control.Concurrent.MVar                  (newMVar)
-import Control.Monad 				(MonadPlus(mzero), liftM)
+import Control.Monad 				(MonadPlus(mzero))
 import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
 import Control.Monad.Error 			(Error(noMsg, strMsg))
 import Control.Monad.Trans                      (MonadIO(..))
@@ -76,7 +77,7 @@ import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), Fi
 import Happstack.Server.Internal.RFC822Headers  (parseContentType)
 import Happstack.Server.Types                   (ContentType(..), FromReqURI(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), getHeader, readInputsBody)
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
-import Happstack.Server.Response                (internalServerError, requestEntityTooLarge, toResponse)
+import Happstack.Server.Response                (requestEntityTooLarge, toResponse)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad, MonadPlus)
@@ -113,11 +114,13 @@ instance Error (Errors String) where
     noMsg = Errors []
     strMsg str = Errors [str]
 
-mapReaderErrorT :: (Either e a -> Either e' b) -> (ReaderError r e a) -> (ReaderError r e' b)
-mapReaderErrorT f m = ReaderError $ mapReaderT f (unReaderError m)
-
+{- commented out to avoid 'Defined but not used' warning. 
 readerError :: (Monoid e, Error e) => e -> ReaderError r e b
 readerError e = mapReaderErrorT ((Left e) `apEither`) (return ())
+
+mapReaderErrorT :: (Either e a -> Either e' b) -> (ReaderError r e a) -> (ReaderError r e' b)
+mapReaderErrorT f m = ReaderError $ mapReaderT f (unReaderError m)
+-}
 
 runReaderError :: ReaderError r e a -> r -> Either e a
 runReaderError = runReaderT . unReaderError
@@ -157,10 +160,10 @@ instance (MonadIO m) => HasRqData (ServerPartT m) where
           isDecodable :: Maybe ContentType -> Bool
           isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
           isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
-          isDecodable (Just (ContentType "multipart" "form-data" ps))              = True
+          isDecodable (Just (ContentType "multipart" "form-data" _ps))             = True
           isDecodable (Just _)                                                     = False
 
-    rqDataError e = mzero
+    rqDataError _e = mzero
     localRqEnv f m =
         do rq <- askRq
            b  <- liftIO $ readInputsBody rq
@@ -248,9 +251,9 @@ checkRq rq f =
 -- | like 'checkRq' but the check function can be monadic
 checkRqM :: (Monad m, HasRqData m) => m a -> (a -> m (Either String b)) -> m b
 checkRqM rq f =
-    do a <- rq
-       b <- f a
-       case b of
+    do a  <- rq
+       eb <- f a
+       case eb of
          (Left e)  -> rqDataError (strMsg e)
          (Right b) -> return b
 
@@ -286,7 +289,7 @@ fromMaybeBody :: String -> String -> Maybe [(String, Input)] -> [(String, Input)
 fromMaybeBody funName fieldName mBody =
     case mBody of
       Nothing -> error $ funName ++ " " ++ fieldName ++ " failed because the request body has not been decoded yet. Try using 'decodeBody' to decode the body. Or the 'queryString' filter to ignore the body."
-      (Just body) -> body
+      (Just bdy) -> bdy
 
 -- | Gets the first matching named input parameter
 -- 
@@ -296,8 +299,8 @@ fromMaybeBody funName fieldName mBody =
 lookInput :: (Monad m, HasRqData m) => String -> m Input
 lookInput name
     = do (query, mBody, _cookies) <- askRqEnv
-         let body = fromMaybeBody "lookInput" name mBody
-         case lookup name (query ++ body) of
+         let bdy = fromMaybeBody "lookInput" name mBody
+         case lookup name (query ++ bdy) of
            Just i  -> return $ i
            Nothing -> rqDataError (strMsg $ "Parameter not found: " ++ name)
 
@@ -309,8 +312,8 @@ lookInput name
 lookInputs :: (Monad m, HasRqData m) => String -> m [Input]
 lookInputs name
     = do (query, mBody, _cookies) <- askRqEnv
-         let body = fromMaybeBody "lookInputs" name mBody
-         return $ lookups name (query ++ body)
+         let bdy = fromMaybeBody "lookInputs" name mBody
+         return $ lookups name (query ++ bdy)
 
 -- | Gets the first matching named input parameter as a lazy 'ByteString'
 --
@@ -321,7 +324,7 @@ lookBS :: (Functor m, Monad m, HasRqData m) => String -> m L.ByteString
 lookBS n = 
     do i <- fmap inputValue (lookInput n)
        case i of
-         (Left fp)  -> rqDataError $ (strMsg $ "lookBS: " ++ n ++ " is a file.")
+         (Left _fp) -> rqDataError $ (strMsg $ "lookBS: " ++ n ++ " is a file.")
          (Right bs) -> return bs
 
 -- | Gets all matches for the named input parameter as lazy 'ByteString's
@@ -334,7 +337,7 @@ lookBSs n =
     do is <- fmap (map inputValue) (lookInputs n)
        case partitionEithers is of
          ([], bs) -> return bs
-         (fp, _)  -> rqDataError (strMsg $ "lookBSs: " ++ n ++ " is a file.")
+         (_fp, _) -> rqDataError (strMsg $ "lookBSs: " ++ n ++ " is a file.")
 
 -- | Gets the first matching named input parameter as a 'String'
 --
@@ -458,8 +461,8 @@ lookFile n =
 lookPairs :: (Monad m, HasRqData m) => m [(String, Either FilePath String)]
 lookPairs = 
     do (query, mBody, _cookies) <- askRqEnv
-       let body = fromMaybeBody "lookPairs" "" mBody
-       return $ map (\(n,vbs)->(n, (\e -> case e of Left fp -> Left fp ; Right bs -> Right (LU.toString bs)) $ inputValue vbs)) (query ++ body)
+       let bdy = fromMaybeBody "lookPairs" "" mBody
+       return $ map (\(n,vbs)->(n, (\e -> case e of Left fp -> Left fp ; Right bs -> Right (LU.toString bs)) $ inputValue vbs)) (query ++ bdy)
 
 -- | gets all the input parameters
 --
@@ -470,8 +473,8 @@ lookPairs =
 lookPairsBS :: (Monad m, HasRqData m) => m [(String, Either FilePath L.ByteString)]
 lookPairsBS = 
     do (query, mBody, _cookies) <- askRqEnv
-       let body = fromMaybeBody "lookPairsBS" "" mBody
-       return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ body)
+       let bdy = fromMaybeBody "lookPairsBS" "" mBody
+       return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ bdy)
 
 -- | The POST\/PUT body of a Request is not received or decoded unless
 -- this function is invoked. 
@@ -587,7 +590,7 @@ withData = withDataFn fromData
 body :: (HasRqData m) => m a -> m a
 body rqData = localRqEnv f rqData
     where
-      f (_query, body, _cookies) = ([], body, [])
+      f (_query, bdy, _cookies) = ([], bdy, [])
 
 -- | limit the scope to the QUERY_STRING
 --
@@ -600,14 +603,11 @@ queryString rqData = localRqEnv f rqData
     where
       f (query, _body, _cookies) = (query, Just [], [])
 
-right :: (MonadPlus m) => Either a b -> m b
-right (Right a) = return a
-right (Left e) = mzero
-
+-- | limit the scope to 'Input's  which produce a 'ByteString' (aka, not a file)
 bytestring :: (HasRqData m) => m a -> m a
 bytestring rqData = localRqEnv f rqData
     where
-      f (query, body, cookies) = (filter bsf query, filter bsf <$> body, cookies)
+      f (query, bdy, cookies) = (filter bsf query, filter bsf <$> bdy, cookies)
       bsf (_, i) =
           case inputValue i of
             (Left  _fp) -> False

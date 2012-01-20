@@ -18,10 +18,8 @@ import qualified Network.Socket as S
   , SockAddr(..)
   , HostName
   , accept
-  , socketToHandle
   )
 import Numeric (showHex)
-import System.IO
 
 type HostAddress = Word32
 type HostAddress6 = (Word32, Word32, Word32, Word32)

@@ -86,10 +86,9 @@ import Happstack.Server.Validation
 
 import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
-import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), UnWebT, unFilterFun, mapServerPartT, runServerPartT, ununWebT)
+import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), unFilterFun, runServerPartT, ununWebT)
 import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn, listenOnIPv4) -- So that we can disambiguate 'Writer.listen'
 import Happstack.Server.Internal.TLS             (httpsOnSocket)
-import Happstack.Server.Types                    (Conf(port, validator), Request, Response(rsBody, rsCode), HTTPS, nullConf, readDec', setHeader)
 import Network                                   (Socket)
 import qualified Paths_happstack_server          as Cabal
 import System.Console.GetOpt                     ( OptDescr(Option)
@@ -171,8 +170,8 @@ simpleHTTPWithSocket = simpleHTTPWithSocket' id
 -- | Like 'simpleHTTP'' with a socket.
 simpleHTTPWithSocket' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
                       -> Socket -> Maybe HTTPS -> Conf -> ServerPartT m a -> IO ()
-simpleHTTPWithSocket' toIO socket https conf hs =
-    Listen.listen' socket https conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
+simpleHTTPWithSocket' toIO socket mHttps conf hs =
+    Listen.listen' socket mHttps conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
 
 -- | Bind port and return the socket for use with 'simpleHTTPWithSocket'. This
 -- function always binds to IPv4 ports until Network module is fixed

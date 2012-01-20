@@ -30,14 +30,12 @@ module Happstack.Server.HTTPClient.Stream (
 
 ) where
 
+import Control.Monad   (liftM)
 import Control.Exception.Extensible as Exception
-import System.IO.Error
-
--- Networking
-import Network.Socket
-
-import Control.Monad (liftM)
-import System.IO
+import Network.Socket  (ShutdownCmd(..), Socket, SocketOption(SoError), getSocketOption, recv, send, sClose, shutdown)
+import Prelude         hiding (catch)
+import System.IO       (Handle, IOMode(..), hClose, hFlush, hPutStrLn, openFile)
+import System.IO.Error (isEOFError)
 
 data ConnError = ErrorReset 
                | ErrorClosed
@@ -126,13 +124,15 @@ instance Stream Socket where
 
 myrecv :: Socket -> Int -> IO String
 myrecv sock len =
-    let handler e = if isEOFError e then return [] else ioError e
-        in System.IO.Error.catch (recv sock len) handler
+    recv sock len `catch` 
+             (\e ->
+                  if isEOFError e 
+                  then return []
+                  else ioError e)
 
 -- | Allows stream logging.
 -- Refer to 'debugStream' below.
 data Debug x = Dbg Handle x
-
 
 instance (Stream x) => Stream (Debug x) where
     readBlock (Dbg h c) n =

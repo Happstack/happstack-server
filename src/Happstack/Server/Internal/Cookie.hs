@@ -16,7 +16,6 @@ module Happstack.Server.Internal.Cookie
     )
     where
 
-import Control.Applicative   ((<$>))
 import qualified Data.ByteString.Char8 as C
 import Data.Char             (chr, toLower)
 import Data.Data             (Data, Typeable)

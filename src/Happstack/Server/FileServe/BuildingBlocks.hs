@@ -51,46 +51,29 @@ module Happstack.Server.FileServe.BuildingBlocks
      isDot
     ) where
 
-import Control.Exception.Extensible (IOException, SomeException, Exception(fromException), bracket, handleJust)
-import Control.Monad (MonadPlus(mzero), msum)
-import Control.Monad.Trans (MonadIO(liftIO))
+import Control.Exception.Extensible (IOException, bracket, catch)
+import Control.Monad                (MonadPlus(mzero), msum)
+import Control.Monad.Trans          (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as S
-import Data.Data  (Data, Typeable)
-import Data.List  (sort)
-import Data.Maybe (fromMaybe, maybe)
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import Happstack.Server.Monads     (Happstack, ServerMonad(askRq), FilterMonad, WebMonad, require)
-import Happstack.Server.Response   (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
-import Happstack.Server.Types      (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
-import System.Directory (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
-import System.FilePath ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, splitDirectories, takeExtension, isValid)
-import System.IO (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
-import System.Locale (defaultTimeLocale, rfc822DateFormat)
-import System.Log.Logger (Priority(DEBUG), logM)
-import System.Time (CalendarTime, formatCalendarTime, toCalendarTime, toUTCTime)
-
+import Data.Data                    (Data, Typeable)
+import Data.List                    (sort)
+import Data.Maybe                   (fromMaybe)
+import           Data.Map           (Map)
+import qualified Data.Map           as Map
+import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
+import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
+import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
+import Prelude                      hiding (catch)
+import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
+import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid)
+import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
+import System.Locale                (defaultTimeLocale)
+import System.Log.Logger            (Priority(DEBUG), logM)
+import System.Time                  (CalendarTime, formatCalendarTime, toCalendarTime, toUTCTime)
 import           Text.Blaze                  ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
-
--- FIXME: why are these functions here ?
-
-ioErrors :: SomeException -> Maybe IOException
-ioErrors = fromException
-
-errorwrapper :: (MonadIO m, MonadPlus m, FilterMonad Response m) => String -> String -> m Response
-errorwrapper binarylocation loglocation
-    = require getErrorLog $ \errorLog ->
-      return $ toResponse errorLog
-    where getErrorLog
-                = handleJust ioErrors (const (return Nothing)) $
-                do bintime <- getModificationTime binarylocation
-                   logtime <- getModificationTime loglocation
-                   if (logtime > bintime)
-                     then fmap Just $ readFile loglocation
-                     else return Nothing
 
 -- * Mime-Type / Content-Type
 
@@ -499,7 +482,7 @@ browseIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m, T
              -> [String]
              -> FilePath
              -> m Response
-browseIndex renderFn serveFn mimeFn ixFiles localPath =
+browseIndex renderFn _serveFn _mimeFn _ixFiles localPath =
     do c       <- liftIO $ getDirectoryContents localPath
        listing <- renderFn localPath $ filter (/= ".") (sort c)
        ok $ toResponse $ listing
@@ -517,9 +500,9 @@ renderDirectoryContents localPath fps =
     do fps' <- liftIO $ mapM (getMetaData localPath) fps
        return $ H.html $ do 
          H.head $ do
-           H.title $ H.string "Directory Listing"
-           H.meta  ! A.httpEquiv (H.stringValue "Content-Type") ! A.content (H.stringValue "text/html;charset=utf-8")
-           H.style $ H.string $ unlines [ "table { margin: 0 auto; width: 760px; border-collapse: collapse; font-family: 'sans-serif'; }"
+           H.title $ H.toHtml "Directory Listing"
+           H.meta  ! A.httpEquiv (H.toValue "Content-Type") ! A.content (H.toValue "text/html;charset=utf-8")
+           H.style $ H.toHtml $ unlines [ "table { margin: 0 auto; width: 760px; border-collapse: collapse; font-family: 'sans-serif'; }"
                                         , "table, th, td { border: 1px solid #353948; }" 
                                         , "td.size { text-align: right; font-size: 0.7em; width: 50px }"
                                         , "td.date { text-align: right; font-size: 0.7em; width: 130px }"
@@ -533,19 +516,8 @@ renderDirectoryContents localPath fps =
                                         , "img { width: 20px }"
                                         , "a { text-decoration: none }"
                                         ]
-{-
-           H.style $ H.string $ unlines [ "table { border-collapse: collapse; font-family: 'sans-serif'; }"
-                                        , "table, th, td { border: 1px solid #98BF21; }" 
-                                        , "td.size { text-align: right; }"
-                                        , "td.date { text-align: right; }"
-                                        , "td { padding-right: 1em; padding-left: 1em; }"
-                                        , "tr { background-color: white; }"
-                                        , "tr.alt { background-color: #EAF2D3 }"
-                                        , "th { background-color: #A7C942; color: white; font-size: 1.125em; }"
-                                        ]
--}
          H.body $ do
-           H.h1 $ H.string "Directory Listing"
+           H.h1 $ H.toHtml "Directory Listing"
            renderDirectoryContentsTable fps'
 
 -- | a function to generate an HTML table showing the contents of a directory on the disk
@@ -559,23 +531,23 @@ renderDirectoryContents localPath fps =
 renderDirectoryContentsTable :: [(FilePath, Maybe CalendarTime, Maybe Integer, EntryKind)] -- ^ list of files+meta data, see 'getMetaData'
                              -> H.Html
 renderDirectoryContentsTable fps =
-           H.table $ do H.thead $ do H.th $ H.string ""
-                                     H.th $ H.string "Name"
-                                     H.th $ H.string "Last modified"
-                                     H.th $ H.string "Size"
+           H.table $ do H.thead $ do H.th $ H.toHtml ""
+                                     H.th $ H.toHtml "Name"
+                                     H.th $ H.toHtml "Last modified"
+                                     H.th $ H.toHtml "Size"
                         H.tbody $ mapM_ mkRow (zip fps $ cycle [False, True])
     where
       mkRow :: ((FilePath, Maybe CalendarTime, Maybe Integer, EntryKind), Bool) -> H.Html
       mkRow ((fp, modTime, count, kind), alt) = 
-          (if alt then (! A.class_ (H.stringValue "alt")) else id) $
+          (if alt then (! A.class_ (H.toValue "alt")) else id) $
           H.tr $ do
                    H.td (mkKind kind)
-                   H.td (H.a ! A.href (H.stringValue fp)  $ H.string fp)
-                   H.td ! A.class_ (H.stringValue "date") $ (H.string $ maybe "-" (formatCalendarTime defaultTimeLocale "%d-%b-%Y %X %Z") modTime)
-                   (maybe id (\c -> (! A.title (H.stringValue (show c)))) count)  (H.td ! A.class_ (H.stringValue "size") $ (H.string $ maybe "-" prettyShow count)) 
+                   H.td (H.a ! A.href (H.toValue fp)  $ H.toHtml fp)
+                   H.td ! A.class_ (H.toValue "date") $ (H.toHtml $ maybe "-" (formatCalendarTime defaultTimeLocale "%d-%b-%Y %X %Z") modTime)
+                   (maybe id (\c -> (! A.title (H.toValue (show c)))) count)  (H.td ! A.class_ (H.toValue "size") $ (H.toHtml $ maybe "-" prettyShow count)) 
       mkKind :: EntryKind -> H.Html
       mkKind File        = return ()
-      mkKind Directory   = H.string "➦"
+      mkKind Directory   = H.toHtml "➦"
       mkKind UnknownKind = return ()
       prettyShow x
         | x > 1024 = prettyShowK $ x `div` 1024
@@ -599,12 +571,12 @@ getMetaData :: FilePath -- ^ path to directory on disk containing the entry
 getMetaData localPath fp =
      do let localFp = localPath </> fp
         modTime <- (fmap Just . toCalendarTime =<< getModificationTime localFp) `catch` 
-                   (const $ return Nothing)
+                   (\(_ :: IOException) -> return Nothing)
         count <- do de <- doesDirectoryExist localFp
                     if de
                       then do return Nothing
                       else do bracket (openBinaryFile localFp ReadMode) hClose (fmap Just . hFileSize) 
-                                          `catch` (\(e :: IOException) -> return Nothing)
+                                          `catch` (\(_e :: IOException) -> return Nothing)
         kind <- do fe <- doesFileExist localFp
                    if fe
                       then return File
