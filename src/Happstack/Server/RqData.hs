@@ -60,8 +60,11 @@ import Control.Applicative 			(Applicative((<*>), pure), Alternative((<|>), empt
 import Control.Concurrent.MVar                  (newMVar)
 import Control.Monad 				(MonadPlus(mzero))
 import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
+import Control.Monad.State 			(StateT, mapStateT)
+import Control.Monad.Writer 			(WriterT, mapWriterT)
+import Control.Monad.RWS  			(RWST, mapRWST)
 import Control.Monad.Error 			(Error(noMsg, strMsg))
-import Control.Monad.Trans                      (MonadIO(..))
+import Control.Monad.Trans                      (MonadIO(..), lift)
 import qualified Data.ByteString.Char8          as P
 import qualified Data.ByteString.Lazy.Char8     as L
 import qualified Data.ByteString.Lazy.UTF8      as LU
@@ -174,6 +177,30 @@ instance (MonadIO m) => HasRqData (ServerPartT m) where
                         , rqCookies = c'
                         }
            localRq (const rq') m
+
+------------------------------------------------------------------------------
+-- HasRqData instances for ReaderT, StateT, WriterT, and RWST
+------------------------------------------------------------------------------
+
+instance (Monad m, HasRqData m) => HasRqData (ReaderT s m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = mapReaderT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m) => HasRqData (StateT s m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = mapStateT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m, Monoid w) => HasRqData (WriterT w m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = mapWriterT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m, Monoid w) => HasRqData (RWST r w s m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = mapRWST (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
 
 -- | apply 'RqData a' to a 'RqEnv'
 --

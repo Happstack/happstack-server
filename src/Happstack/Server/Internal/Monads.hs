@@ -8,6 +8,17 @@ import Control.Applicative                       (Applicative, pure, (<*>), Alte
 import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
 import Control.Monad.Base                        ( MonadBase, liftBase )
+import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
+                                                 , Error, MonadError, throwError
+                                                 , catchError, mapErrorT
+                                                 )
+import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
+                                                 , MonadReader, ask, local, mapReaderT
+                                                 )
+import Control.Monad.RWS                         ( RWST, mapRWST
+                                                 )
+
+import Control.Monad.State                       (MonadState, StateT, get, put, mapStateT)
 import Control.Monad.Trans                       ( MonadTrans, lift
                                                  , MonadIO, liftIO
                                                  )
@@ -15,19 +26,12 @@ import Control.Monad.Trans.Control               ( MonadTransControl(..)
                                                  , MonadBaseControl(..)
                                                  , ComposeSt, defaultLiftBaseWith, defaultRestoreM
                                                  )
-import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
-                                                 , MonadReader, ask, local
-                                                 )
 import Control.Monad.Writer                      ( WriterT(WriterT), runWriterT
                                                  , MonadWriter, tell, pass
-                                                 , listens
+                                                 , listens, mapWriterT
                                                  )
 import qualified Control.Monad.Writer            as Writer (listen) -- So that we can disambiguate 'Listen.listen'
-import Control.Monad.State                       (MonadState, get, put)
-import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
-                                                 , Error, MonadError, throwError
-                                                 , catchError, mapErrorT
-                                                 )
+
 import Control.Monad.Trans.Maybe                 (MaybeT(MaybeT), runMaybeT)
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
 import Data.Char                                 (ord)
@@ -554,3 +558,71 @@ escapeString str = concatMap encodeEntity str
       encodeEntity c
           | ord c > 127 = "&#" ++ show (ord c) ++ ";"
           | otherwise = [c]
+
+------------------------------------------------------------------------------
+-- ServerMonad, FilterMonad, and WebMonad instances for ReaderT, StateT, 
+-- WriterT, and RWST
+------------------------------------------------------------------------------
+
+-- ReaderT
+
+instance (ServerMonad m) => ServerMonad (ReaderT r m) where
+    askRq         = lift askRq
+    localRq f     = mapReaderT (localRq f)
+
+instance (FilterMonad res m) => FilterMonad res (ReaderT r m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter     = mapReaderT getFilter
+
+instance (WebMonad a m) => WebMonad a (ReaderT r m) where
+    finishWith    = lift . finishWith
+
+-- StateT
+
+instance (ServerMonad m) => ServerMonad (StateT s m) where
+    askRq         = lift askRq
+    localRq f     = mapStateT (localRq f)
+
+instance (FilterMonad res m) => FilterMonad res (StateT s m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter   m = mapStateT (\m' -> 
+                                   do ((b,s), f) <- getFilter m'
+                                      return ((b, f), s)) m
+
+instance (WebMonad a m) => WebMonad a (StateT s m) where
+    finishWith    = lift . finishWith
+
+
+-- WriterT
+
+instance (ServerMonad m, Monoid w) => ServerMonad (WriterT w m) where
+    askRq         = lift askRq
+    localRq f     = mapWriterT (localRq f)
+
+instance (FilterMonad res m, Monoid w) => FilterMonad res (WriterT w m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter   m = mapWriterT (\m' -> 
+                                   do ((b,w), f) <- getFilter m'
+                                      return ((b, f), w)) m
+
+instance (WebMonad a m, Monoid w) => WebMonad a (WriterT w m) where
+    finishWith    = lift . finishWith
+
+-- RWST
+
+instance (ServerMonad m, Monoid w) => ServerMonad (RWST r w s m) where
+    askRq         = lift askRq
+    localRq f     = mapRWST (localRq f)
+
+instance (FilterMonad res m, Monoid w) => FilterMonad res (RWST r w s m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter   m = mapRWST (\m' -> 
+                                   do ((b,s,w), f) <- getFilter m'
+                                      return ((b, f), s, w)) m
+
+instance (WebMonad a m, Monoid w) => WebMonad a (RWST r w s m) where
+    finishWith     = lift . finishWith
