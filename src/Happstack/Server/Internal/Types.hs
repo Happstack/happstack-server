@@ -211,7 +211,7 @@ instance Error Response where
 
 -- | an HTTP request
 data Request = Request
-    { rqSecure        :: Bool                  -- ^ request uses https://
+    { rqSecure        :: Bool                  -- ^ request uses https:\/\/
       , rqMethod      :: Method                -- ^ request method
       , rqPaths       :: [String]              -- ^ the uri, split on /, and then decoded
       , rqUri         :: String                -- ^ the raw rqUri

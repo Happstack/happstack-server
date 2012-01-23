@@ -13,7 +13,7 @@ import OpenSSL.Session (SSL, SSLContext)
 import qualified OpenSSL.Session as SSL
 #endif
 
--- | configuration for using https://
+-- | configuration for using https:\/\/
 data TLSConf = TLSConf {
       tlsPort :: Int        -- port (usually 443)
     , tlsCert :: FilePath   -- path to SSL certificate
@@ -29,7 +29,7 @@ httpsOnSocket :: FilePath  -- ^ path to ssl certificate
 httpsOnSocket = error "happstack-server was compiled with disable_https."
 #else
 -- | record that holds the 'Socket' and 'SSLContext' needed to start
--- the https:// event loop. Used with 'simpleHTTPWithSocket''
+-- the https:\/\/ event loop. Used with 'simpleHTTPWithSocket''
 --
 -- see also: 'httpOnSocket'
 data HTTPS = HTTPS
@@ -37,7 +37,7 @@ data HTTPS = HTTPS
     , sslContext :: SSLContext
     }
 
--- | generate the 'HTTPS' record needed to start the https:// event loop
+-- | generate the 'HTTPS' record needed to start the https:\/\/ event loop
 --
 httpsOnSocket :: FilePath  -- ^ path to ssl certificate
               -> FilePath  -- ^ path to ssl private key

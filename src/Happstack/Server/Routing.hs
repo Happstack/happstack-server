@@ -55,7 +55,7 @@ guardRq f = do
     unless (f rq) mzero
 
 
--- | guard which checks that an insecure connection was made via http://
+-- | guard which checks that an insecure connection was made via http:\/\/
 --
 -- Example:
 --
@@ -67,7 +67,7 @@ http :: (ServerMonad m, MonadPlus m) => m ()
 http = guardRq (not . rqSecure)
 
 
--- | guard which checks that a secure connection was made via https://
+-- | guard which checks that a secure connection was made via https:\/\/
 --
 -- Example:
 --
