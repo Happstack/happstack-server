@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             6.5.1
+Version:             6.5.2
 Synopsis:            Web related tools and services.
 Description:         Happstack Server provides an HTTP server and a rich set of functions for routing requests, handling query parameters, generating responses, working with cookies, serving files, and more. For in-depth documentation see the Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>
 License:             BSD3
@@ -27,9 +27,9 @@ Flag tests
     Description: Build the testsuite, and include the tests in the library
     Default: False
 
-Flag disable-https
+Flag https
      Description: Compile server with out https:// support
-     Default: False
+     Default: True
      Manual: True
 
 Library
@@ -107,12 +107,12 @@ Library
                        utf8-string >= 0.3.4 && < 0.4,
                        xhtml,
                        zlib
-  if !flag(disable-https)
+  if flag(https)
     Exposed-modules:
                        Happstack.Server.Internal.TimeoutSocketTLS
     Build-Depends:
                        HsOpenSSL == 0.10.*
-    Extra-Libraries:   crypto++ ssl
+    Extra-Libraries:   cryptopp ssl
   else
     CPP-Options:       -DDISABLE_HTTPS
 
