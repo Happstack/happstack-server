@@ -117,8 +117,8 @@ bestEncoding availableEncodings encs = do
                 Just (Just a) | a>0 -> addIdent $ knownEncodings m
                               | otherwise -> knownEncodings m
                 Just (Nothing) -> addIdent $ knownEncodings m
-        dropZero (_, Just a) | a==0 = False
-                          | otherwise = True
+        dropZero (_, Just a) | a==0      = False
+                             | otherwise = True
         dropZero (_, Nothing) = True
         addIdent:: [(String,Maybe Double)] -> [(String, Maybe Double)]
         addIdent m = if isNothing $ lookup "identity" m
@@ -161,7 +161,7 @@ handlers =
     ]
 
 -- | a parser for the Accept-Encoding header
-encodings :: GenParser Char st [([Char], Maybe Double)]
+encodings :: GenParser Char st [(String, Maybe Double)]
 encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
     where
         ws :: GenParser Char st ()

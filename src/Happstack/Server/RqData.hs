@@ -10,7 +10,9 @@ module Happstack.Server.RqData
       look
     , looks
     , lookText
+    , lookText'
     , lookTexts
+    , lookTexts'
     , lookBS
     , lookBSs
     , lookRead
@@ -73,8 +75,9 @@ import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
 import Data.Maybe                               (fromMaybe, fromJust)
 import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
-import           Data.Text.Lazy                 (Text)
-import qualified Data.Text.Lazy.Encoding        as Text
+import           Data.Text                      (Text)
+import qualified Data.Text.Lazy                 as LazyText
+import qualified Data.Text.Lazy.Encoding        as LazyText
 import Happstack.Server.Cookie 			(Cookie (cookieValue))
 import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), FilterMonad, WebMonad, ServerPartT, escape)
 import Happstack.Server.Internal.RFC822Headers  (parseContentType)
@@ -400,8 +403,18 @@ looks = fmap (map LU.toString) . lookBSs
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookTexts', 'look', 'looks', 'lookBS', and 'lookBSs'
-lookText :: (Functor m, Monad m, HasRqData m) => String -> m Text
-lookText = fmap Text.decodeUtf8 . lookBS
+lookText :: (Functor m, Monad m, HasRqData m) => String -> m LazyText.Text
+lookText = fmap LazyText.decodeUtf8 . lookBS
+
+-- | Gets the first matching named input parameter as a strict 'Text'
+--
+-- Searches the QUERY_STRING followed by the Request body.
+--
+-- This function assumes the underlying octets are UTF-8 encoded.
+--
+-- see also: 'lookTexts', 'look', 'looks', 'lookBS', and 'lookBSs'
+lookText' :: (Functor m, Monad m, HasRqData m) => String -> m Text
+lookText' = fmap LazyText.toStrict . lookText
 
 -- | Gets all matches for the named input parameter as lazy 'Text's
 --
@@ -410,8 +423,18 @@ lookText = fmap Text.decodeUtf8 . lookBS
 -- This function assumes the underlying octets are UTF-8 encoded.
 --
 -- see also: 'lookText', 'looks' and 'lookBSs'
-lookTexts :: (Functor m, Monad m, HasRqData m) => String -> m [Text]
-lookTexts = fmap (map Text.decodeUtf8) . lookBSs
+lookTexts :: (Functor m, Monad m, HasRqData m) => String -> m [LazyText.Text]
+lookTexts = fmap (map LazyText.decodeUtf8) . lookBSs
+
+-- | Gets all matches for the named input parameter as strict 'Text's
+--
+-- Searches the QUERY_STRING followed by the Request body.
+--
+-- This function assumes the underlying octets are UTF-8 encoded.
+--
+-- see also: 'lookText'', 'looks' and 'lookBSs'
+lookTexts' :: (Functor m, Monad m, HasRqData m) => String -> m [Text]
+lookTexts' = fmap (map LazyText.toStrict) . lookTexts
 
 -- | Gets the named cookie
 -- the cookie name is case insensitive
