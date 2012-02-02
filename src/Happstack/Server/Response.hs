@@ -159,7 +159,7 @@ instance (Xml a)=>ToMessage a where
 
 -- | alias for: @fmap toResponse@
 --
--- turns @m a@ icd n-heptane/pnto @m 'Response'@ using 'toResponse'.
+-- turns @m a@ into @m 'Response'@ using 'toResponse'.
 --
 -- > main = simpleHTTP nullConf $ flatten $ do return "flatten me."
 flatten :: (ToMessage a, Functor f) => f a -> f Response
