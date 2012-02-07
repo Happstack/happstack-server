@@ -55,6 +55,8 @@ module Happstack.Server
     , module Happstack.Server.Auth
     -- * Error Handling
     , module Happstack.Server.Error
+    -- * I18N
+    , module Happstack.Server.I18N
     -- * Web-related Monads
     , module Happstack.Server.Monads
     -- * Proxying
@@ -83,6 +85,7 @@ import Happstack.Server.Monads
 import Happstack.Server.Auth
 import Happstack.Server.Cookie
 import Happstack.Server.Error
+import Happstack.Server.I18N
 import Happstack.Server.Response
 import Happstack.Server.Routing
 import Happstack.Server.Proxy
