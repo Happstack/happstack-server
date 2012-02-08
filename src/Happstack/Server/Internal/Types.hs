@@ -27,6 +27,7 @@ import Data.Data (Data)
 import Data.Time.Format (FormatTime(..))
 import Data.Typeable(Typeable)
 import qualified Data.ByteString.Char8 as P
+import qualified Data.ByteString.UTF8  as U (toString)
 import Data.ByteString.Char8 (ByteString,pack)
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Lazy.UTF8  as LU (fromString)
@@ -450,7 +451,7 @@ fromReadS _        = Nothing
 class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
-instance FromReqURI String  where fromReqURI = Just
+instance FromReqURI String  where fromReqURI = Just . U.toString . P.pack
 instance FromReqURI Char    where fromReqURI s = case s of [c] -> Just c ; _ -> Nothing
 instance FromReqURI Int     where fromReqURI = fromReadS . readSigned readDec
 instance FromReqURI Int8    where fromReqURI = fromReadS . readSigned readDec
