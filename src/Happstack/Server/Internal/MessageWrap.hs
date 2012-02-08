@@ -77,7 +77,7 @@ formDecode :: String -> [(String, Input)]
 formDecode [] = []
 formDecode qString = 
     if null pairString then rest else 
-           (SURI.unEscape name,simpleInput $ SURI.unEscape val):rest
+           (SURI.unEscapeQS name,simpleInput $ SURI.unEscapeQS val):rest
     where (pairString,qString')= split (=='&') qString
           (name,val)=split (=='=') pairString
           rest=if null qString' then [] else formDecode qString'

@@ -37,8 +37,9 @@ a_scheme a (SURI u) = SURI $ u {URI.uriScheme=a}
 a_path :: String -> SURI -> SURI
 a_path a (SURI u) = SURI $ u {URI.uriPath=a}
 
-escape, unEscape :: String -> String
-unEscape = URI.unEscapeString . map (\x->if x=='+' then ' ' else x)
+escape, unEscape, unEscapeQS :: String -> String
+unEscapeQS = URI.unEscapeString . map (\x->if x=='+' then ' ' else x)
+unEscape = URI.unEscapeString
 escape = URI.escapeURIString URI.isAllowedInURI
 
 -- | Returns true if the URI is absolute
