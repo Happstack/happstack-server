@@ -139,7 +139,7 @@ cookiesParser = cookies
           cookieEq = ws >> char '=' >> ws
           ws = spaces
           value         = word
-          word          = try (quoted_string) <|> incomp_token
+          word          = try quoted_string <|> try incomp_token <|> return ""
 
           -- Parsers based on RFC 2068
           quoted_string = do
