@@ -4,19 +4,11 @@ module Happstack.Server.Internal.Listen(listen, listen',listenOn,listenOnIPv4) w
 import Happstack.Server.Internal.Types          (Conf(..), Request, Response)
 import Happstack.Server.Internal.Handler        (request)
 import Happstack.Server.Internal.Socket         (acceptLite)
-import Happstack.Server.Internal.TimeoutIO      (TimeoutIO(toHandle, toShutdown))
 import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register)
 import Happstack.Server.Internal.TimeoutSocket  as TS
-#ifdef DISABLE_HTTPS
-import Happstack.Server.Internal.TLS            (HTTPS)
-#else
-import Happstack.Server.Internal.TimeoutSocketTLS  as TSS
-import Happstack.Server.Internal.TLS            (HTTPS, TLSConf(..), acceptTLS, httpsOnSocket)
-#endif
 import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad                            (forever, when)
-import Data.Maybe                               (fromJust)
 import Network.BSD                              (getProtocolNumber)
 import Network                                  (sClose, Socket)
 import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption, 
@@ -25,10 +17,6 @@ import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption,
                                  iNADDR_ANY, maxListenQueue, SocketType(..), 
                                  bindSocket)
 import qualified Network.Socket                 as Socket (listen, inet_addr)
-#ifndef DISABLE_HTTPS
-import qualified OpenSSL                        as SSL
-import qualified OpenSSL.Session                as SSL
-#endif
 import System.IO.Error                          (isFullError)
 {-
 #ifndef mingw32_HOST_OS
@@ -83,22 +71,11 @@ listen conf hand = do
     let port' = port conf
     socketm <- listenOn port'
     setSocketOption socketm KeepAlive 1
-    mHTTPS <- case tls conf of
-                Nothing ->  return Nothing
-                (Just tlsConf) ->
-#ifdef DISABLE_HTTPS
-                    do return Nothing
-#else
-                    do SSL.withOpenSSL $ return ()
-                       tlsSocket <- listenOn (tlsPort tlsConf)
-                       https <- httpsOnSocket (tlsCert tlsConf) (tlsKey tlsConf) tlsSocket
-                       return (Just https)
-#endif
-    listen' socketm mHTTPS conf hand
+    listen' socketm conf hand
 
 -- | Use a previously bind port and listen
-listen' :: Socket -> Maybe HTTPS -> Conf -> (Request -> IO Response) -> IO ()
-listen' s mhttps conf hand = do
+listen' :: Socket -> Conf -> (Request -> IO Response) -> IO ()
+listen' s conf hand = do
 {-
 #ifndef mingw32_HOST_OS
 -}
@@ -108,35 +85,6 @@ listen' s mhttps conf hand = do
 -}
   let port' = port conf
   tm <- initialize ((timeout conf) * (10^(6 :: Int)))
-  -- https:// loop
-  httpsTid <- forkIO $
-    case mhttps of
-      Nothing -> return ()
-#ifdef DISABLE_HTTPS
-      (Just _) -> 
-          do log' ERROR ("Ignoring https:// configuration because happstack-server was compiled with disable_https")
-#else
-      (Just https) -> 
-          do let ehs (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTPS request failed with: " ++ show x)
-                 work (ssl, hn, p) = 
-                     do tid <- myThreadId
-                        thandle <- register tm (killThread tid)
-                        let timeoutIO = TSS.timeoutSocketIO thandle ssl
-                        request timeoutIO conf (hn,fromIntegral p) hand `E.catch` ehs
-                        -- remove thread from timeout table
-                        cancel (toHandle timeoutIO)
-                        toShutdown timeoutIO
-                 loop = forever ((do w <- acceptTLS https
-                                     forkIO $ work w
-                                     return ())
-                                   `E.catch` sslException)
-                 sslException :: SSL.SomeSSLException -> IO ()
-                 sslException e = log' ERROR ("SSL exception in https accept thread: " ++ show e)
-                 pe e = log' ERROR ("ERROR in https accept thread: " ++ show e)
-                 infi = loop `catchSome` pe >> infi
-             log' NOTICE ("Listening for https:// on port " ++ show (tlsPort $ fromJust (tls conf)))
-             infi `finally` (sClose s)
-#endif
   -- http:// loop
   log' NOTICE ("Listening for http:// on port " ++ show port')
   let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
@@ -144,7 +92,7 @@ listen' s mhttps conf hand = do
           do tid <- myThreadId
              thandle <- register tm (killThread tid)
              let timeoutIO = TS.timeoutSocketIO thandle sock
-             request timeoutIO conf (hn,fromIntegral p) hand `E.catch` eh
+             request timeoutIO (logAccess conf) (hn,fromIntegral p) hand `E.catch` eh
              -- remove thread from timeout table
              cancel thandle
              sClose sock
@@ -153,7 +101,7 @@ listen' s mhttps conf hand = do
       pe e = log' ERROR ("ERROR in http accept thread: " ++ show e)
       infi = loop `catchSome` pe >> infi
 
-  infi `finally` (sClose s >> killThread httpsTid)
+  infi `finally` (sClose s)
 
 {--
 #ifndef mingw32_HOST_OS

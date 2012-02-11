@@ -14,6 +14,7 @@ import Control.Monad
 import Data.List(elemIndex)
 import Data.Char(toLower)
 import Data.Maybe ( fromMaybe, fromJust, isJust, isNothing )
+import Data.Time      (UTCTime)
 import Prelude hiding (last)
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Char8 as B
@@ -37,21 +38,21 @@ import System.Directory (removeFile)
 import System.IO
 import System.IO.Error (isDoesNotExistError)
 
-request :: TimeoutIO -> Conf -> Host -> (Request -> IO Response) -> IO ()
-request timeoutIO conf host handler =
-    rloop timeoutIO conf host handler =<< toGetContents timeoutIO
+request :: TimeoutIO -> Maybe (LogAccess UTCTime) -> Host -> (Request -> IO Response) -> IO ()
+request timeoutIO mlog host handler =
+    rloop timeoutIO mlog host handler =<< toGetContents timeoutIO
 
 required :: String -> Maybe a -> Either String a
 required err Nothing  = Left err
 required _   (Just a) = Right a
 
 rloop :: TimeoutIO
-         -> Conf
+         -> Maybe (LogAccess UTCTime)
          -> Host
          -> (Request -> IO Response)
          -> L.ByteString
          -> IO ()
-rloop timeoutIO conf host handler inputStr
+rloop timeoutIO mlog host handler inputStr
     | L.null inputStr = return ()
     | otherwise
     = join $
@@ -84,7 +85,7 @@ rloop timeoutIO conf host handler inputStr
 
                      res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
 
-                     case logAccess conf of
+                     case mlog of
                        Nothing -> return ()
                        (Just logger) ->
                            do time <- getApproximateUTCTime
@@ -101,7 +102,7 @@ rloop timeoutIO conf host handler inputStr
                      putAugmentedResult timeoutIO req res
                      -- clean up tmp files
                      cleanupTempFiles req
-                     when (continueHTTP req res) $ rloop timeoutIO conf host handler nextRequest
+                     when (continueHTTP req res) $ rloop timeoutIO mlog host handler nextRequest
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()

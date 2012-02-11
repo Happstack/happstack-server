@@ -9,7 +9,7 @@ module Happstack.Server.Internal.Types
      setHeader, setHeaderBS, setHeaderUnsafe,
      addHeader, addHeaderBS, addHeaderUnsafe,
      setRsCode, -- setCookie, setCookies,
-     Conf(..), nullConf, TLSConf(..), HTTPS(..), result, resultBS,
+     LogAccess, logMAccess, Conf(..), nullConf, result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
@@ -40,7 +40,6 @@ import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
-import Happstack.Server.Internal.TLS
 import Numeric (readDec, readSigned)
 import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()
@@ -73,20 +72,30 @@ continueHTTP rq res =
     (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq   && rsfLength (rsFlags res) == ContentLength) ||
     (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq) && rsfLength (rsFlags res) /= NoContentLength)
 
+-- | function to log access requests (see also: 'logMAccess')
+type LogAccess time =
+    (   String  -- ^ host
+     -> String  -- ^ user
+     -> time    -- ^ time
+     -> String  -- ^ requestLine
+     -> Int     -- ^ responseCode
+     -> Integer -- ^ size
+     -> String  -- ^ referer
+     -> String  -- ^ userAgent
+     -> IO ()) 
+
 -- | HTTP configuration
 data Conf = Conf
-    { port       :: Int -- ^ Port for the server to listen on.
-    , tls        :: Maybe TLSConf
+    { port       :: Int             -- ^ Port for the server to listen on.
     , validator  :: Maybe (Response -> IO Response) -- ^ a function to validate the output on-the-fly
-    , logAccess  :: forall t. FormatTime t => Maybe (String -> String -> t -> String -> Int -> Integer -> String -> String -> IO ()) -- ^ function to log access requests (see also: 'logMAccess')
-    , timeout    :: Int -- ^ number of seconds to wait before killing an inactive thread
+    , logAccess  :: forall t. FormatTime t => Maybe (LogAccess t) -- ^ function to log access requests (see also: 'logMAccess')
+    , timeout    :: Int             -- ^ number of seconds to wait before killing an inactive thread
     }
 
 -- | Default configuration contains no validator and the port is set to 8000
 nullConf :: Conf
 nullConf =
     Conf { port      = 8000
-         , tls       = Nothing
          , validator = Nothing
          , logAccess = Just logMAccess
          , timeout   = 30
@@ -95,16 +104,7 @@ nullConf =
 -- | log access requests using hslogger and apache-style log formatting
 --
 -- see also: 'Conf'
-logMAccess :: forall t. FormatTime t =>
-              String  -- ^ host
-           -> String  -- ^ user
-           -> t       -- ^ time
-           -> String  -- ^ requestLine
-           -> Int     -- ^ responseCode
-           -> Integer -- ^ size
-           -> String  -- ^ referer
-           -> String  -- ^ userAgent
-           -> IO ()
+logMAccess :: forall t. FormatTime t => LogAccess t
 logMAccess host user time requestLine responseCode size referer userAgent =
     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host user time requestLine responseCode size referer userAgent
 
