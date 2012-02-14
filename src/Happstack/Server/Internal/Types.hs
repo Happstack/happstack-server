@@ -24,6 +24,7 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Data.Data (Data)
+import Data.String (fromString)
 import Data.Time.Format (FormatTime(..))
 import Data.Typeable(Typeable)
 import qualified Data.ByteString.Char8 as P
@@ -35,6 +36,8 @@ import Data.Int   (Int8, Int16, Int32, Int64)
 import Data.Maybe
 import Data.List
 import Data.Word  (Word, Word8, Word16, Word32, Word64)
+import qualified Data.Text as Text
+import qualified Data.Text.Lazy as Lazy
 import Happstack.Server.SURI
 import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
@@ -452,6 +455,8 @@ class FromReqURI a where
     fromReqURI :: String -> Maybe a
 
 instance FromReqURI String  where fromReqURI = Just . U.toString . P.pack
+instance FromReqURI Text.Text where fromReqURI = fmap fromString . fromReqURI
+instance FromReqURI Lazy.Text where fromReqURI = fmap fromString . fromReqURI
 instance FromReqURI Char    where fromReqURI s = case s of [c] -> Just c ; _ -> Nothing
 instance FromReqURI Int     where fromReqURI = fromReadS . readSigned readDec
 instance FromReqURI Int8    where fromReqURI = fromReadS . readSigned readDec
