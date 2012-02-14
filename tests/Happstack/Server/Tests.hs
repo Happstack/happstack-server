@@ -29,7 +29,7 @@ allTests :: Test
 allTests = 
     "happstack-server tests" ~: [ cookieParserTest
                                 , acceptEncodingParserTest
-                                , splitMultipart 
+                                , multipart
                                 , compressFilterResponseTest
                                 ]
 
@@ -74,27 +74,37 @@ acceptEncodingParserTest =
        , (" x-gzip",[("x-gzip", Nothing)])
        ]
 
-splitMultipart :: Test
-splitMultipart =
-    "split multipart" ~: assertFailure "update splitMultipart test"
-{-
-    [ Just [pack "1"] @=? 
-           splitParts (pack "boundary")
-                      (pack "beg\r\n--boundary\r\n1\r\n--boundary--\r\nend")
-    , Just [pack "1\n"] @=? 
-           splitParts (pack "boundary")
-                      (pack "beg\r\n--boundary\r\n1\n\r\n--boundary--\r\nend")
-    , Just [pack "1\r\n"] @=? 
-           splitParts (pack "boundary")
-                      (pack "beg\r\n--boundary\r\n1\r\n\r\n--boundary--\r\nend")
-    , Just [pack "1\n\r"] @=? 
-           splitParts (pack "boundary")
-                      (pack "beg\r\n--boundary\r\n1\n\r\r\n--boundary--\r\nend")
-    , Just [pack "\r\n1\n\r"] @=? 
-           splitParts (pack "boundary")
-                      (pack "beg\r\n--boundary\r\n\r\n1\n\r\r\n--boundary--\r\nend")
+multipart :: Test
+multipart =
+    "split multipart" ~:
+    [ ([BodyPart (pack "content-type: text/plain\r\n") (pack "1")], Nothing) @=?
+           parseMultipartBody (pack "boundary")
+                      (pack "--boundary\r\ncontent-type: text/plain\r\n\r\n1\r\n--boundary--\r\nend")
+
+    , ([BodyPart (pack "content-type: text/plain\r\n") (pack "1")], Nothing) @=?
+           parseMultipartBody (pack "boundary.with.dot")
+                      (pack "--boundary.with.dot\r\ncontent-type: text/plain\r\n\r\n1\r\n--boundary.with.dot--\r\nend")
+
+    , ([BodyPart (pack "content-type: text/plain\r\n") (pack "1")], Nothing) @=?
+           parseMultipartBody (pack "boundary")
+                      (pack "beg\r\n--boundary\r\ncontent-type: text/plain\r\n\r\n1\r\n--boundary--\r\nend")
+
+    , ([BodyPart (pack "content-type: text/plain\r\n") (pack "1\n")], Nothing) @=?
+           parseMultipartBody (pack "boundary")
+                      (pack "beg\r\n--boundary\r\ncontent-type: text/plain\r\n\r\n1\n\r\n--boundary--\r\nend")
+
+    , ([BodyPart (pack "content-type: text/plain\r\n") (pack "1\r\n")], Nothing) @=?
+           parseMultipartBody (pack "boundary")
+                      (pack "beg\r\n--boundary\r\ncontent-type: text/plain\r\n\r\n1\r\n\r\n--boundary--\r\nend")
+    , ([BodyPart (pack "content-type: text/plain\r\n") (pack "1\n\r")], Nothing) @=?
+           parseMultipartBody (pack "boundary")
+                      (pack "beg\r\n--boundary\r\ncontent-type: text/plain\r\n\r\n1\n\r\r\n--boundary--\r\nend")
+
+    , ([BodyPart (pack "content-type: text/plain\r\n") (pack "\r\n1\n\r")], Nothing) @=?
+           parseMultipartBody (pack "boundary")
+                      (pack "beg\r\n--boundary\r\ncontent-type: text/plain\r\n\r\n\r\n1\n\r\r\n--boundary--\r\nend")
     ]
--}
+
 compressFilterResponseTest :: Test
 compressFilterResponseTest =
     "compressFilterResponseTest" ~: 
@@ -122,6 +132,7 @@ mkRequest method uri cookies headers body =
                         , rqHeaders     = headers
                         , rqBody        = b
                         , rqPeer        = ("",0)
+                        , rqSecure      = False
                         }
 
 compressPart :: ServerPart Response

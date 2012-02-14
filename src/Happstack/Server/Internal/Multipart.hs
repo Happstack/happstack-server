@@ -235,7 +235,9 @@ splitBlank s = spanS (not . L.isPrefixOf crlfcrlf) s
 splitBoundary :: L.ByteString -> L.ByteString -> (L.ByteString, L.ByteString)
 splitBoundary boundary s =
     case spanS (not . L.isPrefixOf (L.pack "\r\n--" `L.append` boundary)) s of
-      (x,y) -> (x, dropLine (L.drop 2 y))
+      (x,y) | (L.pack "\r\n--" `L.append` boundary `L.append` (L.pack "--"))
+                `L.isPrefixOf` y -> (x, L.empty)
+            | otherwise -> (x, dropLine (L.drop 2 y))
 {-# INLINE splitBoundary #-}
 
 splitAtEmptyLine :: L.ByteString -> Maybe (L.ByteString, L.ByteString)

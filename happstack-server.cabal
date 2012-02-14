@@ -46,6 +46,7 @@ Library
                        Happstack.Server.Internal.Listen
                        Happstack.Server.Internal.LowLevel
                        Happstack.Server.Internal.MessageWrap
+                       Happstack.Server.Internal.Multipart
                        Happstack.Server.Internal.Socket
                        Happstack.Server.Internal.TimeoutIO
                        Happstack.Server.Internal.TimeoutManager
@@ -70,7 +71,6 @@ Library
                        Happstack.Server.Internal.Clock
                        Happstack.Server.Internal.LazyLiner
                        Happstack.Server.Internal.LogFormat
-                       Happstack.Server.Internal.Multipart
                        Happstack.Server.Internal.RFC822Headers
                        Happstack.Server.Internal.SocketTH
                        Happstack.Server.SURI.ParseURI
