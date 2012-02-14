@@ -70,7 +70,7 @@ toResponseBS contentType message =
 -- | 'toResponse' will convert a value into a 'Response' body,
 -- set the @content-type@, and set the default response code for that type.
 --
--- Example:
+-- @happstack-server@ Example:
 --
 -- > main = simpleHTTP nullConf $ toResponse "hello, world!"
 --
@@ -80,6 +80,10 @@ toResponseBS contentType message =
 -- 'simpleHTTP' will call 'toResponse' automatically, so the above can be shortened to:
 --
 --  > main = simpleHTTP nullConf $ "hello, world!"
+--
+-- @happstack-lite@ Example:
+--
+-- > main = serve Nothing $ toResponse "hello, world!"
 --
 -- Minimal definition: 'toMessage' (and usually 'toContentType'). 
 class ToMessage a where
