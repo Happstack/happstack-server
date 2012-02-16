@@ -76,15 +76,25 @@ continueHTTP rq res =
     (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq) && rsfLength (rsFlags res) /= NoContentLength)
 
 -- | function to log access requests (see also: 'logMAccess')
+-- type LogAccess time =
+--    (   String  -- ^ host
+--     -> String  -- ^ user
+--     -> time    -- ^ time
+--     -> String  -- ^ requestLine
+--     -> Int     -- ^ responseCode
+--     -> Integer -- ^ size
+--     -> String  -- ^ referer
+--     -> String  -- ^ userAgent
+--     -> IO ()) 
 type LogAccess time =
-    (   String  -- ^ host
-     -> String  -- ^ user
-     -> time    -- ^ time
-     -> String  -- ^ requestLine
-     -> Int     -- ^ responseCode
-     -> Integer -- ^ size
-     -> String  -- ^ referer
-     -> String  -- ^ userAgent
+    (   String
+     -> String
+     -> time
+     -> String
+     -> Int
+     -> Integer
+     -> String
+     -> String
      -> IO ()) 
 
 -- | HTTP configuration
