@@ -3,6 +3,7 @@ module Happstack.Server.Internal.TimeoutManager
     , Handle
     , initialize
     , register
+    , registerKillThread
     , tickle
     , pause
     , resume
@@ -10,12 +11,13 @@ module Happstack.Server.Internal.TimeoutManager
     ) where
 
 import qualified Data.IORef as I
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIO, threadDelay, myThreadId, killThread)
 import Control.Monad (forever)
 import qualified Control.Exception as E
 
 -- FIXME implement stopManager
 
+-- | A timeout manager
 newtype Manager = Manager (I.IORef [Handle])
 data Handle = Handle (IO ()) (I.IORef State)
 data State = Active | Inactive | Paused | Canceled
@@ -51,6 +53,11 @@ register (Manager ref) onTimeout = do
     let h = Handle onTimeout iactive
     I.atomicModifyIORef ref (\x -> (h : x, ()))
     return h
+
+registerKillThread :: Manager -> IO Handle
+registerKillThread m = do
+    tid <- myThreadId
+    register m $ killThread tid
 
 tickle, pause, resume, cancel :: Handle -> IO ()
 tickle (Handle _ iactive) = I.writeIORef iactive Active
