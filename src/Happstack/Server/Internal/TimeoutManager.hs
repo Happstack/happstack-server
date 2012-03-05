@@ -19,7 +19,7 @@ import qualified Control.Exception as E
 
 -- | A timeout manager
 newtype Manager = Manager (I.IORef [Handle])
-data Handle = Handle (IO ()) (I.IORef State)
+data Handle = Handle (I.IORef (IO ())) (I.IORef State)
 data State = Active | Inactive | Paused | Canceled
 
 initialize :: Int -> IO Manager
@@ -37,7 +37,8 @@ initialize timeout = do
         state <- I.atomicModifyIORef iactive (\x -> (go' x, x))
         case state of
             Inactive -> do
-                onTimeout `E.catch` ignoreAll
+                action <- I.readIORef onTimeout
+                action `E.catch` ignoreAll
                 go rest front
             Canceled -> go rest front
             _ -> go rest (front . (:) m)
@@ -50,7 +51,8 @@ ignoreAll _ = return ()
 register :: Manager -> IO () -> IO Handle
 register (Manager ref) onTimeout = do
     iactive <- I.newIORef Active
-    let h = Handle onTimeout iactive
+    action  <- I.newIORef onTimeout
+    let h = Handle action iactive
     I.atomicModifyIORef ref (\x -> (h : x, ()))
     return h
 
@@ -60,7 +62,9 @@ registerKillThread m = do
     register m $ killThread tid
 
 tickle, pause, resume, cancel :: Handle -> IO ()
-tickle (Handle _ iactive) = I.writeIORef iactive Active
-pause (Handle _ iactive) = I.writeIORef iactive Paused
+tickle (Handle _ iactive) = I.writeIORef iactive $! Active
+pause (Handle _ iactive) = I.writeIORef iactive $! Paused
 resume = tickle
-cancel (Handle _ iactive) = I.writeIORef iactive Canceled
+cancel (Handle action iactive) = 
+    do I.writeIORef iactive $! Canceled
+       I.writeIORef action $! (return ())
