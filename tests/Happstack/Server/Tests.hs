@@ -9,7 +9,7 @@ import Control.Concurrent.MVar
 import Control.Monad (msum)
 import Control.Monad.Trans (liftIO)
 import Data.ByteString.Lazy.Char8     (pack, unpack)
-import qualified Data.ByteString.Char8 as B 
+import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy  as L
 import qualified Data.Map              as Map
 import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart(..), Headers(..), RqBody(Body), HttpVersion(..)
@@ -24,9 +24,9 @@ import Happstack.Server.SURI(ToSURI(..), SURI(..),path,query)
 import Test.HUnit as HU (Test(..),(~:),(~?),(@?=),(@=?), assertEqual, assertFailure)
 import Text.ParserCombinators.Parsec
 
--- |All of the tests for happstack-util should be listed here. 
+-- |All of the tests for happstack-util should be listed here.
 allTests :: Test
-allTests = 
+allTests =
     "happstack-server tests" ~: [ cookieParserTest
                                 , acceptEncodingParserTest
                                 , multipart
@@ -34,7 +34,7 @@ allTests =
                                 ]
 
 cookieParserTest :: Test
-cookieParserTest = 
+cookieParserTest =
     "cookieParserTest" ~:
     [parseCookies "$Version=1;Cookie1=value1;$Path=\"/testpath\";$Domain=example.com;cookie2=value2"
         @?= (Right [
@@ -107,8 +107,8 @@ multipart =
 
 compressFilterResponseTest :: Test
 compressFilterResponseTest =
-    "compressFilterResponseTest" ~: 
-     [ uncompressedResponse 
+    "compressFilterResponseTest" ~:
+     [ uncompressedResponse
      , uncompressedSendFile
      , compressedResponseGZ
      , compressedResponseZ
@@ -117,9 +117,9 @@ compressFilterResponseTest =
      ]
 
 mkRequest :: Method -> String -> [(String, Cookie)] -> Headers -> L.ByteString -> IO Request
-mkRequest method uri cookies headers body = 
+mkRequest method uri cookies headers body =
     do let u = toSURI uri
-       ib <- newEmptyMVar 
+       ib <- newEmptyMVar
        b  <- newMVar (Body body)
        return $ Request { rqMethod      = method
                         , rqPaths       = (pathEls (path u))
