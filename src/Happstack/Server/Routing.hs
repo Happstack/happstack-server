@@ -33,17 +33,39 @@ import           System.FilePath                  (makeRelative, splitDirectorie
 
 -- | instances of this class provide a variety of ways to match on the 'Request' method.
 --
--- Examples
+-- Examples:
 -- 
--- > method GET                  -- match GET
--- > method [HEAD, GET]          -- match HEAD or GET
+-- > method GET                  -- match GET or HEAD
+-- > method [GET, POST]          -- match GET, HEAD or POST
+-- > method (== GET)             -- match GET or HEAD
 -- > method (not . (==) DELETE)  -- match any method except DELETE
 -- > method ()                   -- match any method
-class MatchMethod m where matchMethod :: m -> Method -> Bool
-instance MatchMethod Method where matchMethod m = (== m)
-instance MatchMethod [Method] where matchMethod methods = (`elem` methods)
-instance MatchMethod (Method -> Bool) where matchMethod f = f
-instance MatchMethod () where matchMethod () _ = True
+--
+-- As you can see, HEAD will also match for GET; this is to make it harder
+-- to write an application that uses HTTP incorrectly.  Happstack handles
+-- HEAD requests automatically, but we still need to make sure our handlers
+-- don't mismatch or a HEAD will result in a 404.
+--
+-- If you must, you can still do something like this
+-- to match GET without HEAD:
+--
+-- > guardRq ((== GET) . rqMethod)
+
+class MatchMethod m where
+    matchMethod :: m -> Method -> Bool
+
+instance MatchMethod Method where
+    matchMethod m = matchMethod (== m)
+
+instance MatchMethod [Method] where
+    matchMethod ms m = any (`matchMethod` m) ms
+
+instance MatchMethod (Method -> Bool) where
+    matchMethod f HEAD = f HEAD || f GET
+    matchMethod f m    = f m
+
+instance MatchMethod () where
+    matchMethod () _ = True
 
 -------------------------------------
 -- guards
