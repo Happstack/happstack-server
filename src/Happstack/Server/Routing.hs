@@ -37,14 +37,15 @@ import           System.FilePath                  (makeRelative, splitDirectorie
 -- 
 -- > method GET                  -- match GET or HEAD
 -- > method [GET, POST]          -- match GET, HEAD or POST
+-- > method HEAD                 -- match HEAD /but not/ GET
 -- > method (== GET)             -- match GET or HEAD
 -- > method (not . (==) DELETE)  -- match any method except DELETE
 -- > method ()                   -- match any method
 --
--- As you can see, HEAD will also match for GET; this is to make it harder
--- to write an application that uses HTTP incorrectly.  Happstack handles
--- HEAD requests automatically, but we still need to make sure our handlers
--- don't mismatch or a HEAD will result in a 404.
+-- As you can see, GET implies that HEAD should match as well.  This is to
+-- make it harder to write an application that uses HTTP incorrectly.
+-- Happstack handles HEAD requests automatically, but we still need to make
+-- sure our handlers don't mismatch or a HEAD will result in a 404.
 --
 -- If you must, you can still do something like this
 -- to match GET without HEAD:
