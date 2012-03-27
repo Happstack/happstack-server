@@ -9,6 +9,7 @@ import Control.Concurrent.MVar (tryTakeMVar, tryPutMVar, putMVar)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Char8 as P
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.ByteString.UTF8  as U (toString)
 import Data.Int (Int64)
 import Happstack.Server.Internal.Types as H
 import Happstack.Server.Internal.Multipart
@@ -21,7 +22,7 @@ queryInput uri = formDecode (case SURI.query uri of
                                xs    -> xs)
 
 -- | see 'defaultBodyPolicy'
-data BodyPolicy 
+data BodyPolicy
     = BodyPolicy { inputWorker :: Int64 -> Int64 -> Int64 -> InputWorker
                  , maxDisk     :: Int64 -- ^ maximum bytes for files uploaded in this 'Request'
                  , maxRAM      :: Int64 -- ^ maximum bytes for all non-file values in the 'Request' body
@@ -42,7 +43,7 @@ defaultBodyPolicy tmpDir md mr mh =
                }
 
 bodyInput :: (MonadIO m) => BodyPolicy -> Request -> m ([(String, Input)], Maybe String)
-bodyInput _ req | ((rqMethod req /= POST) && (rqMethod req /= PUT)) || (not (isDecodable ctype)) = 
+bodyInput _ req | ((rqMethod req /= POST) && (rqMethod req /= PUT)) || (not (isDecodable ctype)) =
     do _ <- liftIO $ tryPutMVar (rqInputsBody req) []
        return ([], Nothing)
     where
@@ -66,17 +67,17 @@ bodyInput bodyPolicy req =
              do rqbody <- takeRequestBody req
                 case rqbody of
                   Nothing          -> return ([], Just $ "bodyInput: Request body was already consumed.")
-                  (Just (Body bs)) -> 
+                  (Just (Body bs)) ->
                       do r@(inputs, _err) <- decodeBody bodyPolicy ctype bs
                          putMVar (rqInputsBody req) inputs
                          return r
 
--- | Decodes application\/x-www-form-urlencoded inputs.      
+-- | Decodes application\/x-www-form-urlencoded inputs.
 -- TODO: should any of the [] be error conditions?
 formDecode :: String -> [(String, Input)]
 formDecode [] = []
-formDecode qString = 
-    if null pairString then rest else 
+formDecode qString =
+    if null pairString then rest else
            (SURI.unEscapeQS name,simpleInput $ SURI.unEscapeQS val):rest
     where (pairString,qString')= split (=='&') qString
           (name,val)=split (=='=') pairString
@@ -94,7 +95,7 @@ decodeBody bp ctype inp
             return (formDecode (L.unpack (L.take (maxRAM bp) inp)), Nothing)
         Just (ContentType "multipart" "form-data" ps) ->
             multipartDecode ((inputWorker bp) (maxDisk bp) (maxRAM bp) (maxHeader bp)) ps inp
-        Just ct -> 
+        Just ct ->
             return ([], Just $ "decodeBody: unsupported content-type: " ++ show ct) -- unknown content-type, the user will have to
                      -- deal with it by looking at the raw content
         -- No content-type given, assume x-www-form-urlencoded
@@ -112,7 +113,7 @@ multipartDecode worker ps inp =
 
 -- | Get the path components from a String.
 pathEls :: String -> [String]
-pathEls = (drop 1) . map SURI.unEscape . splitList '/' 
+pathEls = (drop 1) . map (U.toString . P.pack . SURI.unEscape) . splitList '/'
 
 -- | Repeadly splits a list by the provided separator and collects the results
 splitList :: Eq a => a -> [a] -> [[a]]
@@ -132,4 +133,4 @@ split f s = (left,right)
 	where
 	(left,right')=break f s
 	right = if null right' then [] else tail right'
-							
+
