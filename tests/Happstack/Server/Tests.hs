@@ -6,14 +6,14 @@ import qualified Codec.Compression.Zlib as Z
 import Control.Arrow ((&&&))
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar
-import Control.Monad (msum)
+import Control.Monad (msum, forM_)
 import Control.Monad.Trans (liftIO)
 import Data.ByteString.Lazy.Char8     (pack, unpack)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy  as L
 import qualified Data.Map              as Map
 import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart(..), Headers(..), RqBody(Body), HttpVersion(..)
-                                             , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength)
+                                             , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength, matchMethod)
 import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
 import Happstack.Server.Cookie
 import Happstack.Server.Internal.Compression
@@ -31,6 +31,7 @@ allTests =
                                 , acceptEncodingParserTest
                                 , multipart
                                 , compressFilterResponseTest
+                                , matchMethodTest
                                 ]
 
 cookieParserTest :: Test
@@ -196,3 +197,27 @@ compressedSendFileNoIdentity =
          assertEqual "respone code"     (rsCode res) 406
          assertEqual "body"             (unpack (rsBody res)) ""
          assertEqual "Content-Encoding" ((hName &&& hValue) <$> Map.lookup (B.pack "content-encoding") (rsHeaders res)) Nothing
+
+matchMethodTest :: Test
+matchMethodTest =
+    "matchMethodTest" ~:
+      do forM_ gethead $ \m -> matchMethod GET m @?= True
+         forM_ others  $ \m -> matchMethod GET m @?= False
+         forM_ gethead $ \m -> matchMethod [GET] m @?= True
+         forM_ others  $ \m -> matchMethod [GET] m @?= False
+         forM_ gethead $ \m -> matchMethod [GET, HEAD] m @?= True
+         forM_ others  $ \m -> matchMethod [GET, HEAD] m @?= False
+         matchMethod POST GET   @?= False
+         matchMethod POST HEAD  @?= False
+         matchMethod POST TRACE @?= False
+         matchMethod POST POST  @?= True
+         matchMethod [POST, PUT] GET   @?= False
+         matchMethod [POST, PUT] HEAD  @?= False
+         matchMethod [POST, PUT] TRACE @?= False
+         matchMethod [POST, PUT] POST  @?= True
+         matchMethod [POST, PUT] PUT   @?= True
+         forM_ (others) $ \m -> matchMethod (`notElem` gethead) m @?= True
+         forM_ (gethead ++ others) $ \m -> matchMethod () m @?= True
+  where
+    gethead = [GET, HEAD]
+    others  = [POST, PUT, DELETE, TRACE, OPTIONS, CONNECT]
