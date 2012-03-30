@@ -27,6 +27,7 @@ module Happstack.Server.Monads
     , addHeaderM
     , getHeaderM
     , setHeaderM
+    , neverExpires
       -- * WebMonad
     , WebMonad(..)
     , escape
@@ -76,6 +77,11 @@ addHeaderM a v = composeFilter $ \res-> addHeader a v res
 -- than one header of the same name.
 setHeaderM :: (FilterMonad Response m) => String -> String -> m ()
 setHeaderM a v = composeFilter $ \res -> setHeader a v res
+
+-- | Set a far-future Expires header.  Useful for static resources.  If the
+-- browser has the resource cached, no extra request is spent.
+neverExpires :: (FilterMonad Response m) => m ()
+neverExpires = setHeaderM "Expires" "Mon, 31 Dec 2035 12:00:00 GMT"
 
 -- | Run an 'IO' action and, if it returns 'Just', pass it to the
 -- second argument.
