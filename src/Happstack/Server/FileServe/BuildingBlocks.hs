@@ -20,6 +20,7 @@ module Happstack.Server.FileServe.BuildingBlocks
      serveDirectory',
      -- ** Serving a single file
      serveFile,
+     serveFileFrom,
      serveFileUsing,
      -- * Low-Level
      sendFileResponse,
@@ -42,6 +43,7 @@ module Happstack.Server.FileServe.BuildingBlocks
      -- * Other
      blockDotFiles,
      defaultIxFiles,
+     combineSafe,
      isSafePath,
      tryIndex,
      doIndex,
@@ -62,6 +64,7 @@ import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
+import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
@@ -304,6 +307,19 @@ serveFile :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
           -> m Response
 serveFile = serveFileUsing filePathSendFile
 
+-- | Like 'serveFile', but uses 'combineSafe' to prevent directory
+-- traversal attacks when the path to the file is supplied by the user.
+serveFileFrom :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) => 
+                 FilePath                 -- ^ directory wherein served files must be contained
+              -> (FilePath -> m String)   -- ^ function for determining content-type of file. Typically 'asContentType' or 'guessContentTypeM'
+              -> FilePath                 -- ^ path to the file to serve
+              -> m Response
+serveFileFrom root mimeFn fp =
+    maybe no yes $ combineSafe root fp
+  where
+    no  = forbidden $ toResponse "Directory traversal forbidden"
+    yes = serveFile mimeFn
+
 -- ** Serve files from a directory
 
 -- | Serve files from a directory and its subdirectories (parameterizable version)
@@ -351,6 +367,27 @@ fileServe' serveFn mimeFn indexFn localPath = do
                   else if fe
                           then serveFileUsing serveFn mimeFn fp
                           else mzero
+
+-- | Combine two 'FilePath's, ensuring that the resulting path leads to
+-- a file within the first 'FilePath'.
+--
+-- >>> combineSafe "/var/uploads/" "etc/passwd"
+-- Just "/var/uploads/etc/passwd"
+-- >>> combineSafe "/var/uploads/" "/etc/passwd"
+-- Nothing
+-- >>> combineSafe "/var/uploads/" "../../etc/passwd"
+-- Nothing
+-- >>> combineSafe "/var/uploads/" "../uploads/home/../etc/passwd"
+-- Just "/var/uploads/etc/passwd"
+combineSafe :: FilePath -> FilePath -> Maybe FilePath
+combineSafe root path =
+    if commonPrefix [root', joined] == root'
+      then Just $ encodeString joined
+      else Nothing
+  where
+    root'  = decodeString root
+    path'  = decodeString path
+    joined = collapse $ append root' path'
 
 isSafePath :: [FilePath] -> Bool
 isSafePath [] = True

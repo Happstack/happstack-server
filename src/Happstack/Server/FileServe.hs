@@ -4,6 +4,7 @@ module Happstack.Server.FileServe
       Browsing(..)
     , serveDirectory
     , serveFile
+    , serveFileFrom
      -- * Content-Type \/ Mime-Type
      , MimeMap
      , mimeTypes
