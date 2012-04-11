@@ -27,8 +27,12 @@ Flag tests
     Description: Build the testsuite, and include the tests in the library
     Default: False
 
-Library
+Flag template_haskell
+    Description: Template Haskell is available on this system
+    Default: True
+    Manual: True
 
+Library
   Exposed-modules:
                        Happstack.Server
                        Happstack.Server.Auth
@@ -62,9 +66,9 @@ Library
                        Happstack.Server.Types
                        Happstack.Server.Validation
   if flag(tests)
-    Exposed-modules:   
+    Exposed-modules:
                        Happstack.Server.Tests
-  Other-modules:       
+  Other-modules:
                        Happstack.Server.HTTPClient.HTTP
                        Happstack.Server.HTTPClient.Stream
                        Happstack.Server.HTTPClient.TCP
@@ -93,7 +97,6 @@ Library
                        parsec < 4,
                        process,
                        sendfile >= 0.7.1 && < 0.8,
-                       template-haskell,
                        text >= 0.10 && < 0.12,
                        time,
                        transformers >= 0.1.3 && < 0.4,
@@ -106,6 +109,10 @@ Library
     Build-Depends:     network >= 2.2.3
   else
     Build-Depends:     network < 2.2.3, network-bytestring
+
+  if (flag(template_haskell) && !(arch(arm)))
+    Build-Depends:     template-haskell
+    cpp-options:       -DTEMPLATE_HASKELL
 
   hs-source-dirs:      src
   if flag(tests)
