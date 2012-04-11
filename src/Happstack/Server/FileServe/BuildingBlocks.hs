@@ -17,6 +17,7 @@ module Happstack.Server.FileServe.BuildingBlocks
      fileServeStrict,
      Browsing(..),
      serveDirectory,
+     serveDirectory',
      -- ** Serving a single file
      serveFile,
      serveFileUsing,
@@ -646,16 +647,30 @@ serveDirectory :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, M
                -> FilePath    -- ^ file/directory to serve
                -> m Response
 serveDirectory browsing ixFiles localPath = 
+    serveDirectory' browsing ixFiles mimeFn localPath
+        where
+          mimeFn  = guessContentTypeM mimeTypes
+
+
+-- | like 'serveDirectory' but with custom mimeTypes
+serveDirectory' :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
+                => Browsing    -- ^ allow directory browsing
+                -> [FilePath]  -- ^ index file names, in case the requested path is a directory
+                -> (FilePath -> m String) -- ^ function which returns the mime-type for FilePath
+                -> FilePath    -- ^ file/directory to serve
+                -> m Response
+serveDirectory' browsing ixFiles mimeFn localPath = 
     fileServe' serveFn mimeFn indexFn localPath
         where
           serveFn = filePathSendFile
-          mimeFn  = guessContentTypeM mimeTypes
           indexFn fp =
               msum [ tryIndex filePathSendFile mimeFn ixFiles fp
                    , if browsing == EnableBrowsing
                         then browseIndex renderDirectoryContents filePathSendFile mimeFn ixFiles fp
                         else forbidden $ toResponse "Directory index forbidden"
                    ]
+
+
 
 -- | Ready collection of common mime types.
 -- Except for the first two entries, the mappings come from an Ubuntu 8.04 \/etc\/mime.types file.
