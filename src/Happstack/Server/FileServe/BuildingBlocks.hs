@@ -22,7 +22,7 @@ module Happstack.Server.FileServe.BuildingBlocks
      serveFile,
      serveFileUsing,
      -- * Low-Level
-     sendFileResponse,     
+     sendFileResponse,
      lazyByteStringResponse,
      strictByteStringResponse,
      filePathSendFile,
@@ -79,7 +79,7 @@ import qualified Text.Blaze.Html5.Attributes as A
 -- * Mime-Type / Content-Type
 
 -- |a 'Map' from file extensions to content-types
--- 
+--
 -- example:
 --
 -- > myMimeMap :: MimeMap
@@ -107,19 +107,19 @@ guessContentType mimeMap filepath =
 guessContentTypeM :: (Monad m) => MimeMap -> (FilePath -> m String)
 guessContentTypeM mimeMap filePath = return $ fromMaybe "application/octet-stream" $ guessContentType mimeMap filePath
 
--- | returns a specific content type, completely ignoring the 'FilePath' argument. 
+-- | returns a specific content type, completely ignoring the 'FilePath' argument.
 --
 -- Use this with 'serveFile' if you want to explicitly specify the
 -- content-type.
 --
 -- see also: 'guessContentTypeM', 'serveFile'
-asContentType :: (Monad m) => 
+asContentType :: (Monad m) =>
                  String  -- ^ the content-type to return
               -> (FilePath -> m String)
 asContentType = const . return
 
 -- | a list of common index files. Specifically: @index.html@, @index.xml@, @index.gif@
--- 
+--
 -- Typically used as an argument to 'serveDiretory'.
 defaultIxFiles :: [FilePath]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
@@ -159,7 +159,7 @@ sendFileResponse :: String  -- ^ content-type string
                  -> Integer -- ^ number of bytes to send
                  -> Response
 sendFileResponse ct filePath mModTime offset count =
-    let res = ((setHeader "Content-Type" ct) $ 
+    let res = ((setHeader "Content-Type" ct) $
                (SendFile 200 Map.empty (nullRsFlags { rsfLength = ContentLength }) Nothing filePath offset count)
               )
     in case mModTime of
@@ -251,27 +251,27 @@ filePathStrict contentType fp =
 -- ** Serve a single file
 
 -- | Serve a single, specified file. The name of the file being served is specified explicity. It is not derived automatically from the 'Request' url.
--- 
+--
 -- example 1:
--- 
+--
 --  Serve using sendfile() and the specified content-type
 --
 -- > serveFileUsing filePathSendFile (asContentType "image/jpeg") "/srv/data/image.jpg"
 --
 --
 -- example 2:
--- 
+--
 --  Serve using a lazy ByteString and the guess the content-type from the extension
--- 
+--
 -- > serveFileUsing filePathLazy (guessContentTypeM mimeTypes) "/srv/data/image.jpg"
--- 
+--
 -- WARNING: No security checks are performed.
-serveFileUsing :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) 
+serveFileUsing :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
                => (String -> FilePath -> m Response) -- ^ typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict'
                -> (FilePath -> m String)  -- ^ function for determining content-type of file. Typically 'asContentType' or 'guessContentTypeM'
                -> FilePath -- ^ path to the file to serve
                -> m Response
-serveFileUsing serveFn mimeFn fp = 
+serveFileUsing serveFn mimeFn fp =
     do fe <- liftIO $ doesFileExist fp
        if fe
           then do mt <- mimeFn fp
@@ -279,26 +279,26 @@ serveFileUsing serveFn mimeFn fp =
           else mzero
 
 -- | Serve a single, specified file. The name of the file being served is specified explicity. It is not derived automatically from the 'Request' url.
--- 
+--
 -- example 1:
--- 
+--
 --  Serve as a specific content-type:
 --
 -- > serveFile (asContentType "image/jpeg") "/srv/data/image.jpg"
 --
 --
 -- example 2:
--- 
+--
 --  Serve guessing the content-type from the extension:
--- 
+--
 -- > serveFile (guessContentTypeM mimeTypes) "/srv/data/image.jpg"
 --
 -- If the specified path does not exist or is not a file, this function will return 'mzero'.
--- 
+--
 -- WARNING: No security checks are performed.
 --
 -- NOTE: alias for 'serveFileUsing' 'filePathSendFile'
-serveFile :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) => 
+serveFile :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              (FilePath -> m String)   -- ^ function for determining content-type of file. Typically 'asContentType' or 'guessContentTypeM'
           -> FilePath                 -- ^ path to the file to serve
           -> m Response
@@ -307,7 +307,7 @@ serveFile = serveFileUsing filePathSendFile
 -- ** Serve files from a directory
 
 -- | Serve files from a directory and its subdirectories (parameterizable version)
--- 
+--
 -- Parameterize this function to create functions like, 'fileServe', 'fileServeLazy', and 'fileServeStrict'
 --
 -- You supply:
@@ -324,7 +324,7 @@ fileServe' :: ( WebMonad Response m
               , FilterMonad Response m
               , MonadIO m
               , MonadPlus m
-              ) 
+              )
            => (String -> FilePath -> m Response) -- ^ function which takes a content-type and filepath and generates a response (typically 'filePathSendFile', 'filePathLazy', or 'filePathStrict')
            -> (FilePath -> m String) -- ^ function which returns the mime-type for FilePath
 --           -> [FilePath]         -- ^ index file names, in case the requested path is a directory
@@ -348,15 +348,15 @@ fileServe' serveFn mimeFn indexFn localPath = do
                           then indexFn fp
                           else do let path' = addTrailingPathSeparator (rqUri rq)
                                   seeOther path' (toResponse path')
-                  else if fe 
+                  else if fe
                           then serveFileUsing serveFn mimeFn fp
                           else mzero
 
 isSafePath :: [FilePath] -> Bool
 isSafePath [] = True
 isSafePath (s:ss) =
-     isValid s 
-  && (all (not . isPathSeparator) s) 
+     isValid s
+  && (all (not . isPathSeparator) s)
   && not (hasDrive s)
   && not (isParent s)
   && isSafePath ss
@@ -367,7 +367,7 @@ isParent ".." = True
 isParent _    = False
 
 -- | Serve files from a directory and its subdirectories using 'sendFile'.
--- 
+--
 -- Usage:
 --
 -- > fileServe ["index.html"] "path/to/files/on/disk"
@@ -377,19 +377,19 @@ isParent _    = False
 -- DEPRECATED: use 'serveDirectory' instead.
 --
 -- Note:
--- 
+--
 --  The list of index files @[\"index.html\"]@ is only used to determine what file to show if the user requests a directory. You *do not* need to explicitly list all the files you want to serve.
--- 
+--
 fileServe :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
              [FilePath]         -- ^ index file names, in case the requested path is a directory
           -> FilePath           -- ^ file/directory to serve
           -> m Response
-fileServe ixFiles localPath = 
+fileServe ixFiles localPath =
     fileServe' serveFn mimeFn indexFn localPath
         where
           serveFn    = filePathSendFile
           mimeFn     = guessContentTypeM mimeTypes
-          indexFiles = (ixFiles ++ defaultIxFiles) 
+          indexFiles = (ixFiles ++ defaultIxFiles)
           indexFn    = doIndex' filePathSendFile mimeFn indexFiles
 --          indexFn    = browseIndex filePathSendFile mimeFn indexFiles
 {-# DEPRECATED fileServe "use serveDirectory instead." #-}
@@ -406,10 +406,10 @@ fileServeLazy ixFiles localPath =
         where
           serveFn    = filePathLazy
           mimeFn     = guessContentTypeM mimeTypes
-          indexFiles = (ixFiles ++ defaultIxFiles) 
+          indexFiles = (ixFiles ++ defaultIxFiles)
           indexFn    = doIndex' filePathSendFile mimeFn indexFiles
 
--- | Serve files from a directory and its subdirectories (strict ByteString version). 
+-- | Serve files from a directory and its subdirectories (strict ByteString version).
 --
 -- WARNING: the entire file will be read into RAM before being served. You should probably use 'fileServe' instead.
 fileServeStrict :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
@@ -421,12 +421,12 @@ fileServeStrict ixFiles localPath =
         where
           serveFn    = filePathStrict
           mimeFn     = guessContentTypeM mimeTypes
-          indexFiles = (ixFiles ++ defaultIxFiles) 
+          indexFiles = (ixFiles ++ defaultIxFiles)
           indexFn    = doIndex' filePathSendFile mimeFn indexFiles
 
 -- * Index
 
--- | attempt to serve index files 
+-- | attempt to serve index files
 doIndex :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
         => [FilePath] -- ^ list of possible index files (e.g., @index.html@)
         -> MimeMap    -- ^ see also 'mimeTypes'
@@ -470,8 +470,8 @@ tryIndex _serveFn _mime  []          _fp = mzero
 tryIndex  serveFn mimeFn (index:rest) fp =
     do let path = fp </> index
        fe <- liftIO $ doesFileExist path
-       if fe 
-          then serveFileUsing serveFn mimeFn path 
+       if fe
+          then serveFileUsing serveFn mimeFn path
           else tryIndex serveFn mimeFn rest fp
 
 -- * Directory Browsing
@@ -496,15 +496,15 @@ data EntryKind = File | Directory | UnknownKind deriving (Eq, Ord, Read, Show, D
 renderDirectoryContents :: (MonadIO m) =>
                            FilePath    -- ^ path to directory on disk
                         -> [FilePath]  -- ^ list of entries in that path
-                        -> m H.Html 
+                        -> m H.Html
 renderDirectoryContents localPath fps =
     do fps' <- liftIO $ mapM (getMetaData localPath) fps
-       return $ H.html $ do 
+       return $ H.html $ do
          H.head $ do
            H.title $ H.toHtml "Directory Listing"
            H.meta  ! A.httpEquiv (H.toValue "Content-Type") ! A.content (H.toValue "text/html;charset=utf-8")
            H.style $ H.toHtml $ unlines [ "table { margin: 0 auto; width: 760px; border-collapse: collapse; font-family: 'sans-serif'; }"
-                                        , "table, th, td { border: 1px solid #353948; }" 
+                                        , "table, th, td { border: 1px solid #353948; }"
                                         , "td.size { text-align: right; font-size: 0.7em; width: 50px }"
                                         , "td.date { text-align: right; font-size: 0.7em; width: 130px }"
                                         , "td { padding-right: 1em; padding-left: 1em; }"
@@ -539,13 +539,13 @@ renderDirectoryContentsTable fps =
                         H.tbody $ mapM_ mkRow (zip fps $ cycle [False, True])
     where
       mkRow :: ((FilePath, Maybe CalendarTime, Maybe Integer, EntryKind), Bool) -> H.Html
-      mkRow ((fp, modTime, count, kind), alt) = 
+      mkRow ((fp, modTime, count, kind), alt) =
           (if alt then (! A.class_ (H.toValue "alt")) else id) $
           H.tr $ do
                    H.td (mkKind kind)
                    H.td (H.a ! A.href (H.toValue fp)  $ H.toHtml fp)
                    H.td ! A.class_ (H.toValue "date") $ (H.toHtml $ maybe "-" (formatCalendarTime defaultTimeLocale "%d-%b-%Y %X %Z") modTime)
-                   (maybe id (\c -> (! A.title (H.toValue (show c)))) count)  (H.td ! A.class_ (H.toValue "size") $ (H.toHtml $ maybe "-" prettyShow count)) 
+                   (maybe id (\c -> (! A.title (H.toValue (show c)))) count)  (H.td ! A.class_ (H.toValue "size") $ (H.toHtml $ maybe "-" prettyShow count))
       mkKind :: EntryKind -> H.Html
       mkKind File        = return ()
       mkKind Directory   = H.toHtml "➦"
@@ -571,29 +571,29 @@ getMetaData :: FilePath -- ^ path to directory on disk containing the entry
             -> IO (FilePath, Maybe CalendarTime, Maybe Integer, EntryKind)
 getMetaData localPath fp =
      do let localFp = localPath </> fp
-        modTime <- (fmap Just . toCalendarTime =<< getModificationTime localFp) `catch` 
+        modTime <- (fmap Just . toCalendarTime =<< getModificationTime localFp) `catch`
                    (\(_ :: IOException) -> return Nothing)
         count <- do de <- doesDirectoryExist localFp
                     if de
                       then do return Nothing
-                      else do bracket (openBinaryFile localFp ReadMode) hClose (fmap Just . hFileSize) 
+                      else do bracket (openBinaryFile localFp ReadMode) hClose (fmap Just . hFileSize)
                                           `catch` (\(_e :: IOException) -> return Nothing)
         kind <- do fe <- doesFileExist localFp
                    if fe
                       then return File
                       else do de <- doesDirectoryExist localFp
-                              if de 
+                              if de
                                  then return Directory
                                  else return UnknownKind
         return (fp, modTime, count, kind)
 
 -- | see 'serveDirectory'
-data Browsing 
-    = EnableBrowsing | DisableBrowsing 
+data Browsing
+    = EnableBrowsing | DisableBrowsing
       deriving (Eq, Enum, Ord, Read, Show, Data, Typeable)
 
 -- | Serve files and directories from a directory and its subdirectories using 'sendFile'.
--- 
+--
 -- Usage:
 --
 -- > serveDirectory EnableBrowsing ["index.html"] "path/to/files/on/disk"
@@ -601,7 +601,7 @@ data Browsing
 -- If the requested path does not match a file or directory on the
 -- disk, then 'serveDirectory' calls 'mzero'.
 --
--- If the requested path is a file then the file is served normally. 
+-- If the requested path is a file then the file is served normally.
 --
 -- If the requested path is a directory, then the result depends on
 -- what the first two arguments to the function are.
@@ -616,7 +616,7 @@ data Browsing
 -- find one of the index files (in the order they are listed). If that
 -- fails, it will show a directory listing if 'EnableBrowsing' is set,
 -- otherwise it will return @forbidden \"Directory index forbidden\"@.
--- 
+--
 -- Here is an explicit list of all the possible outcomes when the
 -- argument is a (valid) directory:
 --
@@ -630,7 +630,7 @@ data Browsing
 --
 -- 2. Otherwise returns, forbidden \"Directory index forbidden\"
 --
--- [@'EnableBrowsing', empty index file list@] 
+-- [@'EnableBrowsing', empty index file list@]
 --
 -- Always shows a directory index.
 --
@@ -646,7 +646,7 @@ serveDirectory :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, M
                -> [FilePath]  -- ^ index file names, in case the requested path is a directory
                -> FilePath    -- ^ file/directory to serve
                -> m Response
-serveDirectory browsing ixFiles localPath = 
+serveDirectory browsing ixFiles localPath =
     serveDirectory' browsing ixFiles mimeFn localPath
         where
           mimeFn  = guessContentTypeM mimeTypes
@@ -659,7 +659,7 @@ serveDirectory' :: (WebMonad Response m, ServerMonad m, FilterMonad Response m, 
                 -> (FilePath -> m String) -- ^ function which returns the mime-type for FilePath
                 -> FilePath    -- ^ file/directory to serve
                 -> m Response
-serveDirectory' browsing ixFiles mimeFn localPath = 
+serveDirectory' browsing ixFiles mimeFn localPath =
     fileServe' serveFn mimeFn indexFn localPath
         where
           serveFn = filePathSendFile
