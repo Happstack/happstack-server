@@ -97,7 +97,7 @@ Library
                        parsec < 4,
                        process,
                        sendfile >= 0.7.1 && < 0.8,
-                       template-haskell,
+                       system-filepath >= 0.3.1,
                        text >= 0.10 && < 0.12,
                        time,
                        transformers >= 0.1.3 && < 0.4,
