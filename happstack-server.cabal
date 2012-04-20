@@ -91,7 +91,7 @@ Library
                        hslogger >= 1.0.2,
                        html,
                        monad-control >= 0.3 && < 0.4,
-                       mtl >= 2 && < 2.1,
+                       mtl >= 2 && < 2.2,
                        old-locale,
                        old-time,
                        parsec < 4,
