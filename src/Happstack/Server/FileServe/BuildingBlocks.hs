@@ -309,7 +309,7 @@ serveFile = serveFileUsing filePathSendFile
 
 -- | Like 'serveFile', but uses 'combineSafe' to prevent directory
 -- traversal attacks when the path to the file is supplied by the user.
-serveFileFrom :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) => 
+serveFileFrom :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m) =>
                  FilePath                 -- ^ directory wherein served files must be contained
               -> (FilePath -> m String)   -- ^ function for determining content-type of file. Typically 'asContentType' or 'guessContentTypeM'
               -> FilePath                 -- ^ path to the file to serve
