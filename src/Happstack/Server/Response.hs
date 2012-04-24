@@ -39,8 +39,8 @@ import           Happstack.Server.Types          (Response(..), Request(..), nul
 import           Happstack.Server.SURI           (ToSURI)
 import           System.Locale                   (defaultTimeLocale)
 import           System.Time                     (CalendarTime, formatCalendarTime)
-import qualified Text.Blaze                      as Blaze
-import qualified Text.Blaze.Renderer.Utf8        as Blaze
+import qualified Text.Blaze.Html                 as Blaze
+import qualified Text.Blaze.Html.Renderer.Utf8   as Blaze
 import           Text.Html                       (Html, renderHtml)
 import qualified Text.XHtml                      as XHtml (Html, renderHtml)
 

@@ -75,7 +75,7 @@ import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBi
 import System.Locale                (defaultTimeLocale)
 import System.Log.Logger            (Priority(DEBUG), logM)
 import System.Time                  (CalendarTime, formatCalendarTime, toCalendarTime, toUTCTime)
-import           Text.Blaze                  ((!))
+import           Text.Blaze.Html             ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
 

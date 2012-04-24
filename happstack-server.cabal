@@ -82,7 +82,7 @@ Library
 
   Build-Depends:       base,
                        base64-bytestring == 0.1.*,
-                       blaze-html >= 0.3 && < 0.5,
+                       blaze-html        == 0.5.*,
                        bytestring,
                        containers,
                        directory,
