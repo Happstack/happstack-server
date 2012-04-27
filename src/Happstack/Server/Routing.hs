@@ -246,3 +246,7 @@ anyPath x = path $ (\(_::String) -> x)
 -- for distinguishing between @foo@ and @foo/@
 trailingSlash :: (ServerMonad m, MonadPlus m) => m ()
 trailingSlash = guardRq $ \rq -> (last (rqUri rq)) == '/'
+
+-- | The opposite of 'trailingSlash'.
+noTrailingSlash :: (ServerMonad m, MonadPlus m) => m ()
+noTrailingSlash = guardRq $ \rq -> (last (rqUri rq)) /= '/'
