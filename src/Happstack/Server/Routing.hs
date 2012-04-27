@@ -15,6 +15,7 @@ module Happstack.Server.Routing
     , dirs
     , nullDir
     , trailingSlash
+    , noTrailingSlash
     , anyPath
     , path
     , uriRest
