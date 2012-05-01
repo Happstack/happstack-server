@@ -11,10 +11,10 @@ import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad                            (forever, when)
 import Network.BSD                              (getProtocolNumber)
 import Network                                  (sClose, Socket)
-import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption, 
-                                 socket, Family(..), SockAddr, 
-                                 SocketOption(..), SockAddr(..), 
-                                 iNADDR_ANY, maxListenQueue, SocketType(..), 
+import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption,
+                                 socket, Family(..), SockAddr,
+                                 SocketOption(..), SockAddr(..),
+                                 iNADDR_ANY, maxListenQueue, SocketType(..),
                                  bindSocket)
 import qualified Network.Socket                 as Socket (listen, inet_addr)
 import System.IO.Error                          (isFullError)
@@ -88,7 +88,7 @@ listen' s conf hand = do
   -- http:// loop
   log' NOTICE ("Listening for http:// on port " ++ show port')
   let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
-      work (sock, hn, p) = 
+      work (sock, hn, p) =
           do tid <- myThreadId
              thandle <- register tm (killThread tid)
              let timeoutIO = TS.timeoutSocketIO thandle sock

@@ -51,7 +51,7 @@ type ServerPart a = ServerPartT IO a
 --------------------------------------
 -- HERE BEGINS ServerPartT definitions
 
--- | 'ServerPartT' is a rich, featureful monad for web development. 
+-- | 'ServerPartT' is a rich, featureful monad for web development.
 --
 -- see also: 'simpleHTTP', 'ServerMonad', 'FilterMonad', 'WebMonad', and 'HasRqData'
 newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
@@ -100,8 +100,8 @@ anyRequest :: Monad m => WebT m a -> ServerPartT m a
 anyRequest x = withRequest $ \_ -> x
 
 -- | Apply a function to transform the inner monad of
--- @'ServerPartT' m@.  
--- 
+-- @'ServerPartT' m@.
+--
 -- Often used when transforming a monad with 'ServerPartT', since
 -- 'simpleHTTP' requires a @'ServerPartT' 'IO' a@.  Refer to 'UnWebT'
 -- for an explanation of the structure of the monad.
@@ -119,7 +119,7 @@ anyRequest x = withRequest $ \_ -> x
 -- >   unpackErrorT et = do
 -- >      eitherV <- runErrorT et
 -- >      return $ case eitherV of
--- >          Left err -> Just (Left $ toResponse $ 
+-- >          Left err -> Just (Left $ toResponse $
 -- >                                   "Catastrophic failure " ++ show err
 -- >                           , filterFun $ \r -> r{rsCode = 500})
 -- >          Right x -> x
@@ -271,7 +271,7 @@ instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
     liftBaseWith = defaultLiftBaseWith StMFilter
     restoreM     = defaultRestoreM     unStMFilter
 
--- | A set of functions for manipulating filters.  
+-- | A set of functions for manipulating filters.
 --
 -- 'ServerPartT' implements 'FilterMonad' 'Response' so these methods
 -- are the fundamental ways of manipulating 'Response' values.
@@ -335,7 +335,7 @@ instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
 -- are not using 'mapServerPartT' then you do not need to wrap your
 -- head around this type. If you are -- the type is not as complex as
 -- it first appears.
--- 
+--
 -- It is worth discussing the unpacked structure of 'WebT' a bit as
 -- it's exposed in 'mapServerPartT' and 'mapWebT'.
 --
@@ -406,7 +406,7 @@ instance Monad m => Monad (WebT m) where
 class Monad m => WebMonad a m | m->a where
     -- abort the current computation and return a value
     finishWith :: a -- ^ value to return (For 'ServerPart', 'a' will always be the type 'Response')
-               -> m b 
+               -> m b
 
 -- | Used to ignore all your filters and immediately end the
 -- computation.  A combination of 'ignoreFilters' and 'finishWith'.
@@ -521,7 +521,7 @@ debugFilter handle =
 -- Then we output this to stderr. Help debugging under Emacs console when using GHCi.
 -- This is GHC specific, but you may add your favourite compiler here also.
 outputTraceMessage :: String -> a -> a
-outputTraceMessage s c | "Pattern match failure " `isPrefixOf` s = 
+outputTraceMessage s c | "Pattern match failure " `isPrefixOf` s =
     let w = [(k,p) | (i,p) <- zip (tails s) (inits s), Just k <- [stripPrefix " at " i]]
         v = concatMap (\(k,p) -> k ++ ": " ++ p) w
     in trace v c
@@ -536,7 +536,7 @@ mkFailMessage s = do
     finishWith $ res
 
 failHtml:: String->String
-failHtml errString = 
+failHtml errString =
    "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">"
     ++ "<html><head><title>Happstack "
     ++ ver ++ " Internal Server Error</title></head>"
@@ -560,7 +560,7 @@ escapeString str = concatMap encodeEntity str
           | otherwise = [c]
 
 ------------------------------------------------------------------------------
--- ServerMonad, FilterMonad, and WebMonad instances for ReaderT, StateT, 
+-- ServerMonad, FilterMonad, and WebMonad instances for ReaderT, StateT,
 -- WriterT, and RWST
 ------------------------------------------------------------------------------
 
@@ -587,7 +587,7 @@ instance (ServerMonad m) => ServerMonad (StateT s m) where
 instance (FilterMonad res m) => FilterMonad res (StateT s m) where
     setFilter f   = lift $ setFilter f
     composeFilter = lift . composeFilter
-    getFilter   m = mapStateT (\m' -> 
+    getFilter   m = mapStateT (\m' ->
                                    do ((b,s), f) <- getFilter m'
                                       return ((b, f), s)) m
 
@@ -604,7 +604,7 @@ instance (ServerMonad m, Monoid w) => ServerMonad (WriterT w m) where
 instance (FilterMonad res m, Monoid w) => FilterMonad res (WriterT w m) where
     setFilter f   = lift $ setFilter f
     composeFilter = lift . composeFilter
-    getFilter   m = mapWriterT (\m' -> 
+    getFilter   m = mapWriterT (\m' ->
                                    do ((b,w), f) <- getFilter m'
                                       return ((b, f), w)) m
 
@@ -620,7 +620,7 @@ instance (ServerMonad m, Monoid w) => ServerMonad (RWST r w s m) where
 instance (FilterMonad res m, Monoid w) => FilterMonad res (RWST r w s m) where
     setFilter f   = lift $ setFilter f
     composeFilter = lift . composeFilter
-    getFilter   m = mapRWST (\m' -> 
+    getFilter   m = mapRWST (\m' ->
                                    do ((b,s,w), f) <- getFilter m'
                                       return ((b, f), s, w)) m
 

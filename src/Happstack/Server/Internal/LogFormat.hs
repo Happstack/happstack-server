@@ -17,13 +17,13 @@ import Data.Time.Format (FormatTime(..), formatTime)
 --    hour = 2*digit
 --    minute = 2*digit
 --    second = 2*digit
---    zone = (`+' | `-') 4*digit 
+--    zone = (`+' | `-') 4*digit
 formatTimeCombined :: FormatTime t => t -> String
 formatTimeCombined = formatTime defaultTimeLocale "%d/%b/%Y:%H:%M:%S %z"
 
 -- | Format the request as describe in the Apache combined log format.
 --   http://httpd.apache.org/docs/2.2/logs.html#combined
--- 
+--
 -- The format is: "%h - %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\""
 -- %h:            This is the IP address of the client (remote host) which made the request to the server.
 -- %u:            This is the userid of the person requesting the document as determined by HTTP authentication.
@@ -32,7 +32,7 @@ formatTimeCombined = formatTime defaultTimeLocale "%d/%b/%Y:%H:%M:%S %z"
 -- %>s:           This is the status code that the server sends back to the client.
 -- %b:            The last part indicates the size of the object returned to the client, not including the response headers.
 -- %{Referer}:    The "Referer" (sic) HTTP request header.
--- %{User-agent}: The User-Agent HTTP request header. 
+-- %{User-agent}: The User-Agent HTTP request header.
 formatRequestCombined :: FormatTime t =>
   String
   -> String
@@ -44,7 +44,7 @@ formatRequestCombined :: FormatTime t =>
   -> String
   -> String
 formatRequestCombined host user time requestLine responseCode size referer userAgent =
-  unwords 
+  unwords
     [ host
     , user
     , "[" ++ formattedTime ++ "]"

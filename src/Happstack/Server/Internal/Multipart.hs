@@ -9,7 +9,7 @@ import           Data.Maybe                      (fromMaybe)
 import           Data.Int                        (Int64)
 import           Text.ParserCombinators.Parsec   (parse)
 import           Happstack.Server.Internal.Types (Input(..))
-import           Happstack.Server.Internal.RFC822Headers 
+import           Happstack.Server.Internal.RFC822Headers
                                                   ( ContentType(..), ContentDisposition(..), Header
                                                   , getContentDisposition, getContentType, pHeaders)
 import           System.IO                        (Handle, hClose, openBinaryTempFile)
@@ -21,7 +21,7 @@ spanS :: (L.ByteString -> Bool) -> L.ByteString -> (L.ByteString, L.ByteString)
 spanS f cs0 = spanS' 0 cs0
   where spanS' _ Empty = (Empty, Empty)
         spanS' n bs@(Chunk c cs)
-            | n >= S.length c = 
+            | n >= S.length c =
                 let (x, y) = spanS' 0 cs
                 in (Chunk c x, y)
             | not (f (Chunk (S.drop n c) cs)) = L.splitAt (fromIntegral n) bs
@@ -47,7 +47,7 @@ blankLine = L.pack "\r\n\r\n"
 
 dropWhileS :: (L.ByteString -> Bool) -> L.ByteString -> L.ByteString
 dropWhileS f cs0 = dropWhile' cs0
-    where dropWhile' bs 
+    where dropWhile' bs
               | L.null bs  = bs
               | f bs       = dropWhile' (L.drop 1 bs)
               | otherwise  = bs
@@ -55,13 +55,13 @@ dropWhileS f cs0 = dropWhile' cs0
 data BodyPart = BodyPart L.ByteString L.ByteString  -- ^ headers body
     deriving (Eq, Ord, Read, Show)
 
-data Work 
+data Work
     = BodyWork ContentType [(String, String)] L.ByteString
-    | HeaderWork L.ByteString 
+    | HeaderWork L.ByteString
 
 type InputWorker = Work -> IO InputIter
 
-data InputIter 
+data InputIter
     = Failed (Maybe (String, Input)) String
     | BodyResult (String, Input) InputWorker
     | HeaderResult [Header] InputWorker
@@ -77,7 +77,7 @@ defaultFileSaver tmpDir diskQuota filename b =
     do (fn, h) <- openBinaryTempFile tmpDir filename
        (trunc, len) <- hPutLimit diskQuota h b
        hClose h
-       return (trunc, len, fn) 
+       return (trunc, len, fn)
 
 defaultInputIter :: FileSaver -> FilePath -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Work -> IO InputIter
 defaultInputIter fileSaver tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (BodyWork ctype ps b)
@@ -85,7 +85,7 @@ defaultInputIter fileSaver tmpDir diskCount ramCount headerCount maxDisk maxRAM 
     | ramCount  > maxRAM  = return $ Failed Nothing ("ramCount ("  ++ show ramCount  ++ ") is greater than maxRAM ("  ++ show maxRAM   ++ ")")
     | otherwise =
         case lookup "filename" ps of
-          Nothing -> 
+          Nothing ->
               let (b',rest) = L.splitAt (maxRAM - ramCount) b
                   input = (fromMaybe "" $ lookup "name" ps
                           , Input { inputValue       = (Right b')
@@ -148,7 +148,7 @@ bodyPartToInput inputWorker (BodyPart rawHS b) =
          (BodyResult {}) -> return $ Failed Nothing "bodyPartToInput: Got unexpected BodyResult."
 
 bodyPartsToInputs :: InputWorker -> [BodyPart] -> IO ([(String,Input)], Maybe String)
-bodyPartsToInputs _ [] = 
+bodyPartsToInputs _ [] =
     return ([], Nothing)
 bodyPartsToInputs inputWorker (b:bs) =
     do r <- bodyPartToInput inputWorker b
@@ -246,7 +246,7 @@ splitAtEmptyLine s =
       (before, after) | L.null after -> Nothing
                       | otherwise    -> Just (L.append before crlf, L.drop 4 after)
 {-# INLINE splitAtEmptyLine #-}
-      
+
 -- | Split a string at the first CRLF. The CRLF is not included
 --   in any of the returned strings.
 splitAtCRLF :: ByteString -- ^ String to split.

@@ -17,7 +17,7 @@ import System.Locale
 
 import qualified Data.ByteString.Char8 as B
 
-data DateCache = DateCache { 
+data DateCache = DateCache {
       cachedPOSIXTime :: !(IORef POSIXTime)
     , cachedHttpDate  :: !(IORef B.ByteString)
     }
@@ -27,7 +27,7 @@ formatHttpDate = formatTime defaultTimeLocale "%a, %d %b %Y %X GMT"
 {-# INLINE formatHttpDate #-}
 
 mkTime :: IO (POSIXTime, B.ByteString)
-mkTime = 
+mkTime =
     do now <- getPOSIXTime
        return (now, B.pack $ formatHttpDate (posixSecondsToUTCTime now))
 
@@ -42,7 +42,7 @@ clock = unsafePerformIO $ do
   return dateCache
 
 updater :: DateCache -> IO ()
-updater dateCache = 
+updater dateCache =
     do threadDelay (10^(6 :: Int)) -- Every second
        (now, httpDate) <- mkTime
        writeIORef (cachedPOSIXTime dateCache) now

@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
-{- | 
+{- |
 -- borrowed from snap-server. Check there periodically for updates.
 -}
 module Happstack.Server.Internal.Timeout where
@@ -131,8 +131,8 @@ sendFileTickle thandle outs fp offset count =
     sendFileIterWith' (iterTickle thandle) outs fp 65536 offset count
 
 iterTickle :: TimeoutHandle -> IO Iter -> IO ()
-iterTickle thandle = 
-    iterTickle' 
+iterTickle thandle =
+    iterTickle'
     where
       iterTickle' :: (IO Iter -> IO ())
       iterTickle' iter =

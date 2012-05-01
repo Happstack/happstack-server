@@ -20,8 +20,8 @@ import qualified Codec.Compression.Zlib as Z
 -- | reads the @Accept-Encoding@ header.  Then, if possible
 -- will compress the response body with methods @gzip@ or @deflate@.
 --
--- > main = 
--- >   simpleHTTP nullConf $ 
+-- > main =
+-- >   simpleHTTP nullConf $
 -- >      do str <- compressedResponseFilter
 -- >         return $ toResponse ("This response compressed using: " ++ str)
 compressedResponseFilter::
@@ -41,7 +41,7 @@ compressedResponseFilter = do
             setResponseCode 406
             finishWith $ toResponse ""
 
-          Right encs@(a:_) -> return (a 
+          Right encs@(a:_) -> return (a
                                      , "identity" `elem` encs
                                      , fromMaybe (fail badEncoding)
                                           (lookup a allEncodingHandlers)
@@ -55,7 +55,7 @@ compressedResponseFilter = do
 -- calls 'compressWithFilter' using 'GZ.compress'.
 --
 -- see also: 'compressedResponseFilter'
-gzipFilter::(FilterMonad Response m) => 
+gzipFilter::(FilterMonad Response m) =>
             String -- ^ encoding to use for Content-Encoding header
           -> Bool   -- ^ fallback to identity for SendFile
           -> m ()
@@ -67,7 +67,7 @@ gzipFilter = compressWithFilter GZ.compress
 -- calls 'compressWithFilter' using 'Z.compress'.
 --
 -- see also: 'compressedResponseFilter'
-deflateFilter::(FilterMonad Response m) => 
+deflateFilter::(FilterMonad Response m) =>
                String -- ^ encoding to use for Content-Encoding header
              -> Bool   -- ^ fallback to identity for SendFile
              -> m ()
@@ -86,7 +86,7 @@ compressWithFilter :: (FilterMonad Response m) =>
                    -> Bool   -- ^ fallback to identity for SendFile
                    -> m ()
 compressWithFilter compressor encoding identityAllowed =
-    composeFilter $ \r -> 
+    composeFilter $ \r ->
         case r of
           Response{} -> setHeader "Content-Encoding" encoding $ r {rsBody = compressor $ rsBody r}
           _ | identityAllowed -> r
@@ -172,7 +172,7 @@ encodings = ws >> (encoding1 `sepBy` try sep) >>= (\x -> ws >> eof >> return x)
             ws
             _ <- char ','
             ws
-        
+
         encoding1 :: GenParser Char st ([Char], Maybe Double)
         encoding1 = do
             encoding <- many1 (alphaNum <|> char '-') <|> string "*"

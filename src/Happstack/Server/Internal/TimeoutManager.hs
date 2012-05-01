@@ -65,6 +65,6 @@ tickle, pause, resume, cancel :: Handle -> IO ()
 tickle (Handle _ iactive) = I.writeIORef iactive $! Active
 pause (Handle _ iactive) = I.writeIORef iactive $! Paused
 resume = tickle
-cancel (Handle action iactive) = 
+cancel (Handle action iactive) =
     do I.writeIORef iactive $! Canceled
        I.writeIORef action $! (return ())

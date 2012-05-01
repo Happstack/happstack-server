@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, ScopedTypeVariables #-}
-{- | 
+{- |
 -- borrowed from snap-server. Check there periodically for updates.
 -}
 module Happstack.Server.Internal.TimeoutSocket where
@@ -34,7 +34,7 @@ sPutTickle thandle sock cs =
        return ()
 {-# INLINE sPutTickle #-}
 
-sGetContents :: TM.Handle 
+sGetContents :: TM.Handle
              -> Socket         -- ^ Connected socket
              -> IO L.ByteString  -- ^ Data received
 sGetContents handle sock = loop where
@@ -52,8 +52,8 @@ sendFileTickle thandle outs fp offset count =
     sendFileIterWith' (iterTickle thandle) outs fp 65536 offset count
 
 iterTickle :: TM.Handle -> IO Iter -> IO ()
-iterTickle thandle = 
-    iterTickle' 
+iterTickle thandle =
+    iterTickle'
     where
       iterTickle' :: (IO Iter -> IO ())
       iterTickle' iter =
@@ -71,7 +71,7 @@ iterTickle thandle =
 timeoutSocketIO :: TM.Handle -> Socket -> TimeoutIO
 timeoutSocketIO handle socket =
     TimeoutIO { toHandle      = handle
-              , toShutdown    = sClose socket 
+              , toShutdown    = sClose socket
               , toPutLazy     = sPutLazyTickle handle socket
               , toPut         = sPutTickle     handle socket
               , toGetContents = sGetContents   handle socket

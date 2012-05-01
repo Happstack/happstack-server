@@ -1,4 +1,4 @@
-module Happstack.Server.Internal.TimeoutIO 
+module Happstack.Server.Internal.TimeoutIO
     ( TimeoutIO(..)
     ) where
 

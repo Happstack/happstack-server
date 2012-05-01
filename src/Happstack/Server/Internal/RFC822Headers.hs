@@ -18,13 +18,13 @@
 -----------------------------------------------------------------------------
 module Happstack.Server.Internal.RFC822Headers
     ( -- * Headers
-      Header, 
+      Header,
       pHeader,
       pHeaders,
       parseHeaders,
 
       -- * Content-type
-      ContentType(..), 
+      ContentType(..),
       getContentType,
       parseContentType,
       showContentType,
@@ -36,9 +36,9 @@ module Happstack.Server.Internal.RFC822Headers
 
       -- * Content-disposition
       ContentDisposition(..),
-      getContentDisposition,                           
+      getContentDisposition,
       parseContentDisposition,
-                              
+
       -- * Utilities
       parseM
       ) where
@@ -56,7 +56,7 @@ parseHeaders :: Monad m => SourceName -> String -> m [Header]
 parseHeaders = parseM pHeaders
 
 pHeader :: Parser Header
-pHeader = 
+pHeader =
     do name <- many1 headerNameChar
        char ':'
        many ws1
@@ -66,7 +66,7 @@ pHeader =
        return (map toLower name, concat (line:extraLines))
 
 extraFieldLine :: Parser String
-extraFieldLine = 
+extraFieldLine =
     do sp <- ws1
        line <- lineString
        crLf
@@ -92,14 +92,14 @@ p_parameter =
      -- Workaround for seemingly standardized web browser bug
      -- where nothing is escaped in the filename parameter
      -- of the content-disposition header in multipart/form-data
-     let litStr = if p_name == "filename" 
+     let litStr = if p_name == "filename"
                    then buggyLiteralString
                    else literalString
      p_value <- litStr <|> p_token
      return (map toLower p_name, p_value)
 
 
--- 
+--
 -- * Content type
 --
 
@@ -109,7 +109,7 @@ p_parameter =
 --   string representation.
 --   See <http://www.ietf.org/rfc/rfc2046.txt> for more
 --   information about MIME media types.
-data ContentType = 
+data ContentType =
 	ContentType {
                      -- | The top-level media type, the general type
                      --   of the data. Common examples are
@@ -121,7 +121,7 @@ data ContentType =
                      --   \"jpeg\", \"form-data\", etc.
                      ctSubtype :: String,
                      -- | Media type parameters. On common example is
-                     --   the charset parameter for the \"text\" 
+                     --   the charset parameter for the \"text\"
                      --   top-level type, e.g. @(\"charset\",\"ISO-8859-1\")@.
                      ctParameters :: [(String, String)]
                     }
@@ -133,7 +133,7 @@ showContentType :: ContentType -> String
 showContentType (ContentType x y ps) = x ++ "/" ++ y ++ showParameters ps
 
 pContentType :: Parser ContentType
-pContentType = 
+pContentType =
   do many ws1
      c_type <- p_token
      lexeme $ char '/'
@@ -165,11 +165,11 @@ pContentTransferEncoding =
      return $ ContentTransferEncoding (map toLower c_cte)
 
 parseContentTransferEncoding :: Monad m => String -> m ContentTransferEncoding
-parseContentTransferEncoding = 
+parseContentTransferEncoding =
     parseM pContentTransferEncoding "Content-transfer-encoding"
 
 getContentTransferEncoding :: Monad m => [Header] -> m ContentTransferEncoding
-getContentTransferEncoding hs = 
+getContentTransferEncoding hs =
     lookupM "content-transfer-encoding" hs >>= parseContentTransferEncoding
 
 --
@@ -191,7 +191,7 @@ parseContentDisposition :: Monad m => String -> m ContentDisposition
 parseContentDisposition = parseM pContentDisposition "Content-disposition"
 
 getContentDisposition :: Monad m => [Header] -> m ContentDisposition
-getContentDisposition hs = 
+getContentDisposition hs =
     lookupM "content-disposition" hs  >>= parseContentDisposition
 
 --
@@ -207,7 +207,7 @@ parseM p n inp =
 lookupM :: (Monad m, Eq a, Show a) => a -> [(a,b)] -> m b
 lookupM n = maybe (fail ("No such field: " ++ show n)) return . lookup n
 
--- 
+--
 -- * Parsing utilities
 --
 
@@ -238,11 +238,11 @@ literalString = do char '\"'
 --
 -- Note that this eats everything until the last double quote on the line.
 buggyLiteralString :: Parser String
-buggyLiteralString = 
+buggyLiteralString =
     do char '\"'
        str <- manyTill anyChar (try lastQuote)
        return str
-  where lastQuote = do char '\"' 
+  where lastQuote = do char '\"'
                        notFollowedBy (try (many (noneOf "\"") >> char '\"'))
 
 headerNameChar :: Parser Char

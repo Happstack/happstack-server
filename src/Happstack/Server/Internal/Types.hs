@@ -84,7 +84,7 @@ continueHTTP rq res =
 --     -> Integer -- ^ size
 --     -> String  -- ^ referer
 --     -> String  -- ^ userAgent
---     -> IO ()) 
+--     -> IO ())
 type LogAccess time =
     (   String
      -> String
@@ -94,7 +94,7 @@ type LogAccess time =
      -> Integer
      -> String
      -> String
-     -> IO ()) 
+     -> IO ())
 
 -- | HTTP configuration
 data Conf = Conf
