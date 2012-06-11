@@ -488,6 +488,12 @@ lookReads name =
 --
 --  (3) The content-type supplied by the browser
 --
+-- If the user does not supply a file in the html form input field,
+-- the behaviour will depend upon the browser. Most browsers will send
+-- a 0-length file with an empty file name, so checking that (2) is
+-- not empty is usually sufficient to ensure the field has been
+-- filled.
+-- 
 -- NOTE: You must move the file from the temporary location before the
 -- 'Response' is sent. The temporary files are automatically removed
 -- after the 'Response' is sent.
