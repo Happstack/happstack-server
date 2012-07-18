@@ -8,6 +8,7 @@ module Happstack.Server.Internal.Clock
 
 import Control.Applicative   ((<$>))
 import Control.Concurrent
+import Control.Monad
 import Data.IORef
 import Data.Time.Clock       (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime)
@@ -38,7 +39,7 @@ clock = unsafePerformIO $ do
   nowRef      <- newIORef now
   httpDateRef <- newIORef httpDate
   let dateCache = (DateCache nowRef httpDateRef)
-  forkIO $ updater dateCache
+  void $ forkIO $ updater dateCache
   return dateCache
 
 updater :: DateCache -> IO ()

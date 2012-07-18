@@ -43,6 +43,7 @@ module Happstack.Server.Internal.RFC822Headers
       parseM
       ) where
 
+import Control.Monad
 import Data.Char
 import Data.List
 import Text.ParserCombinators.Parsec
@@ -58,10 +59,10 @@ parseHeaders = parseM pHeaders
 pHeader :: Parser Header
 pHeader =
     do name <- many1 headerNameChar
-       char ':'
-       many ws1
+       void $ char ':'
+       void $ many ws1
        line <- lineString
-       crLf
+       void crLf
        extraLines <- many extraFieldLine
        return (map toLower name, concat (line:extraLines))
 
@@ -69,7 +70,7 @@ extraFieldLine :: Parser String
 extraFieldLine =
     do sp <- ws1
        line <- lineString
-       crLf
+       void $ crLf
        return (sp:line)
 
 --
@@ -86,9 +87,9 @@ showParameters = concatMap f
 
 p_parameter :: Parser (String,String)
 p_parameter =
-  do lexeme $ char ';'
+  do void $ lexeme $ char ';'
      p_name <- lexeme $ p_token
-     lexeme $ char '='
+     void $ lexeme $ char '='
      -- Workaround for seemingly standardized web browser bug
      -- where nothing is escaped in the filename parameter
      -- of the content-disposition header in multipart/form-data
@@ -134,9 +135,9 @@ showContentType (ContentType x y ps) = x ++ "/" ++ y ++ showParameters ps
 
 pContentType :: Parser ContentType
 pContentType =
-  do many ws1
+  do void $ many ws1
      c_type <- p_token
-     lexeme $ char '/'
+     void $ lexeme $ char '/'
      c_subtype <- lexeme $ p_token
      c_parameters <- many p_parameter
      return $ ContentType (map toLower c_type) (map toLower c_subtype) c_parameters
@@ -160,7 +161,7 @@ data ContentTransferEncoding =
 
 pContentTransferEncoding :: Parser ContentTransferEncoding
 pContentTransferEncoding =
-  do many ws1
+  do void $ many ws1
      c_cte <- p_token
      return $ ContentTransferEncoding (map toLower c_cte)
 
@@ -182,7 +183,7 @@ data ContentDisposition =
 
 pContentDisposition :: Parser ContentDisposition
 pContentDisposition =
-  do many ws1
+  do void $ many ws1
      c_cd <- p_token
      c_parameters <- many p_parameter
      return $ ContentDisposition (map toLower c_cd) c_parameters
@@ -216,7 +217,7 @@ ws1 :: Parser Char
 ws1 = oneOf " \t"
 
 lexeme :: Parser a -> Parser a
-lexeme p = do x <- p; many ws1; return x
+lexeme p = do x <- p; void $ many ws1; return x
 
 -- | RFC 822 CRLF (but more permissive)
 crLf :: Parser String
@@ -227,9 +228,9 @@ lineString :: Parser String
 lineString = many (noneOf "\n\r")
 
 literalString :: Parser String
-literalString = do char '\"'
+literalString = do void $ char '\"'
                    str <- many (noneOf "\"\\" <|> quoted_pair)
-                   char '\"'
+                   void $ char '\"'
                    return str
 
 -- No web browsers seem to implement RFC 2046 correctly,
@@ -239,10 +240,10 @@ literalString = do char '\"'
 -- Note that this eats everything until the last double quote on the line.
 buggyLiteralString :: Parser String
 buggyLiteralString =
-    do char '\"'
+    do void $ char '\"'
        str <- manyTill anyChar (try lastQuote)
        return str
-  where lastQuote = do char '\"'
+  where lastQuote = do void $ char '\"'
                        notFollowedBy (try (many (noneOf "\"") >> char '\"'))
 
 headerNameChar :: Parser Char
@@ -262,5 +263,5 @@ p_text :: Parser Char
 p_text = oneOf text_chars
 
 quoted_pair :: Parser Char
-quoted_pair = do char '\\'
+quoted_pair = do void $ char '\\'
                  p_text

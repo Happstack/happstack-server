@@ -83,6 +83,7 @@ import Happstack.Server.Response
 import Happstack.Server.Validation
 
 
+import Control.Monad
 import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
 import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), unFilterFun, runServerPartT, ununWebT)
@@ -225,10 +226,9 @@ waitForTermination
 #ifdef UNIX
          istty <- queryTerminal stdInput
          mv <- newEmptyMVar
-         installHandler softwareTermination (CatchOnce (putMVar mv ())) Nothing
+         void $ installHandler softwareTermination (CatchOnce (putMVar mv ())) Nothing
          case istty of
-           True  -> do installHandler keyboardSignal (CatchOnce (putMVar mv ())) Nothing
-                       return ()
+           True  -> void $ installHandler keyboardSignal (CatchOnce (putMVar mv ())) Nothing
            False -> return ()
          takeMVar mv
 #else

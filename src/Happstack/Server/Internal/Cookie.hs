@@ -16,6 +16,7 @@ module Happstack.Server.Internal.Cookie
     )
     where
 
+import Control.Monad
 import qualified Data.ByteString.Char8 as C
 import Data.Char             (chr, toLower)
 import Data.Data             (Data, Typeable)
@@ -132,7 +133,7 @@ cookiesParser = cookies
           cookie_path = cookie_special "$Path"
           cookie_domain = cookie_special "$Domain"
           cookie_special s = do
-            string s
+            void $ string s
             cookieEq
             value
           cookieSep = ws >> oneOf ",;" >> ws
@@ -143,9 +144,9 @@ cookiesParser = cookies
 
           -- Parsers based on RFC 2068
           quoted_string = do
-            char '"'
+            void $ char '"'
             r <-many ((try quotedPair) <|> (oneOf qdtext))
-            char '"'
+            void $ char '"'
             return r
 
           -- Custom parsers, incompatible with RFC 2068, but more forgiving ;)

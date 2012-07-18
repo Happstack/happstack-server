@@ -8,7 +8,7 @@ import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register)
 import Happstack.Server.Internal.TimeoutSocket  as TS
 import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
-import Control.Monad                            (forever, when)
+import Control.Monad
 import Network.BSD                              (getProtocolNumber)
 import Network                                  (sClose, Socket)
 import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption,
@@ -79,7 +79,7 @@ listen' s conf hand = do
 {-
 #ifndef mingw32_HOST_OS
 -}
-  installHandler openEndedPipe Ignore Nothing
+  void $ installHandler openEndedPipe Ignore Nothing
 {-
 #endif
 -}
@@ -99,6 +99,7 @@ listen' s conf hand = do
       loop = forever $ do w <- acceptLite s
                           forkIO $ work w
       pe e = log' ERROR ("ERROR in http accept thread: " ++ show e)
+      infi :: IO ()
       infi = loop `catchSome` pe >> infi
 
   infi `finally` (sClose s)
@@ -106,8 +107,7 @@ listen' s conf hand = do
 {--
 #ifndef mingw32_HOST_OS
 -}
-  installHandler openEndedPipe Ignore Nothing
-  return ()
+  void $ installHandler openEndedPipe Ignore Nothing
 {-
 #endif
 -}

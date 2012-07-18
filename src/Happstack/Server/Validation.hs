@@ -3,6 +3,7 @@ module Happstack.Server.Validation where
 
 import Control.Concurrent                        (forkIO)
 import Control.Exception                         (evaluate)
+import Control.Monad
 import Control.Monad.Trans                       (MonadIO(liftIO))
 import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
@@ -111,10 +112,10 @@ lazyProcValidator exec args wd env mimeTypePred response
         do (inh, outh, errh, ph) <- runInteractiveProcess exec args wd env
            out <- hGetContents outh
            err <- hGetContents errh
-           forkIO $ do L.hPut inh (rsBody response)
-                       hClose inh
-           forkIO $ evaluate (length out) >> return ()
-           forkIO $ evaluate (length err) >> return ()
+           void $ forkIO $ do L.hPut inh (rsBody response)
+                              hClose inh
+           void $ forkIO $ evaluate (length out) >> return ()
+           void $ forkIO $ evaluate (length err) >> return ()
            ec <- waitForProcess ph
            case ec of
              ExitSuccess     -> return response
