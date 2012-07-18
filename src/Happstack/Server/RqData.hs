@@ -58,27 +58,27 @@ module Happstack.Server.RqData
     , HasRqData(askRqEnv, localRqEnv,rqDataError)
     ) where
 
-import Control.Applicative 			(Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
+import Control.Applicative                      (Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
 import Control.Concurrent.MVar                  (newMVar)
-import Control.Monad 				(MonadPlus(mzero))
-import Control.Monad.Reader 			(ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
-import Control.Monad.State 			(StateT, mapStateT)
-import Control.Monad.Writer 			(WriterT, mapWriterT)
-import Control.Monad.RWS  			(RWST, mapRWST)
-import Control.Monad.Error 			(Error(noMsg, strMsg))
+import Control.Monad                            (MonadPlus(mzero))
+import Control.Monad.Reader                     (ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
+import Control.Monad.State                      (StateT, mapStateT)
+import Control.Monad.Writer                     (WriterT, mapWriterT)
+import Control.Monad.RWS                        (RWST, mapRWST)
+import Control.Monad.Error                      (Error(noMsg, strMsg))
 import Control.Monad.Trans                      (MonadIO(..), lift)
 import qualified Data.ByteString.Char8          as P
 import qualified Data.ByteString.Lazy.Char8     as L
 import qualified Data.ByteString.Lazy.UTF8      as LU
-import Data.Char 				(toLower)
+import Data.Char                                (toLower)
 import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
 import Data.Maybe                               (fromMaybe, fromJust)
-import Data.Monoid 				(Monoid(mempty, mappend, mconcat))
+import Data.Monoid                              (Monoid(mempty, mappend, mconcat))
 import           Data.Text                      (Text)
 import qualified Data.Text.Lazy                 as LazyText
 import qualified Data.Text.Lazy.Encoding        as LazyText
-import Happstack.Server.Cookie 			(Cookie (cookieValue))
+import Happstack.Server.Cookie                  (Cookie (cookieValue))
 import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), FilterMonad, WebMonad, ServerPartT, escape)
 import Happstack.Server.Internal.RFC822Headers  (parseContentType)
 import Happstack.Server.Types                   (ContentType(..), FromReqURI(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), getHeader, readInputsBody)

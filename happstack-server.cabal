@@ -127,9 +127,9 @@ Library
                        TypeSynonymInstances, PatternGuards
                        CPP, ForeignFunctionInterface
   if impl(ghc >= 6.12)
-     ghc-options:      -Wall -fno-warn-unused-do-bind
+     ghc-options:      -Wall -fwarn-tabs -fno-warn-unused-do-bind
   else
-     ghc-options:      -Wall
+     ghc-options:      -Wall -fwarn-tabs
   GHC-Prof-Options:    -auto-all
   -- The policy is to support GHC versions no older than the GHC stable
   -- branch that was used by the latest Haskell Platform release

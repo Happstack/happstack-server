@@ -485,8 +485,8 @@ instance MonadState st m => MonadState st (WebT m) where
     put = lift . put
 
 instance MonadError e m => MonadError e (WebT m) where
-	throwError err = lift $ throwError err
- 	catchError action handler = mkWebT $ catchError (ununWebT action) (ununWebT . handler)
+        throwError err = lift $ throwError err
+        catchError action handler = mkWebT $ catchError (ununWebT action) (ununWebT . handler)
 
 instance MonadWriter w m => MonadWriter w (WebT m) where
     tell = lift . tell

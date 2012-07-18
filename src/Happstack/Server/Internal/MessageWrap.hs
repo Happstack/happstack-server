@@ -1,8 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Happstack.Server.Internal.MessageWrap (
-	module Happstack.Server.Internal.MessageWrap
-	,defaultInputIter
+        module Happstack.Server.Internal.MessageWrap
+        ,defaultInputIter
    ) where
 
 import Control.Concurrent.MVar (tryTakeMVar, tryPutMVar, putMVar)
@@ -119,18 +119,18 @@ pathEls = (drop 1) . map (U.toString . P.pack . SURI.unEscape) . splitList '/'
 splitList :: Eq a => a -> [a] -> [[a]]
 splitList _   [] = []
 splitList sep list = h:splitList sep t
-	where (h,t)=split (==sep) list
+        where (h,t)=split (==sep) list
 
 -- | Repeatedly splits a list and collects the results
 splitListBy :: (a -> Bool) -> [a] -> [[a]]
 splitListBy _ [] = []
 splitListBy f list = h:splitListBy f t
-	where (h,t)=split f list
+        where (h,t)=split f list
 
 -- | Split is like break, but the matching element is dropped.
 split :: (a -> Bool) -> [a] -> ([a], [a])
 split f s = (left,right)
-	where
-	(left,right')=break f s
-	right = if null right' then [] else tail right'
+        where
+        (left,right')=break f s
+        right = if null right' then [] else tail right'
 

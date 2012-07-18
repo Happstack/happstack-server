@@ -50,8 +50,8 @@ simpleErrorHandler err = ok $ toResponse $ ("An error occured: " ++ err)
 -- DEPRECATED: use 'spUnwrapErrorT' instead.
 errorHandlerSP :: (Monad m, Error e) => (Request -> e -> WebT m a) -> ServerPartT (ErrorT e m) a -> ServerPartT m a
 errorHandlerSP handler sps = withRequest $ \req -> mkWebT $ do
-			eer <- runErrorT $ ununWebT $ runServerPartT sps req
-			case eer of
-				Left err -> ununWebT (handler req err)
-				Right res -> return res
+                        eer <- runErrorT $ ununWebT $ runServerPartT sps req
+                        case eer of
+                                Left err -> ununWebT (handler req err)
+                                Right res -> return res
 {-# DEPRECATED errorHandlerSP "Use spUnwrapErrorT" #-}

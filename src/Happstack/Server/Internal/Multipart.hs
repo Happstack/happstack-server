@@ -66,11 +66,11 @@ data InputIter
     | BodyResult (String, Input) InputWorker
     | HeaderResult [Header] InputWorker
 
-type FileSaver = FilePath 		-- ^ tempdir
-		-> Int64 		-- ^ quota
-		-> FilePath 		-- ^ filename of field
-		-> L.ByteString 	-- ^ content to save
-		-> IO (Bool, Int64 , FilePath)	-- ^ truncated?, saved bytes, saved filename
+type FileSaver = FilePath               -- ^ tempdir
+                -> Int64                -- ^ quota
+                -> FilePath             -- ^ filename of field
+                -> L.ByteString         -- ^ content to save
+                -> IO (Bool, Int64 , FilePath)  -- ^ truncated?, saved bytes, saved filename
 
 defaultFileSaver :: FilePath -> Int64 -> FilePath -> ByteString -> IO (Bool, Int64, FilePath)
 defaultFileSaver tmpDir diskQuota filename b =

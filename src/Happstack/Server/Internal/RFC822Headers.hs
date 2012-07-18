@@ -110,7 +110,7 @@ p_parameter =
 --   See <http://www.ietf.org/rfc/rfc2046.txt> for more
 --   information about MIME media types.
 data ContentType =
-	ContentType {
+        ContentType {
                      -- | The top-level media type, the general type
                      --   of the data. Common examples are
                      --   \"text\", \"image\", \"audio\", \"video\",
@@ -155,7 +155,7 @@ getContentType hs = lookupM "content-type" hs >>= parseContentType
 --
 
 data ContentTransferEncoding =
-	ContentTransferEncoding String
+        ContentTransferEncoding String
     deriving (Show, Read, Eq, Ord)
 
 pContentTransferEncoding :: Parser ContentTransferEncoding
@@ -177,7 +177,7 @@ getContentTransferEncoding hs =
 --
 
 data ContentDisposition =
-	ContentDisposition String [(String, String)]
+        ContentDisposition String [(String, String)]
     deriving (Show, Read, Eq, Ord)
 
 pContentDisposition :: Parser ContentDisposition
@@ -228,9 +228,9 @@ lineString = many (noneOf "\n\r")
 
 literalString :: Parser String
 literalString = do char '\"'
-		   str <- many (noneOf "\"\\" <|> quoted_pair)
-		   char '\"'
-		   return str
+                   str <- many (noneOf "\"\\" <|> quoted_pair)
+                   char '\"'
+                   return str
 
 -- No web browsers seem to implement RFC 2046 correctly,
 -- since they do not escape double quotes and backslashes
@@ -263,4 +263,4 @@ p_text = oneOf text_chars
 
 quoted_pair :: Parser Char
 quoted_pair = do char '\\'
-		 p_text
+                 p_text
