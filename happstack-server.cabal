@@ -135,6 +135,13 @@ Library
   else
      ghc-options:      -Wall
   GHC-Prof-Options:    -auto-all
+  -- The policy is to support GHC versions no older than the GHC stable
+  -- branch that was used by the latest Haskell Platform release
+  -- available 18 months ago. In order to avoid people spending time
+  -- keeping the build working for older versions, we tell Cabal that
+  -- it shouldn't allow builds with them.
+  if impl(ghc < 7.0)
+    buildable: False
 
 Executable happstack-server-tests
   Main-Is: Test.hs
