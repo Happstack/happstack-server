@@ -6,13 +6,12 @@ import qualified Codec.Compression.Zlib as Z
 import Control.Arrow ((&&&))
 import Control.Applicative ((<$>))
 import Control.Concurrent.MVar
-import Control.Monad (msum, forM_)
-import Control.Monad.Trans (liftIO)
+import Control.Monad
 import Data.ByteString.Lazy.Char8     (pack, unpack)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy  as L
 import qualified Data.Map              as Map
-import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart(..), Headers(..), RqBody(Body), HttpVersion(..)
+import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart, Headers, RqBody(Body), HttpVersion(..)
                                              , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength, matchMethod)
 import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
 import Happstack.Server.Cookie
@@ -20,8 +19,8 @@ import Happstack.Server.Internal.Compression
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.MessageWrap
-import Happstack.Server.SURI(ToSURI(..), SURI(..),path,query)
-import Test.HUnit as HU (Test(..),(~:),(~?),(@?=),(@=?), assertEqual, assertFailure)
+import Happstack.Server.SURI(ToSURI(..), path, query)
+import Test.HUnit as HU (Test(..), (~:), (@?=), (@=?), assertEqual)
 import Text.ParserCombinators.Parsec
 
 -- |All of the tests for happstack-util should be listed here.
@@ -63,7 +62,7 @@ cookieParserTest =
 acceptEncodingParserTest :: Test
 acceptEncodingParserTest =
     "acceptEncodingParserTest" ~:
-    map (\(string, result) -> either (Left . show) Right (parse encodings "" string) @?= (Right result)) acceptEncodings
+    map (\(str, result) -> either (Left . show) Right (parse encodings "" str) @?= (Right result)) acceptEncodings
     where
       acceptEncodings =
        [ (" gzip;q=1,*, compress ; q = 0.5 ", [("gzip", Just 1),("*", Nothing),("compress", Just 0.5)])
@@ -138,7 +137,7 @@ mkRequest method uri cookies headers body =
 
 compressPart :: ServerPart Response
 compressPart =
-    do compressedResponseFilter
+    do void compressedResponseFilter
        composeFilter noContentLength
        msum [ dir "response" $ ok (toResponse "compress Response")
             , dir "sendfile" $ ok (sendFileResponse "text/plain" "/dev/null" Nothing 0 100)
