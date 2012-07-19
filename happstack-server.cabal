@@ -9,7 +9,7 @@ Maintainer:          Happstack team <happs@googlegroups.com>
 homepage:            http://happstack.com
 Category:            Web, Happstack
 Build-Type:          Simple
-Cabal-Version:       >= 1.6
+Cabal-Version:       >= 1.8
 
 source-repository head
     type:     darcs
@@ -19,10 +19,6 @@ source-repository head
 Flag network_2_2_3
     Description: Choose newer network library with merged in network-bytestring.
     Default: True
-
-Flag tests
-    Description: Build the testsuite, and include the tests in the library
-    Default: False
 
 Flag template_haskell
     Description: Template Haskell is available on this system
@@ -62,9 +58,6 @@ Library
                        Happstack.Server.SimpleHTTP
                        Happstack.Server.Types
                        Happstack.Server.Validation
-  if flag(tests)
-    Exposed-modules:
-                       Happstack.Server.Tests
   Other-modules:
                        Happstack.Server.Internal.Clock
                        Happstack.Server.Internal.LazyLiner
@@ -111,15 +104,10 @@ Library
     cpp-options:       -DTEMPLATE_HASKELL
 
   hs-source-dirs:      src
-  if flag(tests)
-    hs-source-dirs:    tests
 
   if !os(windows)
      Build-Depends:    unix
      cpp-options:      -DUNIX
-
-  if flag(tests)
-    Build-Depends:     HUnit
 
   Extensions:          TemplateHaskell, DeriveDataTypeable, MultiParamTypeClasses,
                        TypeFamilies, FlexibleContexts, OverlappingInstances,
@@ -136,12 +124,16 @@ Library
   if impl(ghc < 7.0)
     buildable: False
 
-Executable happstack-server-tests
+Test-Suite happstack-server-tests
+  Type: exitcode-stdio-1.0
   Main-Is: Test.hs
   GHC-Options: -threaded
-  hs-source-dirs: tests, src
-  if flag(tests)
-    Buildable: True
-    Build-depends: HUnit, parsec < 4
-  else
-    Buildable: False
+  hs-source-dirs: tests
+  Build-depends: HUnit,
+                 base,
+                 bytestring,
+                 containers,
+                 happstack-server,
+                 parsec < 4,
+                 zlib
+

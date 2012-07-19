@@ -16,4 +16,4 @@ main =
                           return c
        case (failures c) + (errors c) of
          0 -> return ()
-         n -> exitFailure
+         _ -> exitFailure
