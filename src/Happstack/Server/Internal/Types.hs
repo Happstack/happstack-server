@@ -487,5 +487,5 @@ instance FromReqURI Bool    where
       "0"     -> Just False
       "false" -> Just False
       "1"     -> Just True
-      "True"  -> Just True
+      "true"  -> Just True
       _       -> Nothing
