@@ -6,6 +6,7 @@ import Happstack.Server.Internal.Handler        (request)
 import Happstack.Server.Internal.Socket         (acceptLite)
 import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register)
 import Happstack.Server.Internal.TimeoutSocket  as TS
+import qualified Control.Concurrent.Thread.Group as TG
 import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad
@@ -84,6 +85,9 @@ listen' s conf hand = do
 #endif
 -}
   let port' = port conf
+      fork = case threadGroup conf of
+               Nothing -> forkIO
+               Just tg -> \m -> fst `liftM` TG.forkIO tg m
   tm <- initialize ((timeout conf) * (10^(6 :: Int)))
   -- http:// loop
   log' NOTICE ("Listening for http:// on port " ++ show port')
@@ -97,7 +101,7 @@ listen' s conf hand = do
              cancel thandle
              sClose sock
       loop = forever $ do w <- acceptLite s
-                          forkIO $ work w
+                          fork $ work w
       pe e = log' ERROR ("ERROR in http accept thread: " ++ show e)
       infi :: IO ()
       infi = loop `catchSome` pe >> infi

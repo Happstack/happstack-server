@@ -18,9 +18,9 @@ module Happstack.Server.Internal.Types
      readDec', fromReadS, readM, FromReqURI(..)
     ) where
 
-
 import Control.Monad.Error (Error(strMsg))
 import Control.Monad.Trans (MonadIO(liftIO))
+import qualified Control.Concurrent.Thread.Group as TG
 import Control.Concurrent.MVar
 import qualified Data.Map as M
 import Data.Data (Data)
@@ -98,19 +98,21 @@ type LogAccess time =
 
 -- | HTTP configuration
 data Conf = Conf
-    { port       :: Int             -- ^ Port for the server to listen on.
-    , validator  :: Maybe (Response -> IO Response) -- ^ a function to validate the output on-the-fly
-    , logAccess  :: forall t. FormatTime t => Maybe (LogAccess t) -- ^ function to log access requests (see also: 'logMAccess')
-    , timeout    :: Int             -- ^ number of seconds to wait before killing an inactive thread
+    { port        :: Int             -- ^ Port for the server to listen on.
+    , validator   :: Maybe (Response -> IO Response) -- ^ a function to validate the output on-the-fly
+    , logAccess   :: forall t. FormatTime t => Maybe (LogAccess t) -- ^ function to log access requests (see also: 'logMAccess')
+    , timeout     :: Int             -- ^ number of seconds to wait before killing an inactive thread
+    , threadGroup :: Maybe TG.ThreadGroup -- ^ ThreadGroup for registering spawned threads for handling requests
     }
 
 -- | Default configuration contains no validator and the port is set to 8000
 nullConf :: Conf
 nullConf =
-    Conf { port      = 8000
-         , validator = Nothing
-         , logAccess = Just logMAccess
-         , timeout   = 30
+    Conf { port        = 8000
+         , validator   = Nothing
+         , logAccess   = Just logMAccess
+         , timeout     = 30
+         , threadGroup = Nothing
          }
 
 -- | log access requests using hslogger and apache-style log formatting
