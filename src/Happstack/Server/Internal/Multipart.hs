@@ -1,6 +1,7 @@
 module Happstack.Server.Internal.Multipart where
 
 import           Control.Monad                   (MonadPlus(mplus))
+import           Data.ByteString.Base64.Lazy
 import qualified Data.ByteString.Lazy.Char8      as L
 import           Data.ByteString.Lazy.Internal   (ByteString(Chunk, Empty))
 import qualified Data.ByteString.Lazy.UTF8       as LU
@@ -10,8 +11,6 @@ import           Data.Int                        (Int64)
 import           Text.ParserCombinators.Parsec   (parse)
 import           Happstack.Server.Internal.Types (Input(..))
 import           Happstack.Server.Internal.RFC822Headers
-                                                  ( ContentType(..), ContentDisposition(..), Header
-                                                  , getContentDisposition, getContentType, pHeaders)
 import           System.IO                        (Handle, hClose, openBinaryTempFile)
 
 -- | similar to the normal 'span' function, except the predicate gets the whole rest of the lazy bytestring, not just one character.
@@ -141,9 +140,27 @@ bodyPartToInput inputWorker (BodyPart rawHS b) =
          (HeaderResult hs cont) ->
           let ctype = fromMaybe defaultInputType (getContentType hs) in
           case getContentDisposition hs of
-              Just (ContentDisposition "form-data" ps) ->
-                  cont (BodyWork ctype ps b)
-
+              Just (ContentDisposition "form-data" ps) -> do
+                  let eb' = case getContentTransferEncoding hs of
+                            Nothing -> Right b
+                            Just (ContentTransferEncoding "7bit") ->
+                                -- We don't bother checking that the data
+                                -- really is 7bit-only
+                                Right b
+                            Just (ContentTransferEncoding "8bit") ->
+                                Right b
+                            Just (ContentTransferEncoding "binary") ->
+                                Right b
+                            Just (ContentTransferEncoding "base64") ->
+                                Right $ decodeLenient b
+                            -- TODO: Support quoted-printable
+                            Just cte ->
+                                Left ("Bad content-transfer-encoding: " ++ show cte)
+                  case eb' of
+                      Right b' ->
+                          cont (BodyWork ctype ps b')
+                      Left err ->
+                          return $ Failed Nothing err
               cd -> return $ Failed Nothing ("Expected content-disposition: form-data but got " ++ show cd)
          (BodyResult {}) -> return $ Failed Nothing "bodyPartToInput: Got unexpected BodyResult."
 
