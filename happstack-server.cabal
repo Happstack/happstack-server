@@ -14,7 +14,7 @@ Cabal-Version:       >= 1.8
 source-repository head
     type:     darcs
     subdir:   happstack-server
-    location: http://patch-tag.com/r/mae/happstack
+    location: http://hub.darcs.net/stepcut/happstack
 
 Flag network_2_2_3
     Description: Choose newer network library with merged in network-bytestring.
