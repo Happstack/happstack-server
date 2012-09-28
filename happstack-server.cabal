@@ -42,6 +42,7 @@ Library
                        Happstack.Server.Internal.Types
                        Happstack.Server.Internal.Listen
                        Happstack.Server.Internal.LowLevel
+                       Happstack.Server.Internal.LogFormat
                        Happstack.Server.Internal.MessageWrap
                        Happstack.Server.Internal.Multipart
                        Happstack.Server.Internal.Socket
@@ -61,7 +62,6 @@ Library
   Other-modules:
                        Happstack.Server.Internal.Clock
                        Happstack.Server.Internal.LazyLiner
-                       Happstack.Server.Internal.LogFormat
                        Happstack.Server.Internal.RFC822Headers
                        Happstack.Server.Internal.SocketTH
                        Happstack.Server.SURI.ParseURI
