@@ -227,6 +227,7 @@ waitForTermination
          istty <- queryTerminal stdInput
          mv <- newEmptyMVar
          void $ installHandler softwareTermination (CatchOnce (putMVar mv ())) Nothing
+         void $ installHandler lostConnection      (CatchOnce (putMVar mv ())) Nothing
          case istty of
            True  -> void $ installHandler keyboardSignal (CatchOnce (putMVar mv ())) Nothing
            False -> return ()

@@ -79,7 +79,9 @@ import Happstack.Server.SimpleHTTP       (simpleHTTP
                                          , simpleHTTPWithSocket'
                                          , bindPort
                                          , bindIPv4
-                                         , parseConfig)
+                                         , parseConfig
+                                         , waitForTermination
+                                         )
 import Happstack.Server.FileServe
 import Happstack.Server.Monads
 import Happstack.Server.Auth
