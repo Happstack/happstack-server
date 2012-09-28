@@ -68,11 +68,20 @@ isHTTP1_0 rq =
       _               -> False
 
 -- | Should the connection be used for further messages after this.
--- | isHTTP1_0 && hasKeepAlive || isHTTP1_1 && hasNotConnectionClose
+-- isHTTP1_0 && hasKeepAlive || isHTTP1_1 && hasNotConnectionClose
+--
+-- In addition to this rule All 1xx (informational), 204 (no content),
+-- and 304 (not modified) responses MUST NOT include a message-body
+-- and therefore are eligible for connection keep-alive.
 continueHTTP :: Request -> Response -> Bool
-continueHTTP rq res =
-    (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq   && rsfLength (rsFlags res) == ContentLength) ||
-    (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq) && rsfLength (rsFlags res) /= NoContentLength)
+continueHTTP rq rs =
+    (isHTTP1_0 rq && checkHeaderBS connectionC keepaliveC rq   &&
+       (rsfLength (rsFlags rs) == ContentLength || isNoMessageBodyResponse rs)) ||
+    (isHTTP1_1 rq && not (checkHeaderBS connectionC closeC rq) &&
+       (rsfLength (rsFlags rs) /= NoContentLength || isNoMessageBodyResponse rs))
+  where
+    isNoMessageBodyCode code = (code >= 100 && code <= 199) || code == 204 || code == 304
+    isNoMessageBodyResponse rs = isNoMessageBodyCode (rsCode rs) && L.null (rsBody rs)
 
 -- | function to log access requests (see also: 'logMAccess')
 -- type LogAccess time =
