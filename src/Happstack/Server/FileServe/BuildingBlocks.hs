@@ -54,6 +54,7 @@ module Happstack.Server.FileServe.BuildingBlocks
      isDot
     ) where
 
+import Control.Applicative          ((<$>))
 import Control.Exception.Extensible (IOException, bracket, catch)
 import Control.Monad                (MonadPlus(mzero), msum)
 import Control.Monad.Trans          (MonadIO(liftIO))
@@ -64,6 +65,7 @@ import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
+import Data.Time                    (UTCTime, formatTime)
 import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
@@ -74,7 +76,6 @@ import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, 
 import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
 import System.Locale                (defaultTimeLocale)
 import System.Log.Logger            (Priority(DEBUG), logM)
-import System.Time                  (CalendarTime, formatCalendarTime, toCalendarTime, toUTCTime)
 import           Text.Blaze.Html             ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -157,7 +158,7 @@ isDot = isD . reverse
 -- | Use sendFile to send the contents of a Handle
 sendFileResponse :: String  -- ^ content-type string
                  -> FilePath  -- ^ file path for content to send
-                 -> Maybe (CalendarTime, Request) -- ^ mod-time for the handle (MUST NOT be later than server's time of message origination), incoming request (used to check for if-modified-since header)
+                 -> Maybe (UTCTime, Request) -- ^ mod-time for the handle (MUST NOT be later than server's time of message origination), incoming request (used to check for if-modified-since header)
                  -> Integer -- ^ offset into Handle
                  -> Integer -- ^ number of bytes to send
                  -> Response
@@ -173,7 +174,7 @@ sendFileResponse ct filePath mModTime offset count =
 --
 lazyByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plain; charset=utf-8\"@)
                        -> L.ByteString   -- ^ lazy bytestring content to send
-                       -> Maybe (CalendarTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)
+                       -> Maybe (UTCTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)
                        -> Integer -- ^ offset into the bytestring
                        -> Integer -- ^ number of bytes to send (offset + count must be less than or equal to the length of the bytestring)
                        -> Response
@@ -188,7 +189,7 @@ lazyByteStringResponse ct body mModTime offset count =
 -- | Send the contents of a Lazy ByteString
 strictByteStringResponse :: String   -- ^ content-type string (e.g. @\"text/plain; charset=utf-8\"@)
                          -> S.ByteString   -- ^ lazy bytestring content to send
-                         -> Maybe (CalendarTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)
+                         -> Maybe (UTCTime, Request) -- ^ mod-time for the bytestring, incoming request (used to check for if-modified-since header)
                          -> Integer -- ^ offset into the bytestring
                          -> Integer -- ^ number of bytes to send (offset + count must be less than or equal to the length of the bytestring)
                          -> Response
@@ -213,7 +214,7 @@ filePathSendFile contentType fp =
     do count   <- liftIO $ withBinaryFile fp ReadMode hFileSize -- garbage collection should close this
        modtime <- liftIO $ getModificationTime fp
        rq      <- askRq
-       return $ sendFileResponse contentType fp (Just (toUTCTime modtime, rq)) 0 count
+       return $ sendFileResponse contentType fp (Just (modtime, rq)) 0 count
 
 -- | Send the specified file with the specified mime-type using lazy ByteStrings
 --
@@ -230,7 +231,7 @@ filePathLazy contentType fp =
        modtime  <- liftIO $ getModificationTime fp
        count    <- liftIO $ hFileSize handle
        rq       <- askRq
-       return $ lazyByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
+       return $ lazyByteStringResponse contentType contents (Just (modtime, rq)) 0 count
 
 -- | Send the specified file with the specified mime-type using strict ByteStrings
 --
@@ -246,7 +247,7 @@ filePathStrict contentType fp =
        modtime  <- liftIO $ getModificationTime fp
        count    <- liftIO $ withBinaryFile fp ReadMode hFileSize
        rq       <- askRq
-       return $ strictByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
+       return $ strictByteStringResponse contentType contents (Just (modtime, rq)) 0 count
 
 -- * High-level functions for serving files
 
@@ -566,7 +567,7 @@ renderDirectoryContents localPath fps =
 -- a new page template to wrap around this HTML.
 --
 -- see also: 'getMetaData', 'renderDirectoryContents'
-renderDirectoryContentsTable :: [(FilePath, Maybe CalendarTime, Maybe Integer, EntryKind)] -- ^ list of files+meta data, see 'getMetaData'
+renderDirectoryContentsTable :: [(FilePath, Maybe UTCTime, Maybe Integer, EntryKind)] -- ^ list of files+meta data, see 'getMetaData'
                              -> H.Html
 renderDirectoryContentsTable fps =
            H.table $ do H.thead $ do H.th $ H.toHtml ""
@@ -575,13 +576,13 @@ renderDirectoryContentsTable fps =
                                      H.th $ H.toHtml "Size"
                         H.tbody $ mapM_ mkRow (zip fps $ cycle [False, True])
     where
-      mkRow :: ((FilePath, Maybe CalendarTime, Maybe Integer, EntryKind), Bool) -> H.Html
+      mkRow :: ((FilePath, Maybe UTCTime, Maybe Integer, EntryKind), Bool) -> H.Html
       mkRow ((fp, modTime, count, kind), alt) =
           (if alt then (! A.class_ (H.toValue "alt")) else id) $
           H.tr $ do
                    H.td (mkKind kind)
                    H.td (H.a ! A.href (H.toValue fp)  $ H.toHtml fp)
-                   H.td ! A.class_ (H.toValue "date") $ (H.toHtml $ maybe "-" (formatCalendarTime defaultTimeLocale "%d-%b-%Y %X %Z") modTime)
+                   H.td ! A.class_ (H.toValue "date") $ (H.toHtml $ maybe "-" (formatTime defaultTimeLocale "%d-%b-%Y %X %Z") modTime)
                    (maybe id (\c -> (! A.title (H.toValue (show c)))) count)  (H.td ! A.class_ (H.toValue "size") $ (H.toHtml $ maybe "-" prettyShow count))
       mkKind :: EntryKind -> H.Html
       mkKind File        = return ()
@@ -605,10 +606,10 @@ renderDirectoryContentsTable fps =
 -- | look up the meta data associated with a file
 getMetaData :: FilePath -- ^ path to directory on disk containing the entry
             -> FilePath -- ^ entry in that directory
-            -> IO (FilePath, Maybe CalendarTime, Maybe Integer, EntryKind)
+            -> IO (FilePath, Maybe UTCTime, Maybe Integer, EntryKind)
 getMetaData localPath fp =
      do let localFp = localPath </> fp
-        modTime <- (fmap Just . toCalendarTime =<< getModificationTime localFp) `catch`
+        modTime <- (Just <$> getModificationTime localFp) `catch`
                    (\(_ :: IOException) -> return Nothing)
         count <- do de <- doesDirectoryExist localFp
                     if de

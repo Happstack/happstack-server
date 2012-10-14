@@ -34,11 +34,11 @@ import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
 import qualified Data.Text.Lazy                  as LT
 import qualified Data.Text.Lazy.Encoding         as LT
+import           Data.Time                       (UTCTime, formatTime)
 import           Happstack.Server.Internal.Monads         (FilterMonad(composeFilter))
 import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
 import           Happstack.Server.SURI           (ToSURI)
 import           System.Locale                   (defaultTimeLocale)
-import           System.Time                     (CalendarTime, formatCalendarTime)
 import qualified Text.Blaze.Html                 as Blaze
 import qualified Text.Blaze.Html.Renderer.Utf8   as Blaze
 import           Text.Html                       (Html, renderHtml)
@@ -174,12 +174,12 @@ flatten = fmap toResponse
 -- If the 'Request' includes the @if-modified-since@ header and the
 -- 'Response' has not been modified, then return 304 (Not Modified),
 -- otherwise return the 'Response'.
-ifModifiedSince :: CalendarTime -- ^ mod-time for the 'Response' (MUST NOT be later than server's time of message origination)
+ifModifiedSince :: UTCTime -- ^ mod-time for the 'Response' (MUST NOT be later than server's time of message origination)
                 -> Request -- ^ incoming request (used to check for if-modified-since)
                 -> Response -- ^ Response to send if there are modifications
                 -> Response
 ifModifiedSince modTime request response =
-    let repr = formatCalendarTime defaultTimeLocale "%a, %d %b %Y %X GMT" modTime
+    let repr = formatTime defaultTimeLocale "%a, %d %b %Y %X GMT" modTime
         notmodified = getHeader "if-modified-since" request == Just (B.pack $ repr)
     in if notmodified
           then noContentLength $ result 304 "" -- Not Modified
