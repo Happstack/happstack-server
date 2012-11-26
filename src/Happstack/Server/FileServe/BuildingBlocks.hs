@@ -66,6 +66,7 @@ import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
 import Data.Time                    (UTCTime, formatTime)
+import Data.Time.Compat             (toUTCTime)
 import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
@@ -214,7 +215,7 @@ filePathSendFile contentType fp =
     do count   <- liftIO $ withBinaryFile fp ReadMode hFileSize -- garbage collection should close this
        modtime <- liftIO $ getModificationTime fp
        rq      <- askRq
-       return $ sendFileResponse contentType fp (Just (modtime, rq)) 0 count
+       return $ sendFileResponse contentType fp (Just (toUTCTime modtime, rq)) 0 count
 
 -- | Send the specified file with the specified mime-type using lazy ByteStrings
 --
@@ -231,7 +232,7 @@ filePathLazy contentType fp =
        modtime  <- liftIO $ getModificationTime fp
        count    <- liftIO $ hFileSize handle
        rq       <- askRq
-       return $ lazyByteStringResponse contentType contents (Just (modtime, rq)) 0 count
+       return $ lazyByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
 
 -- | Send the specified file with the specified mime-type using strict ByteStrings
 --
@@ -247,7 +248,7 @@ filePathStrict contentType fp =
        modtime  <- liftIO $ getModificationTime fp
        count    <- liftIO $ withBinaryFile fp ReadMode hFileSize
        rq       <- askRq
-       return $ strictByteStringResponse contentType contents (Just (modtime, rq)) 0 count
+       return $ strictByteStringResponse contentType contents (Just (toUTCTime modtime, rq)) 0 count
 
 -- * High-level functions for serving files
 
@@ -609,7 +610,7 @@ getMetaData :: FilePath -- ^ path to directory on disk containing the entry
             -> IO (FilePath, Maybe UTCTime, Maybe Integer, EntryKind)
 getMetaData localPath fp =
      do let localFp = localPath </> fp
-        modTime <- (Just <$> getModificationTime localFp) `catch`
+        modTime <- (Just . toUTCTime <$> getModificationTime localFp) `catch`
                    (\(_ :: IOException) -> return Nothing)
         count <- do de <- doesDirectoryExist localFp
                     if de
