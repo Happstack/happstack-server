@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, PatternGuards, ScopedTypeVariables, TypeSynonymInstances #-}
 -- | Route an incoming 'Request' to a handler. For more in-depth documentation see this section of the Happstack Crash Course: <http://happstack.com/docs/crashcourse/RouteFilters.html>
-module Happstack.Server.Routing 
+module Happstack.Server.Routing
     ( -- * Route by scheme
       http
     , https
@@ -35,7 +35,7 @@ import           System.FilePath                  (makeRelative, splitDirectorie
 -- | instances of this class provide a variety of ways to match on the 'Request' method.
 --
 -- Examples:
--- 
+--
 -- > method GET                  -- match GET or HEAD
 -- > method [GET, POST]          -- match GET, HEAD or POST
 -- > method HEAD                 -- match HEAD /but not/ GET
@@ -124,12 +124,12 @@ method meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
 -- > handler =
 -- >     do methodM [GET, HEAD]
 -- >        ...
--- 
+--
 -- NOTE: This function is largely retained for backwards
 -- compatibility. The fact that implicitly calls 'nullDir' is often
 -- forgotten and leads to confusion. It is probably better to just use
 -- 'method' and call 'nullDir' explicitly.
--- 
+--
 -- This function will likely be deprecated in the future.
 methodM :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
 methodM meth = methodOnly meth >> nullDir
@@ -153,7 +153,7 @@ methodOnly = method
 --
 -- > handler :: ServerPart Response
 -- > handler = methodSP [GET, HEAD] $ subHandler
--- 
+--
 -- NOTE: This style of combinator is going to be deprecated in the
 -- future. It is better to just use 'method'.
 --
@@ -166,16 +166,16 @@ methodSP m handle = methodM m >> handle
 -- | guard which only succeeds if there are no remaining path segments
 --
 -- Often used if you want to explicitly assign a route for '/'
--- 
+--
 nullDir :: (ServerMonad m, MonadPlus m) => m ()
 nullDir = guardRq $ \rq -> null (rqPaths rq)
 
 -- | Pop a path element and run the supplied handler if it matches the
 -- given string.
--- 
+--
 -- > handler :: ServerPart Response
 -- > handler = dir "foo" $ dir "bar" $ subHandler
--- 
+--
 -- The path element can not contain \'/\'. See also 'dirs'.
 dir :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
 dir staticPath handle =
@@ -184,17 +184,17 @@ dir staticPath handle =
         case rqPaths rq of
             (p:xs) | p == staticPath -> localRq (\newRq -> newRq{rqPaths = xs}) handle
             _ -> mzero
-            
+
 -- | Guard against a 'FilePath'. Unlike 'dir' the 'FilePath' may
 -- contain \'/\'. If the guard succeeds, the matched elements will be
 -- popped from the directory stack.
 --
 -- > dirs "foo/bar" $ ...
---          
+--
 -- See also: 'dir'.
-dirs :: (ServerMonad m, MonadPlus m) => FilePath -> m a -> m a 
-dirs fp m = 
-     do let parts = splitDirectories (makeRelative "/" fp) 
+dirs :: (ServerMonad m, MonadPlus m) => FilePath -> m a -> m a
+dirs fp m =
+     do let parts = splitDirectories (makeRelative "/" fp)
         foldr dir m parts
 
 -- | Guard against the host.
@@ -202,7 +202,11 @@ dirs fp m =
 -- This matches against the @host@ header specified in the incoming 'Request'.
 --
 -- Can be used to support virtual hosting, <http://en.wikipedia.org/wiki/Virtual_hosting>
--- 
+--
+-- Note that this matches against the value of the @Host@ header which may include the port number.
+--
+-- <http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.23>
+--
 -- see also: 'withHost'
 host :: (ServerMonad m, MonadPlus m) => String -> m a -> m a
 host desiredHost handle =
@@ -238,7 +242,7 @@ uriRest :: (ServerMonad m) => (String -> m a) -> m a
 uriRest handle = askRq >>= handle . rqURL
 
 -- | Pop any path element and run the handler.
--- 
+--
 -- Succeeds if a path component was popped. Fails is the remaining path was empty.
 anyPath :: (ServerMonad m, MonadPlus m) => m r -> m r
 anyPath x = path $ (\(_::String) -> x)
