@@ -99,7 +99,7 @@ mkCookieHeader mLife cookie =
         s f   = '\"' : concatMap e (f cookie) ++ "\""
         e c | fctl c || c == '"' = ['\\',c]
             | otherwise          = [c]
-    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ] ++ 
+    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ] ++
                                  (if secure cookie then ["Secure"] else []) ++
                                  (if httpOnly cookie then ["HttpOnly"] else []))
 

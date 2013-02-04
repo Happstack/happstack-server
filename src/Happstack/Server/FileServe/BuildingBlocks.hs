@@ -624,7 +624,7 @@ getMetaData localPath fp =
                               if de
                                  then return Directory
                                  else return UnknownKind
-        return (fp, modTime, count, kind)
+        return (if kind == Directory then (fp ++ "/") else fp, modTime, count, kind)
 
 -- | see 'serveDirectory'
 data Browsing
