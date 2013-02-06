@@ -52,14 +52,6 @@ showHostAddress6 (a,b,c,d) =
         (d',p8) = d `quotRem` 65536
         (_,p7)  = d' `quotRem` 65536
 
-
-getPort :: S.SockAddr -> S.PortNumber 
-getPort addr =
-    case addr of
-        (S.SockAddrInet p _) -> p
-        (S.SockAddrInet6 p _ _ _ ) -> p
-        _ -> 0
-
 -- | alternative implementation of accept to work around EAI_AGAIN errors
 acceptLite :: S.Socket -> IO (S.Socket, S.HostName, S.PortNumber)
 acceptLite sock = do
@@ -67,6 +59,13 @@ acceptLite sock = do
   let p = getPort addr
   let peer = sockAddrToHostName addr
   return (sock', peer, p)
+
+getPort :: S.SockAddr -> S.PortNumber 
+getPort addr =
+    case addr of
+        (S.SockAddrInet p _) -> p
+        (S.SockAddrInet6 p _ _ _ ) -> p
+        _ -> error "Unsupported socket"
 
 sockAddrToHostName ::  S.SockAddr -> S.HostName
 sockAddrToHostName addr =
