@@ -56,11 +56,11 @@ showHostAddress6 (a,b,c,d) =
 acceptLite :: S.Socket -> IO (S.Socket, S.HostName, S.PortNumber)
 acceptLite sock = do
   (sock', addr) <- S.accept sock
-  let p = getPort addr
+  let port = getPort addr
   let peer = sockAddrToHostName addr
-  return (sock', peer, p)
+  return (sock', peer, port)
 
-getPort :: S.SockAddr -> S.PortNumber 
+getPort :: S.SockAddr -> S.PortNumber
 getPort addr =
     case addr of
         (S.SockAddrInet p _) -> p
