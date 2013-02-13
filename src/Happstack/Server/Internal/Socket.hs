@@ -14,10 +14,6 @@ import Happstack.Server.Internal.SocketTH(supportsIPv6)
 import Language.Haskell.TH.Syntax
 #endif
 
-import qualified Network as N
-  ( PortID(PortNumber)
-  , socketPort
-  )
 import qualified Network.Socket as S
   ( Socket(..)
   , PortNumber()
@@ -68,23 +64,23 @@ sockAddrToPeer addr =
                     [ Match
                          (ConP (mkName "S.SockAddrInet")
                           [VarP (mkName "p"),VarP (mkName "ha")])
-                         (NormalB 
-                            (TupE 
+                         (NormalB
+                            (TupE
                                 [(AppE (VarE (mkName "showHostAddress"))
                                     (VarE (mkName "ha")))
                                 , VarE (mkName "p")
                                 ])) []
-                    , Match (ConP (mkName "S.SockAddrInet6") 
+                    , Match (ConP (mkName "S.SockAddrInet6")
                             [VarP (mkName "p"),WildP,VarP (mkName "ha"),WildP])
-                         (NormalB 
-                            (TupE 
-                                [ (AppE 
+                         (NormalB
+                            (TupE
+                                [ (AppE
                                     (VarE (mkName "showHostAddress6"))
                                          (VarE (mkName "ha")))
                                 , VarE (mkName "p")
                                 ])) []
-                    , Match WildP 
-                        (NormalB (AppE (VarE (mkName "error")) 
+                    , Match WildP
+                        (NormalB (AppE (VarE (mkName "error"))
                             (LitE (StringL "Unsupported socket")))) []]
          -- the above mess is the equivalent of this:
          {-[| case addr of
