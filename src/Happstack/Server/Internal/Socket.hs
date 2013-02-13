@@ -4,7 +4,7 @@
 #endif
 module Happstack.Server.Internal.Socket
     ( acceptLite
-    , sockAddrToHostName
+    , sockAddrToPeer
     ) where
 
 import Data.List (intersperse)
@@ -56,44 +56,49 @@ showHostAddress6 (a,b,c,d) =
 acceptLite :: S.Socket -> IO (S.Socket, S.HostName, S.PortNumber)
 acceptLite sock = do
   (sock', addr) <- S.accept sock
-  let port = getPort addr
-  let peer = sockAddrToHostName addr
+  let (peer, port) = sockAddrToPeer addr
   return (sock', peer, port)
 
-getPort :: S.SockAddr -> S.PortNumber
-getPort addr =
-    case addr of
-        (S.SockAddrInet p _) -> p
-        (S.SockAddrInet6 p _ _ _ ) -> p
-        _ -> error "Unsupported socket"
-
-sockAddrToHostName ::  S.SockAddr -> S.HostName
-sockAddrToHostName addr =
+sockAddrToPeer ::  S.SockAddr -> (S.HostName, S.PortNumber)
+sockAddrToPeer addr =
 #ifdef TEMPLATE_HASKELL
     $(if supportsIPv6
-                 then
-                 return $ CaseE (VarE (mkName "addr"))
-                            [Match
-                             (ConP (mkName "S.SockAddrInet")
-                              [WildP,VarP (mkName "ha")])
-                             (NormalB (AppE (VarE (mkName "showHostAddress"))
-                                       (VarE (mkName "ha")))) []
-                            ,Match (ConP (mkName "S.SockAddrInet6") [WildP,WildP,VarP (mkName "ha"),WildP])
-                             (NormalB (AppE (VarE (mkName "showHostAddress6")) (VarE (mkName "ha")))) []
-                            ,Match WildP (NormalB (AppE (VarE (mkName "error")) (LitE (StringL "Unsupported socket")))) []]
-                 -- the above mess is the equivalent of this:
-                 {-[| case addr of
-                       (S.SockAddrInet _ ha)      -> showHostAddress ha
-                       (S.SockAddrInet6 _ _ ha _) -> showHostAddress6 ha
-                       _                          -> error "Unsupported socket"
-                   |]-}
-                 else
-                 [| case addr of
-                      (S.SockAddrInet _ ha)      -> showHostAddress ha
-                      _                          -> error "Unsupported socket"
-                 |])
+         then
+         return $ CaseE (VarE (mkName "addr"))
+                    [ Match
+                         (ConP (mkName "S.SockAddrInet")
+                          [VarP (mkName "p"),VarP (mkName "ha")])
+                         (NormalB 
+                            (TupE 
+                                [(AppE (VarE (mkName "showHostAddress"))
+                                    (VarE (mkName "ha")))
+                                , VarE (mkName "p")
+                                ])) []
+                    , Match (ConP (mkName "S.SockAddrInet6") 
+                            [VarP (mkName "p"),WildP,VarP (mkName "ha"),WildP])
+                         (NormalB 
+                            (TupE 
+                                [ (AppE 
+                                    (VarE (mkName "showHostAddress6"))
+                                         (VarE (mkName "ha")))
+                                , VarE (mkName "p")
+                                ])) []
+                    , Match WildP 
+                        (NormalB (AppE (VarE (mkName "error")) 
+                            (LitE (StringL "Unsupported socket")))) []]
+         -- the above mess is the equivalent of this:
+         {-[| case addr of
+               (S.SockAddrInet p ha)        -> (showHostAddress  ha, p)
+               (S.SockAddrInet6 p _ ha _ )  -> (showHostAddress6 ha, p)
+               _                            -> error "Unsupported socket"
+           |]-}
+         else
+         [| case addr of
+              (S.SockAddrInet p ha)      -> (showHostAddress ha, p)
+              _                          -> error "Unsupported socket"
+         |])
 #else
     case addr of
-        (S.SockAddrInet _ ha)      -> showHostAddress ha
+        (S.SockAddrInet p ha)      -> (showHostAddress ha, p)
         _                          -> error "Unsupported socket"
 #endif
