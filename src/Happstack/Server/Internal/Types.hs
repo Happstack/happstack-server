@@ -235,24 +235,24 @@ instance Error Response where
 
 -- | an HTTP request
 data Request = Request
-    { rqSecure        :: Bool                  -- ^ request uses https:\/\/
-      , rqMethod      :: Method                -- ^ request method
-      , rqPaths       :: [String]              -- ^ the uri, split on /, and then decoded
-      , rqUri         :: String                -- ^ the raw rqUri
-      , rqQuery       :: String                -- ^ the QUERY_STRING
-      , rqInputsQuery :: [(String,Input)]      -- ^ the QUERY_STRING decoded as key/value pairs
-      , rqInputsBody  :: MVar [(String,Input)] -- ^ the request body decoded as key/value pairs (when appropriate)
-      , rqCookies     :: [(String,Cookie)]     -- ^ cookies
-      , rqVersion     :: HttpVersion           -- ^ HTTP version
-      , rqHeaders     :: Headers               -- ^ the HTTP request headers
-      , rqBody        :: MVar RqBody           -- ^ the raw, undecoded request body
-      , rqPeer        :: Host                  -- ^ (hostname, port) of the client making the request
+    { rqSecure      :: Bool                  -- ^ request uses https:\/\/
+    , rqMethod      :: Method                -- ^ request method
+    , rqPaths       :: [String]              -- ^ the uri, split on /, and then decoded
+    , rqUri         :: String                -- ^ the raw rqUri
+    , rqQuery       :: String                -- ^ the QUERY_STRING
+    , rqInputsQuery :: [(String,Input)]      -- ^ the QUERY_STRING decoded as key/value pairs
+    , rqInputsBody  :: MVar [(String,Input)] -- ^ the request body decoded as key/value pairs (when appropriate)
+    , rqCookies     :: [(String,Cookie)]     -- ^ cookies
+    , rqVersion     :: HttpVersion           -- ^ HTTP version
+    , rqHeaders     :: Headers               -- ^ the HTTP request headers
+    , rqBody        :: MVar RqBody           -- ^ the raw, undecoded request body
+    , rqPeer        :: Host                  -- ^ (hostname, port) of the client making the request
     } deriving (Typeable)
 
 instance Show Request where
     showsPrec _ rq =
         showString   "================== Request =================" .
-        showString "\nrqSecure      = " . shows      (rqMethod rq) .
+        showString "\nrqSecure      = " . shows      (rqSecure rq) .
         showString "\nrqMethod      = " . shows      (rqMethod rq) .
         showString "\nrqPaths       = " . shows      (rqPaths rq) .
         showString "\nrqUri         = " . showString (rqUri rq) .
