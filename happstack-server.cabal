@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             7.1.5
+Version:             7.1.6
 Synopsis:            Web related tools and services.
 Description:         Happstack Server provides an HTTP server and a rich set of functions for routing requests, handling query parameters, generating responses, working with cookies, serving files, and more. For in-depth documentation see the Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>
 License:             BSD3
@@ -69,7 +69,7 @@ Library
 
   Build-Depends:       base >= 4 && < 5,
                        base64-bytestring == 1.0.*,
-                       blaze-html        == 0.5.*,
+                       blaze-html        >= 0.5 && < 0.7,
                        bytestring,
                        containers,
                        directory,
