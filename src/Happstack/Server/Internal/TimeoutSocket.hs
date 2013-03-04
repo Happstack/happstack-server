@@ -5,7 +5,7 @@
 module Happstack.Server.Internal.TimeoutSocket where
 
 import           Control.Concurrent            (threadWaitWrite)
-import           Control.Exception             (catch, throw)
+import           Control.Exception             as E (catch, throw)
 import           Control.Monad                 (liftM, when)
 import qualified Data.ByteString.Char8         as B
 import qualified Data.ByteString.Lazy.Char8    as L
@@ -18,7 +18,6 @@ import           Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import           Network.Socket (Socket, ShutdownCmd(..), shutdown)
 import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, sendFileIterWith')
 import           Network.Socket.ByteString (sendAll)
-import           Prelude hiding (catch)
 import           System.IO.Error (isDoesNotExistError)
 import           System.IO.Unsafe (unsafeInterleaveIO)
 
@@ -42,7 +41,7 @@ sGetContents handle sock = loop where
     s <- N.recv sock 65536
     TM.tickle handle
     if S.null s
-      then do shutdown sock ShutdownReceive `catch` (\e -> when (not $ isDoesNotExistError e) (throw e))
+      then do shutdown sock ShutdownReceive `E.catch` (\e -> when (not $ isDoesNotExistError e) (throw e))
               return L.Empty
       else L.Chunk s `liftM` loop
 

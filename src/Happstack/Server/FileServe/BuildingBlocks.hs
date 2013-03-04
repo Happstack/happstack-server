@@ -55,7 +55,7 @@ module Happstack.Server.FileServe.BuildingBlocks
     ) where
 
 import Control.Applicative          ((<$>))
-import Control.Exception.Extensible (IOException, bracket, catch)
+import Control.Exception.Extensible as E (IOException, bracket, catch)
 import Control.Monad                (MonadPlus(mzero), msum)
 import Control.Monad.Trans          (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -71,7 +71,6 @@ import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, c
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
-import Prelude                      hiding (catch)
 import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
 import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid)
 import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
@@ -610,13 +609,13 @@ getMetaData :: FilePath -- ^ path to directory on disk containing the entry
             -> IO (FilePath, Maybe UTCTime, Maybe Integer, EntryKind)
 getMetaData localPath fp =
      do let localFp = localPath </> fp
-        modTime <- (Just . toUTCTime <$> getModificationTime localFp) `catch`
+        modTime <- (Just . toUTCTime <$> getModificationTime localFp) `E.catch`
                    (\(_ :: IOException) -> return Nothing)
         count <- do de <- doesDirectoryExist localFp
                     if de
                       then do return Nothing
                       else do bracket (openBinaryFile localFp ReadMode) hClose (fmap Just . hFileSize)
-                                          `catch` (\(_e :: IOException) -> return Nothing)
+                                          `E.catch` (\(_e :: IOException) -> return Nothing)
         kind <- do fe <- doesFileExist localFp
                    if fe
                       then return File

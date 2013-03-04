@@ -81,7 +81,7 @@ continueHTTP rq rs =
        (rsfLength (rsFlags rs) /= NoContentLength || isNoMessageBodyResponse rs))
   where
     isNoMessageBodyCode code = (code >= 100 && code <= 199) || code == 204 || code == 304
-    isNoMessageBodyResponse rs = isNoMessageBodyCode (rsCode rs) && L.null (rsBody rs)
+    isNoMessageBodyResponse rs' = isNoMessageBodyCode (rsCode rs') && L.null (rsBody rs')
 
 -- | function to log access requests (see also: 'logMAccess')
 -- type LogAccess time =
