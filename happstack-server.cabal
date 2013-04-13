@@ -10,6 +10,7 @@ homepage:            http://happstack.com
 Category:            Web, Happstack
 Build-Type:          Simple
 Cabal-Version:       >= 1.8
+Extra-Source-Files:  tests/Happstack/Server/Tests.hs
 
 source-repository head
     type:     darcs
