@@ -1,10 +1,10 @@
 {-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
--- | Functions for extracting values from the query string, form data, cookies, etc. 
+-- | Functions for extracting values from the query string, form data, cookies, etc.
 --
 -- For in-depth documentation see the following section of the Happstack Crash Course:
 --
 -- <http://happstack.com/docs/crashcourse/RqData.html>
-module Happstack.Server.RqData 
+module Happstack.Server.RqData
     ( -- * Looking up keys
       -- ** Form Values and Query Parameters
       look
@@ -29,13 +29,13 @@ module Happstack.Server.RqData
     , lookInputs
     -- * Filters
     -- The look* functions normally search the QUERY_STRING and the Request
-    -- body for matches keys. 
+    -- body for matches keys.
     , body
     , queryString
     , bytestring
     -- * Validation and Parsing
     , checkRq
-    , checkRqM        
+    , checkRqM
     , readRq
     , unsafeReadRq
     -- * Handling POST\/PUT Requests
@@ -46,7 +46,7 @@ module Happstack.Server.RqData
     -- * RqData Monad & Error Reporting
     , RqData
     , mapRqData
-    , Errors(..)       
+    , Errors(..)
     -- ** Using RqData with ServerMonad
     , getDataFn
     , withDataFn
@@ -65,7 +65,7 @@ import Control.Monad.Reader                     (ReaderT(ReaderT, runReaderT), M
 import Control.Monad.State                      (StateT, mapStateT)
 import Control.Monad.Writer                     (WriterT, mapWriterT)
 import Control.Monad.RWS                        (RWST, mapRWST)
-import Control.Monad.Error                      (Error(noMsg, strMsg))
+import Control.Monad.Error                      (Error(noMsg, strMsg), ErrorT, mapErrorT)
 import Control.Monad.Trans                      (MonadIO(..), lift)
 import qualified Data.ByteString.Char8          as P
 import qualified Data.ByteString.Lazy.Char8     as L
@@ -94,7 +94,7 @@ instance (Error e) => MonadReader r (ReaderError r e) where
 
 instance (Monoid e, Error e) => Applicative (ReaderError r e) where
     pure = return
-    (ReaderError (ReaderT f)) <*> (ReaderError (ReaderT a)) 
+    (ReaderError (ReaderT f)) <*> (ReaderError (ReaderT a))
         = ReaderError $ ReaderT $ \env -> (f env) `apEither` (a env)
 
 instance (Monoid e, Error e) => Alternative (ReaderError r e) where
@@ -120,7 +120,7 @@ instance Error (Errors String) where
     noMsg = Errors []
     strMsg str = Errors [str]
 
-{- commented out to avoid 'Defined but not used' warning. 
+{- commented out to avoid 'Defined but not used' warning.
 readerError :: (Monoid e, Error e) => e -> ReaderError r e b
 readerError e = mapReaderErrorT ((Left e) `apEither`) (return ())
 
@@ -145,7 +145,7 @@ class HasRqData m where
     askRqEnv :: m RqEnv
     localRqEnv :: (RqEnv -> RqEnv) -> m a -> m a
     -- | lift some 'Errors' into 'RqData'
-    rqDataError :: Errors String -> m a 
+    rqDataError :: Errors String -> m a
 
 instance HasRqData RqData where
     askRqEnv    = RqData ask
@@ -182,7 +182,7 @@ instance (MonadIO m) => HasRqData (ServerPartT m) where
            localRq (const rq') m
 
 ------------------------------------------------------------------------------
--- HasRqData instances for ReaderT, StateT, WriterT, and RWST
+-- HasRqData instances for ReaderT, StateT, WriterT, RWST, and ErrorT
 ------------------------------------------------------------------------------
 
 instance (Monad m, HasRqData m) => HasRqData (ReaderT s m) where
@@ -205,6 +205,11 @@ instance (Monad m, HasRqData m, Monoid w) => HasRqData (RWST r w s m) where
     localRqEnv f  = mapRWST (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
+instance (Monad m, Error e, HasRqData m) => HasRqData (ErrorT e m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = mapErrorT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
 -- | apply 'RqData a' to a 'RqEnv'
 --
 -- see also: 'getData', 'getDataFn', 'withData', 'withDataFn', 'RqData', 'getDataFn'
@@ -222,7 +227,7 @@ mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 -- | use 'read' to convert a 'String' to a value of type 'a'
 --
 -- > look "key" `checkRq` (unsafeReadRq "key")
--- 
+--
 -- use with 'checkRq'
 --
 -- NOTE: This function is marked unsafe because some Read instances
@@ -232,7 +237,7 @@ mapRqData f m = RqData $ ReaderError $ mapReaderT f (unReaderError (unRqData m))
 -- > read "1e10000000000000" :: Integer
 --
 -- see also: 'readRq'
-unsafeReadRq :: (Read a) => 
+unsafeReadRq :: (Read a) =>
           String -- ^ name of key (only used for error reporting)
        -> String -- ^ 'String' to 'read'
        -> Either String a -- ^ 'Left' on error, 'Right' on success
@@ -240,13 +245,13 @@ unsafeReadRq key val =
     case reads val of
       [(a,[])] -> Right a
       _        -> Left $ "readRq failed while parsing key: " ++ key ++ " which has the value: " ++ val
-      
+
 -- | use 'fromReqURI' to convert a 'String' to a value of type 'a'
 --
 -- > look "key" `checkRq` (readRq "key")
--- 
+--
 -- use with 'checkRq'
-readRq :: (FromReqURI a) => 
+readRq :: (FromReqURI a) =>
           String -- ^ name of key (only used for error reporting)
        -> String -- ^ 'String' to 'read'
        -> Either String a -- ^ 'Left' on error, 'Right' on success
@@ -263,7 +268,7 @@ readRq key val =
 -- by calling 'rqDataError'.
 --
 -- This function is useful for a number of things including:
--- 
+--
 --  (1) Parsing a 'String' into another type
 --
 --  (2) Checking that a value meets some requirements (for example, that is an Int between 1 and 10).
@@ -322,7 +327,7 @@ fromMaybeBody funName fieldName mBody =
       (Just bdy) -> bdy
 
 -- | Gets the first matching named input parameter
--- 
+--
 -- Searches the QUERY_STRING followed by the Request body.
 --
 -- see also: 'lookInputs'
@@ -335,7 +340,7 @@ lookInput name
            Nothing -> rqDataError (strMsg $ "Parameter not found: " ++ name)
 
 -- | Gets all matches for the named input parameter
--- 
+--
 -- Searches the QUERY_STRING followed by the Request body.
 --
 -- see also: 'lookInput'
@@ -351,7 +356,7 @@ lookInputs name
 --
 -- see also: 'lookBSs'
 lookBS :: (Functor m, Monad m, HasRqData m) => String -> m L.ByteString
-lookBS n = 
+lookBS n =
     do i <- fmap inputValue (lookInput n)
        case i of
          (Left _fp) -> rqDataError $ (strMsg $ "lookBS: " ++ n ++ " is a file.")
@@ -363,7 +368,7 @@ lookBS n =
 --
 -- see also: 'lookBS'
 lookBSs :: (Functor m, Monad m, HasRqData m) => String -> m [L.ByteString]
-lookBSs n = 
+lookBSs n =
     do is <- fmap (map inputValue) (lookInputs n)
        case partitionEithers is of
          ([], bs) -> return bs
@@ -471,7 +476,7 @@ lookRead name = look name `checkRq` (readRq name)
 --
 -- see also: 'lookReads'
 lookReads :: (Functor m, Monad m, HasRqData m, FromReqURI a) => String -> m [a]
-lookReads name = 
+lookReads name =
     do vals <- looks name
        mapM (\v -> (return v) `checkRq` (readRq name)) vals
 
@@ -481,7 +486,7 @@ lookReads name =
 -- must set enctype=\"multipart\/form-data\".
 --
 -- This function returns a tuple consisting of:
--- 
+--
 --  (1) The temporary location of the uploaded file
 --
 --  (2) The local filename supplied by the browser
@@ -493,7 +498,7 @@ lookReads name =
 -- a 0-length file with an empty file name, so checking that (2) is
 -- not empty is usually sufficient to ensure the field has been
 -- filled.
--- 
+--
 -- NOTE: You must move the file from the temporary location before the
 -- 'Response' is sent. The temporary files are automatically removed
 -- after the 'Response' is sent.
@@ -515,7 +520,7 @@ lookFile n =
 --
 -- see also: 'lookPairsBS'
 lookPairs :: (Monad m, HasRqData m) => m [(String, Either FilePath String)]
-lookPairs = 
+lookPairs =
     do (query, mBody, _cookies) <- askRqEnv
        let bdy = fromMaybeBody "lookPairs" "" mBody
        return $ map (\(n,vbs)->(n, (\e -> case e of Left fp -> Left fp ; Right bs -> Right (LU.toString bs)) $ inputValue vbs)) (query ++ bdy)
@@ -527,20 +532,20 @@ lookPairs =
 --
 -- see also: 'lookPairs'
 lookPairsBS :: (Monad m, HasRqData m) => m [(String, Either FilePath L.ByteString)]
-lookPairsBS = 
+lookPairsBS =
     do (query, mBody, _cookies) <- askRqEnv
        let bdy = fromMaybeBody "lookPairsBS" "" mBody
        return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ bdy)
 
 -- | The POST\/PUT body of a Request is not received or decoded unless
--- this function is invoked. 
+-- this function is invoked.
 --
 -- It is an error to try to use the look functions for a POST\/PUT
 -- request with out first calling this function.
 --
 -- It is ok to call 'decodeBody' at the beginning of every request:
 --
--- > main = simpleHTTP nullConf $ 
+-- > main = simpleHTTP nullConf $
 -- >           do decodeBody (defaultBodyPolicy "/tmp/" 4096 4096 4096)
 -- >              handlers
 --
@@ -594,7 +599,7 @@ getDataFn rqData =
 
 -- | similar to 'getDataFn', except it calls a sub-handler on success
 -- or 'mzero' on failure.
--- 
+--
 -- NOTE: you must call 'decodeBody' prior to calling this function if
 -- the request method is POST or PUT.
 withDataFn :: (HasRqData m, MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
@@ -602,7 +607,7 @@ withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 
 -- | A variant of 'getDataFn' that uses 'FromData' to chose your
 -- 'RqData' for you.  The example from 'getData' becomes:
--- 
+--
 -- >  data AuthCredentials = AuthCredentials { username :: String,  password :: String }
 -- >
 -- >  isValid :: AuthCredentials -> Bool

@@ -31,14 +31,15 @@ module Happstack.Server.Monads
       -- * WebMonad
     , WebMonad(..)
     , escape
-    , escape' 
+    , escape'
       -- * MonadPlus helpers
     , require
     , requireM
     ) where
 
-import Control.Applicative               (Alternative, Applicative)         
+import Control.Applicative               (Alternative, Applicative)
 import Control.Monad                     (MonadPlus(mzero))
+import Control.Monad.Error               (Error, ErrorT)
 import Control.Monad.Trans               (MonadIO(..),MonadTrans(lift))
 import Control.Monad.Reader              (ReaderT)
 import Control.Monad.Writer              (WriterT)
@@ -61,6 +62,7 @@ instance (Happstack m)           => Happstack (StateT      s m)
 instance (Happstack m)           => Happstack (ReaderT r     m)
 instance (Happstack m, Monoid w) => Happstack (WriterT   w   m)
 instance (Happstack m, Monoid w) => Happstack (RWST    r w s m)
+instance (Happstack m, Error e)  => Happstack (ErrorT e m)
 
 -- | Get a header out of the request.
 getHeaderM :: (ServerMonad m) => String -> m (Maybe B.ByteString)

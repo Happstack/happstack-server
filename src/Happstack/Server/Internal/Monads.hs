@@ -200,10 +200,6 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
     askRq = ServerPartT $ ask
     localRq f m = ServerPartT $ local f (unServerPartT m)
 
-instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
-    askRq     = lift askRq
-    localRq f = mapErrorT $ localRq f
-
 -------------------------------
 -- HERE BEGINS WebT definitions
 
@@ -561,7 +557,7 @@ escapeString str = concatMap encodeEntity str
 
 ------------------------------------------------------------------------------
 -- ServerMonad, FilterMonad, and WebMonad instances for ReaderT, StateT,
--- WriterT, and RWST
+-- WriterT, RWST, and ErrorT
 ------------------------------------------------------------------------------
 
 -- ReaderT
@@ -626,3 +622,22 @@ instance (FilterMonad res m, Monoid w) => FilterMonad res (RWST r w s m) where
 
 instance (WebMonad a m, Monoid w) => WebMonad a (RWST r w s m) where
     finishWith     = lift . finishWith
+
+-- ErrorT
+
+instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
+    askRq     = lift askRq
+    localRq f = mapErrorT $ localRq f
+
+instance (Error e, FilterMonad a m) => FilterMonad a (ErrorT e m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter m = mapErrorT (\m' ->
+                                 do (eb, f) <- getFilter m'
+                                    case eb of
+                                      (Left e)  -> return (Left e)
+                                      (Right b) -> return $ Right (b, f)
+                  ) m
+
+instance (Error e, WebMonad a m) => WebMonad a (ErrorT e m) where
+    finishWith    = lift . finishWith
