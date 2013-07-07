@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, ScopedTypeVariables, TupleSections #-}
 
 module Happstack.Server.Internal.Handler
     ( request
@@ -83,7 +83,8 @@ rloop timeoutIO mlog host handler inputStr
 
                      let ioseq act = act >>= \x -> x `seq` return x
 
-                     res <- ioseq (handler req) `E.catch` \(e::E.SomeException) -> return $ result 500 $ "Server error: " ++ show e
+                     (res, handlerKilled) <- ((, False) `liftM` ioseq (handler req))
+                         `E.catch` \(e::E.SomeException) -> return (result 500 $ "Server error: " ++ show e, fromException e == Just ThreadKilled)
 
                      case mlog of
                        Nothing -> return ()
@@ -102,7 +103,9 @@ rloop timeoutIO mlog host handler inputStr
                      putAugmentedResult timeoutIO req res
                      -- clean up tmp files
                      cleanupTempFiles req
-                     when (continueHTTP req res) $ rloop timeoutIO mlog host handler nextRequest
+                     -- do not continue if handler was killed
+                     when (not handlerKilled && continueHTTP req res) $
+                         rloop timeoutIO mlog host handler nextRequest
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()
