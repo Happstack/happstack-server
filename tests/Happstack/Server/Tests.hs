@@ -31,7 +31,7 @@ allTests =
                                 , multipart
                                 , compressFilterResponseTest
                                 , matchMethodTest
-                                , cookiesTest
+                                , cookieHeaderOrderTest
                                 ]
 
 cookieParserTest :: Test
@@ -144,17 +144,17 @@ compressPart =
             , dir "sendfile" $ ok (sendFileResponse "text/plain" "/dev/null" Nothing 0 100)
             ]
 
-cookieHandler :: ServerPart Response
-cookieHandler = do
+cookieHeaderOrderTestHandler :: ServerPart Response
+cookieHeaderOrderTestHandler = do
   expireCookie "thecookie"
   addCookie Session $ mkCookie "thecookie" "value"
   ok $ toResponse $ "works"
 
-cookiesTest :: Test
-cookiesTest =
-  "cookie test" ~:
+cookieHeaderOrderTest :: Test
+cookieHeaderOrderTest =
+  "cookie header order test" ~:
     do req <- mkRequest GET "/" [] Map.empty L.empty
-       res <- simpleHTTP'' cookieHandler req
+       res <- simpleHTTP'' cookieHeaderOrderTestHandler req
        let Just pair = (Map.lookup (B.pack "set-cookie") (rsHeaders res))
        assertEqual "Add cookie wins" False $ B.isInfixOf (B.pack "Max-Age=0")
                                                          (last $ hValue pair)

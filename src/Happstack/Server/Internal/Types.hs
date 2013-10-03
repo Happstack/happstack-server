@@ -405,7 +405,7 @@ addHeaderBS key val = addHeaderUnsafe (P.map toLower key) (HeaderPair key [val])
 -- type.  Does not force the key to be in lowercase or guarantee that the given key and the key in the HeaderPair will match.
 addHeaderUnsafe :: HasHeaders r => ByteString -> HeaderPair -> r -> r
 addHeaderUnsafe key val = updateHeaders (M.insertWith join key val)
-    where join (HeaderPair k vs1) (HeaderPair _ vs2) = HeaderPair k (vs1++vs2)
+    where join (HeaderPair k vs1) (HeaderPair _ vs2) = HeaderPair k (vs2++vs1)
 
 -- | Creates a Response with the given Int as the status code and the provided
 -- String as the body of the Response
