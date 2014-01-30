@@ -18,8 +18,9 @@ import           Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import           Network.Socket (Socket, ShutdownCmd(..), shutdown)
 import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, sendFileIterWith')
 import           Network.Socket.ByteString (sendAll)
-import           System.IO.Error (isDoesNotExistError)
+import           System.IO.Error (isDoesNotExistError, ioeGetErrorType)
 import           System.IO.Unsafe (unsafeInterleaveIO)
+import           GHC.IO.Exception (IOErrorType(InvalidArgument))
 
 sPutLazyTickle :: TM.Handle -> Socket -> L.ByteString -> IO ()
 sPutLazyTickle thandle sock cs =
@@ -41,8 +42,14 @@ sGetContents handle sock = loop where
     s <- N.recv sock 65536
     TM.tickle handle
     if S.null s
-      then do shutdown sock ShutdownReceive `E.catch` (\e -> when (not $ isDoesNotExistError e) (throw e))
-              return L.Empty
+      then do
+        -- 'InvalidArgument' is GHCs code for eNOTCONN (among other
+        -- things). Sometimes the other end of socket is closed first
+        -- and this end is already disconnected before we do
+        -- 'shutdown'. Ignore this exception.
+        shutdown sock ShutdownReceive `E.catch`
+                    (\e -> when (not (isDoesNotExistError e || ioeGetErrorType e == InvalidArgument)) (throw e))
+        return L.Empty
       else L.Chunk s `liftM` loop
 
 
