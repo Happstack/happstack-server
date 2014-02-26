@@ -83,7 +83,6 @@ formDecode qString =
           (name,val)=split (=='=') pairString
           rest=if null qString' then [] else formDecode qString'
 
--- FIXME: no size limits on application/x-www-form-urlencoded yet
 -- FIXME: is usend L.unpack really the right thing to do
 decodeBody :: BodyPolicy
            -> Maybe ContentType
@@ -92,14 +91,20 @@ decodeBody :: BodyPolicy
 decodeBody bp ctype inp
     = case ctype of
         Just (ContentType "application" "x-www-form-urlencoded" _) ->
-            return (formDecode (L.unpack (L.take (maxRAM bp) inp)), Nothing)
+            return decodedUrlEncodedForm
         Just (ContentType "multipart" "form-data" ps) ->
             multipartDecode ((inputWorker bp) (maxDisk bp) (maxRAM bp) (maxHeader bp)) ps inp
         Just ct ->
             return ([], Just $ "decodeBody: unsupported content-type: " ++ show ct) -- unknown content-type, the user will have to
                      -- deal with it by looking at the raw content
         -- No content-type given, assume x-www-form-urlencoded
-        Nothing -> return (formDecode (L.unpack (L.take (maxRAM bp) inp)), Nothing)
+        Nothing -> return decodedUrlEncodedForm
+  where
+     (upToMaxRAM,overMaxRAM) = L.splitAt (maxRAM bp) inp
+     decodedUrlEncodedForm = (formDecode (L.unpack upToMaxRAM),
+                              if L.null overMaxRAM
+                              then Nothing
+                              else Just ("x-www-form-urlencoded content longer than BodyPolicy.maxRAM=" ++ show (maxRAM bp) ++ " bytes"))
 
 -- | Decodes multipart\/form-data input.
 multipartDecode :: InputWorker
