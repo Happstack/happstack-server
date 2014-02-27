@@ -83,6 +83,18 @@ formDecode qString =
           (name,val)=split (=='=') pairString
           rest=if null qString' then [] else formDecode qString'
 
+-- | Decodes application\/x-www-form-urlencoded inputs.
+-- TODO: should any of the [] be error conditions?
+formDecodeBS :: L.ByteString -> [(String, Input)]
+formDecodeBS qString | L.null qString = []
+formDecodeBS qString =
+    if L.null pairString
+       then rest            -- skip in case of consecutive ampersands "...&&..."
+       else (SURI.unEscapeQS (L.unpack name), simpleInput $ SURI.unEscapeQS (L.unpack $ L.drop 1 val)) : rest
+    where (pairString,qString') = L.break (== '&') qString
+          (name,val) = L.break (== '=') pairString
+          rest = formDecodeBS (L.drop 1 qString')
+
 -- FIXME: is usend L.unpack really the right thing to do
 decodeBody :: BodyPolicy
            -> Maybe ContentType
@@ -101,7 +113,7 @@ decodeBody bp ctype inp
         Nothing -> return decodedUrlEncodedForm
   where
      (upToMaxRAM,overMaxRAM) = L.splitAt (maxRAM bp) inp
-     decodedUrlEncodedForm = (formDecode (L.unpack upToMaxRAM),
+     decodedUrlEncodedForm = (formDecodeBS upToMaxRAM,
                               if L.null overMaxRAM
                               then Nothing
                               else Just ("x-www-form-urlencoded content longer than BodyPolicy.maxRAM=" ++ show (maxRAM bp) ++ " bytes"))
