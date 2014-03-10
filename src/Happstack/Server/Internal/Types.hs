@@ -318,7 +318,7 @@ setRsCode code rs = return rs { rsCode = code }
 mkHeaders :: [(String,String)] -> Headers
 mkHeaders hdrs
     = M.fromListWith join [ (P.pack (map toLower key), HeaderPair (P.pack key) [P.pack value]) | (key,value) <- hdrs ]
-    where join (HeaderPair key vs1) (HeaderPair _ vs2) = HeaderPair key (vs1++vs2)
+    where join (HeaderPair key vs1) (HeaderPair _ vs2) = HeaderPair key (vs2++vs1)
 
 --------------------------------------------------------------
 -- Retrieving header information
