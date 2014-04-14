@@ -385,7 +385,7 @@ instance Monad m => Monad (WebT m) where
     {-# INLINE (>>=) #-}
     return a = WebT $ return a
     {-# INLINE return #-}
-    fail s = outputTraceMessage s (mkFailMessage s)
+    fail s = lift (fail s)
 
 -- | 'WebMonad' provides a means to end the current computation
 -- and return a 'Response' immediately.  This provides an
