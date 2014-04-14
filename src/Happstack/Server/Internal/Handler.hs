@@ -2,7 +2,7 @@
 
 module Happstack.Server.Internal.Handler
     ( request
-    , parseResponse 
+    , parseResponse
     , putRequest
     ) where
 
@@ -109,7 +109,7 @@ rloop timeoutIO mlog host handler inputStr
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()
-cleanupTempFiles req = 
+cleanupTempFiles req =
     do mInputs <- tryTakeMVar (rqInputsBody req)
        case mInputs of
          Nothing -> return ()

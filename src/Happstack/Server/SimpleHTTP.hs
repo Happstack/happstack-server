@@ -26,7 +26,7 @@
 -- run a 'ServerPart'.
 --
 -- A very simple, \"Hello World!\" web app looks like:
--- 
+--
 -- > import Happstack.Server
 -- > main = simpleHTTP nullConf $ ok "Hello World!"
 --
@@ -82,7 +82,6 @@ import Happstack.Server.RqData
 import Happstack.Server.Response
 import Happstack.Server.Validation
 
-
 import Control.Monad
 import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
@@ -127,7 +126,7 @@ simpleHTTP = simpleHTTP' id
 
 -- | A combination of 'simpleHTTP''' and 'mapServerPartT'.  See
 -- 'mapServerPartT' for a discussion of the first argument of this
--- function. 
+-- function.
 --
 -- NOTE: This function always binds to IPv4 ports until Network
 -- module is fixed to support IPv6 in a portable way. Use
@@ -137,7 +136,6 @@ simpleHTTP' :: (ToMessage b, Monad m, Functor m) => (UnWebT m a -> UnWebT IO b)
             -> Conf -> ServerPartT m a -> IO ()
 simpleHTTP' toIO conf hs =
     Listen.listen conf (\req -> runValidator (fromMaybe return (validator conf)) =<< (simpleHTTP'' (mapServerPartT toIO hs) req))
-
 
 -- | Generate a result from a 'ServerPartT' and a 'Request'. This is
 -- mainly used by CGI (and fast-cgi) wrappers.
@@ -186,8 +184,8 @@ bindPort conf = Listen.listenOn (port conf)
 -- > main = do let conf = nullConf
 -- >               addr = "127.0.0.1"
 -- >           s <- bindIPv4 addr (port conf)
--- >           simpleHTTPWithSocket s conf $ ok $ toResponse $ 
--- >             "now listening on ip addr " ++ addr ++ 
+-- >           simpleHTTPWithSocket s conf $ ok $ toResponse $
+-- >             "now listening on ip addr " ++ addr ++
 -- >             " and port " ++ show (port conf)
 --
 bindIPv4 :: String  -- ^ IP address to bind to (must be an IP address and not a host name)
@@ -204,7 +202,7 @@ runWebT = (fmap . fmap) appFilterToResp . ununWebT
       appFilterToResp (e, ff) = unFilterFun ff $ either id toResponse e
 
 notFoundHtml :: String
-notFoundHtml = 
+notFoundHtml =
     "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\" \"http://www.w3.org/TR/html4/strict.dtd\">"
     ++ "<html><head><title>Happstack "
     ++ ver ++ " File not found</title></head>"
@@ -218,7 +216,7 @@ notFoundHtml =
 
 -- | Wait for a signal.
 --   On unix, a signal is sigINT or sigTERM (aka Control-C).
---  
+--
 -- On windows, the signal is entering: e <return>
 waitForTermination :: IO ()
 waitForTermination
@@ -233,7 +231,7 @@ waitForTermination
            False -> return ()
          takeMVar mv
 #else
-         let loop 'e' = return () 
+         let loop 'e' = return ()
              loop _   = getChar >>= loop
          loop 'c'
 #endif
