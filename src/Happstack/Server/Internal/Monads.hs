@@ -527,9 +527,12 @@ outputTraceMessage s c = trace s c
 mkFailMessage :: (FilterMonad Response m, WebMonad Response m) => String -> m b
 mkFailMessage s = do
     ignoreFilters
-    let res = setHeader "Content-Type" "text/html; charset=UTF-8" $
-              resultBS 500 (LU.fromString (failHtml s))
-    finishWith $ res
+    finishWith (failResponse s)
+
+failResponse :: String -> Response
+failResponse s =
+    setHeader "Content-Type" "text/html; charset=UTF-8" $
+     resultBS 500 (LU.fromString (failHtml s))
 
 failHtml:: String->String
 failHtml errString =
