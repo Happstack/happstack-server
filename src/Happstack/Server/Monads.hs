@@ -42,10 +42,13 @@ import Control.Monad                     (MonadPlus(mzero))
 import Control.Monad.Error               (Error, ErrorT)
 import Control.Monad.Trans               (MonadIO(..),MonadTrans(lift))
 import Control.Monad.Reader              (ReaderT)
-import Control.Monad.Writer              (WriterT)
-import Control.Monad.State               (StateT)
-import Control.Monad.RWS                 (RWST)
-import qualified Data.ByteString.Char8   as B
+import qualified Control.Monad.Writer.Lazy   as Lazy   (WriterT)
+import qualified Control.Monad.Writer.Strict as Strict (WriterT)
+import qualified Control.Monad.State.Lazy    as Lazy   (StateT)
+import qualified Control.Monad.State.Strict  as Strict (StateT)
+import qualified Control.Monad.RWS.Lazy      as Lazy   (RWST)
+import qualified Control.Monad.RWS.Strict    as Strict (RWST)
+import qualified Data.ByteString.Char8       as B
 import Data.Monoid                       (Monoid)
 import Happstack.Server.Internal.Monads
 import Happstack.Server.Types            (Response, addHeader, getHeader, setHeader)
@@ -58,10 +61,13 @@ class ( ServerMonad m, WebMonad Response m, FilterMonad Response m
 
 instance (Functor m, Monad m, MonadPlus m
          , MonadIO m)            => Happstack (ServerPartT m)
-instance (Happstack m)           => Happstack (StateT      s m)
-instance (Happstack m)           => Happstack (ReaderT r     m)
-instance (Happstack m, Monoid w) => Happstack (WriterT   w   m)
-instance (Happstack m, Monoid w) => Happstack (RWST    r w s m)
+instance (Happstack m)           => Happstack (Lazy.StateT        s m)
+instance (Happstack m)           => Happstack (Strict.StateT      s m)
+instance (Happstack m)           => Happstack (ReaderT        r     m)
+instance (Happstack m, Monoid w) => Happstack (Lazy.WriterT   w     m)
+instance (Happstack m, Monoid w) => Happstack (Strict.WriterT   w   m)
+instance (Happstack m, Monoid w) => Happstack (Lazy.RWST      r w s m)
+instance (Happstack m, Monoid w) => Happstack (Strict.RWST    r w s m)
 instance (Happstack m, Error e)  => Happstack (ErrorT e m)
 
 -- | Get a header out of the request.

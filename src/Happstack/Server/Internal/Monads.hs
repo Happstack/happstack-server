@@ -15,10 +15,12 @@ import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
 import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
                                                  , MonadReader, ask, local, mapReaderT
                                                  )
-import Control.Monad.RWS                         ( RWST, mapRWST
-                                                 )
+import qualified Control.Monad.RWS.Lazy as Lazy       ( RWST, mapRWST )
+import qualified Control.Monad.RWS.Strict as Strict   ( RWST, mapRWST )
 
-import Control.Monad.State                       (MonadState, StateT, get, put, mapStateT)
+import Control.Monad.State.Class                      ( MonadState, get, put )
+import qualified Control.Monad.State.Lazy as Lazy     ( StateT, mapStateT )
+import qualified Control.Monad.State.Strict as Strict ( StateT, mapStateT )
 import Control.Monad.Trans                       ( MonadTrans, lift
                                                  , MonadIO, liftIO
                                                  )
@@ -26,11 +28,10 @@ import Control.Monad.Trans.Control               ( MonadTransControl(..)
                                                  , MonadBaseControl(..)
                                                  , ComposeSt, defaultLiftBaseWith, defaultRestoreM
                                                  )
-import Control.Monad.Writer                      ( WriterT(WriterT), runWriterT
-                                                 , MonadWriter, tell, pass
-                                                 , listens, mapWriterT
-                                                 )
-import qualified Control.Monad.Writer            as Writer (listen) -- So that we can disambiguate 'Listen.listen'
+import Control.Monad.Writer.Class                ( MonadWriter, tell, pass, listens )
+import qualified Control.Monad.Writer.Lazy as Lazy     ( WriterT(WriterT), runWriterT, mapWriterT )
+import qualified Control.Monad.Writer.Strict as Strict ( WriterT, mapWriterT )
+import qualified Control.Monad.Writer.Class as Writer  ( listen )
 
 import Control.Monad.Trans.Maybe                 (MaybeT(MaybeT), runMaybeT)
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
@@ -247,7 +248,7 @@ unFilterFun = appEndo . getDual . extract
 filterFun :: (a -> a) -> FilterFun a
 filterFun = Set . Dual . Endo
 
-newtype FilterT a m b = FilterT { unFilterT :: WriterT (FilterFun a) m b }
+newtype FilterT a m b = FilterT { unFilterT :: Lazy.WriterT (FilterFun a) m b }
    deriving (Functor, Applicative, Monad, MonadTrans)
 
 instance MonadBase b m => MonadBase b (FilterT a m) where
@@ -258,7 +259,7 @@ instance (MonadIO m) => MonadIO (FilterT a m) where
     {-# INLINE liftIO #-}
 
 instance MonadTransControl (FilterT a) where
-    newtype StT (FilterT a) b = StFilter {unStFilter :: StT (WriterT (FilterFun a)) b}
+    newtype StT (FilterT a) b = StFilter {unStFilter :: StT (Lazy.WriterT (FilterFun a)) b}
     liftWith f = FilterT $ liftWith $ \run -> f $ liftM StFilter . run . unFilterT
     restoreT = FilterT . restoreT . liftM unStFilter
 
@@ -447,11 +448,11 @@ instance (Monad m) => Monoid (WebT m a) where
 -- | For when you really need to unpack a 'WebT' entirely (and not
 -- just unwrap the first layer with 'unWebT').
 ununWebT :: WebT m a -> UnWebT m a
-ununWebT = runMaybeT . runWriterT . unFilterT . runErrorT . unWebT
+ununWebT = runMaybeT . Lazy.runWriterT . unFilterT . runErrorT . unWebT
 
 -- | For wrapping a 'WebT' back up.  @'mkWebT' . 'ununWebT' = 'id'@
 mkWebT :: UnWebT m a -> WebT m a
-mkWebT = WebT . ErrorT . FilterT . WriterT . MaybeT
+mkWebT = WebT . ErrorT . FilterT . Lazy.WriterT . MaybeT
 
 -- | See 'mapServerPartT' for a discussion of this function.
 mapWebT :: (UnWebT m a -> UnWebT n b)
@@ -579,51 +580,92 @@ instance (WebMonad a m) => WebMonad a (ReaderT r m) where
 
 -- StateT
 
-instance (ServerMonad m) => ServerMonad (StateT s m) where
+instance (ServerMonad m) => ServerMonad (Lazy.StateT s m) where
     askRq         = lift askRq
-    localRq f     = mapStateT (localRq f)
+    localRq f     = Lazy.mapStateT (localRq f)
 
-instance (FilterMonad res m) => FilterMonad res (StateT s m) where
+instance (ServerMonad m) => ServerMonad (Strict.StateT s m) where
+    askRq         = lift askRq
+    localRq f     = Strict.mapStateT (localRq f)
+
+instance (FilterMonad res m) => FilterMonad res (Lazy.StateT s m) where
     setFilter f   = lift $ setFilter f
     composeFilter = lift . composeFilter
-    getFilter   m = mapStateT (\m' ->
+    getFilter   m = Lazy.mapStateT (\m' ->
                                    do ((b,s), f) <- getFilter m'
                                       return ((b, f), s)) m
 
-instance (WebMonad a m) => WebMonad a (StateT s m) where
+instance (FilterMonad res m) => FilterMonad res (Strict.StateT s m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter   m = Strict.mapStateT (\m' ->
+                                   do ((b,s), f) <- getFilter m'
+                                      return ((b, f), s)) m
+
+instance (WebMonad a m) => WebMonad a (Lazy.StateT s m) where
     finishWith    = lift . finishWith
 
+instance (WebMonad a m) => WebMonad a (Strict.StateT s m) where
+    finishWith    = lift . finishWith
 
 -- WriterT
 
-instance (ServerMonad m, Monoid w) => ServerMonad (WriterT w m) where
+instance (ServerMonad m, Monoid w) => ServerMonad (Lazy.WriterT w m) where
     askRq         = lift askRq
-    localRq f     = mapWriterT (localRq f)
+    localRq f     = Lazy.mapWriterT (localRq f)
 
-instance (FilterMonad res m, Monoid w) => FilterMonad res (WriterT w m) where
+instance (ServerMonad m, Monoid w) => ServerMonad (Strict.WriterT w m) where
+    askRq         = lift askRq
+    localRq f     = Strict.mapWriterT (localRq f)
+
+instance (FilterMonad res m, Monoid w) => FilterMonad res (Lazy.WriterT w m) where
     setFilter f   = lift $ setFilter f
     composeFilter = lift . composeFilter
-    getFilter   m = mapWriterT (\m' ->
+    getFilter   m = Lazy.mapWriterT (\m' ->
                                    do ((b,w), f) <- getFilter m'
                                       return ((b, f), w)) m
 
-instance (WebMonad a m, Monoid w) => WebMonad a (WriterT w m) where
+instance (FilterMonad res m, Monoid w) => FilterMonad res (Strict.WriterT w m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter   m = Strict.mapWriterT (\m' ->
+                                   do ((b,w), f) <- getFilter m'
+                                      return ((b, f), w)) m
+
+instance (WebMonad a m, Monoid w) => WebMonad a (Lazy.WriterT w m) where
+    finishWith    = lift . finishWith
+
+instance (WebMonad a m, Monoid w) => WebMonad a (Strict.WriterT w m) where
     finishWith    = lift . finishWith
 
 -- RWST
 
-instance (ServerMonad m, Monoid w) => ServerMonad (RWST r w s m) where
+instance (ServerMonad m, Monoid w) => ServerMonad (Lazy.RWST r w s m) where
     askRq         = lift askRq
-    localRq f     = mapRWST (localRq f)
+    localRq f     = Lazy.mapRWST (localRq f)
 
-instance (FilterMonad res m, Monoid w) => FilterMonad res (RWST r w s m) where
+instance (ServerMonad m, Monoid w) => ServerMonad (Strict.RWST r w s m) where
+    askRq         = lift askRq
+    localRq f     = Strict.mapRWST (localRq f)
+
+instance (FilterMonad res m, Monoid w) => FilterMonad res (Lazy.RWST r w s m) where
     setFilter f   = lift $ setFilter f
     composeFilter = lift . composeFilter
-    getFilter   m = mapRWST (\m' ->
+    getFilter   m = Lazy.mapRWST (\m' ->
                                    do ((b,s,w), f) <- getFilter m'
                                       return ((b, f), s, w)) m
 
-instance (WebMonad a m, Monoid w) => WebMonad a (RWST r w s m) where
+instance (FilterMonad res m, Monoid w) => FilterMonad res (Strict.RWST r w s m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter   m = Strict.mapRWST (\m' ->
+                                   do ((b,s,w), f) <- getFilter m'
+                                      return ((b, f), s, w)) m
+
+instance (WebMonad a m, Monoid w) => WebMonad a (Lazy.RWST r w s m) where
+    finishWith     = lift . finishWith
+
+instance (WebMonad a m, Monoid w) => WebMonad a (Strict.RWST r w s m) where
     finishWith     = lift . finishWith
 
 -- ErrorT

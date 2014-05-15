@@ -62,9 +62,12 @@ import Control.Applicative                      (Applicative((<*>), pure), Alter
 import Control.Concurrent.MVar                  (newMVar)
 import Control.Monad                            (MonadPlus(mzero))
 import Control.Monad.Reader                     (ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
-import Control.Monad.State                      (StateT, mapStateT)
-import Control.Monad.Writer                     (WriterT, mapWriterT)
-import Control.Monad.RWS                        (RWST, mapRWST)
+import qualified Control.Monad.State.Lazy as Lazy      (StateT, mapStateT)
+import qualified Control.Monad.State.Strict as Strict  (StateT, mapStateT)
+import qualified Control.Monad.Writer.Lazy as Lazy     (WriterT, mapWriterT)
+import qualified Control.Monad.Writer.Strict as Strict (WriterT, mapWriterT)
+import qualified Control.Monad.RWS.Lazy as Lazy        (RWST, mapRWST)
+import qualified Control.Monad.RWS.Strict as Strict    (RWST, mapRWST)
 import Control.Monad.Error                      (Error(noMsg, strMsg), ErrorT, mapErrorT)
 import Control.Monad.Trans                      (MonadIO(..), lift)
 import qualified Data.ByteString.Char8          as P
@@ -190,19 +193,34 @@ instance (Monad m, HasRqData m) => HasRqData (ReaderT s m) where
     localRqEnv f  = mapReaderT (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
-instance (Monad m, HasRqData m) => HasRqData (StateT s m) where
+instance (Monad m, HasRqData m) => HasRqData (Lazy.StateT s m) where
     askRqEnv      = lift askRqEnv
-    localRqEnv f  = mapStateT (localRqEnv f)
+    localRqEnv f  = Lazy.mapStateT (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
-instance (Monad m, HasRqData m, Monoid w) => HasRqData (WriterT w m) where
+instance (Monad m, HasRqData m) => HasRqData (Strict.StateT s m) where
     askRqEnv      = lift askRqEnv
-    localRqEnv f  = mapWriterT (localRqEnv f)
+    localRqEnv f  = Strict.mapStateT (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
-instance (Monad m, HasRqData m, Monoid w) => HasRqData (RWST r w s m) where
+instance (Monad m, HasRqData m, Monoid w) => HasRqData (Lazy.WriterT w m) where
     askRqEnv      = lift askRqEnv
-    localRqEnv f  = mapRWST (localRqEnv f)
+    localRqEnv f  = Lazy.mapWriterT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m, Monoid w) => HasRqData (Strict.WriterT w m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = Strict.mapWriterT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m, Monoid w) => HasRqData (Lazy.RWST r w s m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = Lazy.mapRWST (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m, Monoid w) => HasRqData (Strict.RWST r w s m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = Strict.mapRWST (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
 instance (Monad m, Error e, HasRqData m) => HasRqData (ErrorT e m) where
