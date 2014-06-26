@@ -8,6 +8,8 @@ module Happstack.Server.Internal.TimeoutManager
     , pause
     , resume
     , cancel
+    , forceTimeout
+    , forceTimeoutAll
     ) where
 
 import qualified Data.IORef as I
@@ -68,3 +70,15 @@ resume = tickle
 cancel (Handle action iactive) =
     do I.writeIORef iactive $! Canceled
        I.writeIORef action $! (return ())
+
+forceTimeout :: Handle -> IO ()
+forceTimeout (Handle action iactive) =
+  do I.writeIORef iactive $! Canceled
+     io <- I.atomicModifyIORef action (\io -> (return (), io))
+     io `E.catch` ignoreAll
+
+-- | terminate all threads immediately
+forceTimeoutAll :: Manager -> IO ()
+forceTimeoutAll (Manager ref) =
+  do hs <- I.atomicModifyIORef ref (\hs -> ([], hs))
+     mapM_ forceTimeout hs
