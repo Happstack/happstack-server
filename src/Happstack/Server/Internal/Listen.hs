@@ -4,15 +4,15 @@ module Happstack.Server.Internal.Listen(listen, listen',listenOn,listenOnIPv4) w
 import Happstack.Server.Internal.Types          (Conf(..), Request, Response)
 import Happstack.Server.Internal.Handler        (request)
 import Happstack.Server.Internal.Socket         (acceptLite)
-import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register)
+import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register, forceTimeoutAll)
 import Happstack.Server.Internal.TimeoutSocket  as TS
 import qualified Control.Concurrent.Thread.Group as TG
 import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad
 import Network.BSD                              (getProtocolNumber)
-import Network                                  (sClose, Socket)
-import Network.Socket as Socket (SocketOption(KeepAlive), setSocketOption,
+import Network                                  (Socket)
+import Network.Socket as Socket (SocketOption(KeepAlive), close, setSocketOption,
                                  socket, Family(..), SockAddr,
                                  SocketOption(..), SockAddr(..),
                                  iNADDR_ANY, maxListenQueue, SocketType(..),
@@ -42,7 +42,7 @@ listenOn portm = do
     proto <- getProtocolNumber "tcp"
     E.bracketOnError
         (socket AF_INET Stream proto)
-        (sClose)
+        (close)
         (\sock -> do
             setSocketOption sock ReuseAddr 1
             bindSocket sock (SockAddrInet (fromIntegral portm) iNADDR_ANY)
@@ -58,7 +58,7 @@ listenOnIPv4 ip portm = do
     hostAddr <- Socket.inet_addr ip
     E.bracketOnError
         (socket AF_INET Stream proto)
-        (sClose)
+        (close)
         (\sock -> do
             setSocketOption sock ReuseAddr 1
             bindSocket sock (SockAddrInet (fromIntegral portm) hostAddr)
@@ -70,9 +70,9 @@ listenOnIPv4 ip portm = do
 listen :: Conf -> (Request -> IO Response) -> IO ()
 listen conf hand = do
     let port' = port conf
-    socketm <- listenOn port'
-    setSocketOption socketm KeepAlive 1
-    listen' socketm conf hand
+    lsocket <- listenOn port'
+    setSocketOption lsocket KeepAlive 1
+    listen' lsocket conf hand
 
 -- | Use a previously bind port and listen
 listen' :: Socket -> Conf -> (Request -> IO Response) -> IO ()
@@ -99,14 +99,14 @@ listen' s conf hand = do
              request timeoutIO (logAccess conf) (hn,fromIntegral p) hand `E.catch` eh
              -- remove thread from timeout table
              cancel thandle
-             sClose sock
+             close sock
       loop = forever $ do w <- acceptLite s
                           fork $ work w
       pe e = log' ERROR ("ERROR in http accept thread: " ++ show e)
       infi :: IO ()
       infi = loop `catchSome` pe >> infi
 
-  infi `finally` (sClose s)
+  infi `finally` (close s >> forceTimeoutAll tm)
 
 {--
 #ifndef mingw32_HOST_OS
