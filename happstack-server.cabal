@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             7.3.6
+Version:             7.3.7
 Synopsis:            Web related tools and services.
 Description:         Happstack Server provides an HTTP server and a rich set of functions for routing requests, handling query parameters, generating responses, working with cookies, serving files, and more. For in-depth documentation see the Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>
 License:             BSD3
@@ -16,10 +16,6 @@ source-repository head
     type:     darcs
     subdir:   happstack-server
     location: http://hub.darcs.net/stepcut/happstack
-
-Flag network_2_2_3
-    Description: Choose newer network library with merged in network-bytestring.
-    Default: True
 
 Flag template_haskell
     Description: Template Haskell is available on this system
@@ -80,6 +76,7 @@ Library
                        html,
                        monad-control >= 0.3 && < 0.4,
                        mtl >= 2 && < 2.3,
+                       network >= 2.2.3 && < 2.6,
                        old-locale,
                        parsec < 4,
                        process,
@@ -95,11 +92,6 @@ Library
                        utf8-string >= 0.3.4 && < 0.4,
                        xhtml,
                        zlib
-
-  if flag(network_2_2_3)
-    Build-Depends:     network >= 2.2.3
-  else
-    Build-Depends:     network < 2.2.3, network-bytestring
 
   if (flag(template_haskell) && !(arch(arm)))
     Build-Depends:     template-haskell
