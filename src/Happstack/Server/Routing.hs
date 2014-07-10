@@ -85,7 +85,7 @@ guardRq f = do
 --
 -- > handler :: ServerPart Response
 -- > handler =
--- >     do https
+-- >     do http
 -- >        ...
 http :: (ServerMonad m, MonadPlus m) => m ()
 http = guardRq (not . rqSecure)
