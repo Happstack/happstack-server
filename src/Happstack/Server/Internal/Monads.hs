@@ -8,6 +8,7 @@ import Control.Applicative                       (Applicative, pure, (<*>), Alte
 import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
 import Control.Monad.Base                        ( MonadBase, liftBase )
+import Control.Monad.Catch                       ( MonadCatch(..), MonadThrow(..) )
 import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
                                                  , Error, MonadError, throwError
                                                  , catchError, mapErrorT
@@ -57,6 +58,12 @@ type ServerPart a = ServerPartT IO a
 -- see also: 'simpleHTTP', 'ServerMonad', 'FilterMonad', 'WebMonad', and 'HasRqData'
 newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
     deriving (Monad, MonadPlus, Functor)
+
+instance MonadCatch m => MonadCatch (ServerPartT m) where
+    catch action handle = ServerPartT $ catch (unServerPartT action) (unServerPartT . handle)
+
+instance MonadThrow m => MonadThrow (ServerPartT m) where
+    throwM = ServerPartT . throwM
 
 instance MonadBase b m => MonadBase b (ServerPartT m) where
     liftBase = lift . liftBase
@@ -251,6 +258,12 @@ filterFun = Set . Dual . Endo
 newtype FilterT a m b = FilterT { unFilterT :: Lazy.WriterT (FilterFun a) m b }
    deriving (Functor, Applicative, Monad, MonadTrans)
 
+instance MonadCatch m => MonadCatch (FilterT a m) where
+    catch action handle = FilterT $ catch (unFilterT action) (unFilterT . handle)
+
+instance MonadThrow m => MonadThrow (FilterT a m) where
+    throwM = FilterT . throwM
+
 instance MonadBase b m => MonadBase b (FilterT a m) where
     liftBase = lift . liftBase
 
@@ -303,6 +316,12 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 -- | The basic 'Response' building object.
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
     deriving (Functor)
+
+instance MonadCatch m => MonadCatch (WebT m) where
+    catch action handle = WebT $ catch (unWebT action) (unWebT . handle)
+
+instance MonadThrow m => MonadThrow (WebT m) where
+    throwM = WebT . throwM
 
 instance MonadBase b m => MonadBase b (WebT m) where
     liftBase = lift . liftBase
