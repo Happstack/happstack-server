@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, TypeFamilies, UndecidableInstances  #-}
+{-# LANGUAGE CPP, FlexibleContexts, FlexibleInstances, FunctionalDependencies, GeneralizedNewtypeDeriving, MultiParamTypeClasses, RankNTypes, TypeFamilies, UndecidableInstances  #-}
 {-| This module defines the Monad stack used by Happstack. You mostly don't want to be looking in here. Look in "Happstack.Server.Monads" instead.
 -}
 module Happstack.Server.Internal.Monads where
@@ -72,6 +72,7 @@ instance (MonadIO m) => MonadIO (ServerPartT m) where
     liftIO = ServerPartT . liftIO
     {-# INLINE liftIO #-}
 
+#if MIN_VERSION_monad_control(1,0,0)
 instance MonadTransControl ServerPartT where
     type StT ServerPartT a = StT WebT (StT (ReaderT Request) a)
     liftWith f = ServerPartT $ liftWith $ \runReader ->
@@ -83,6 +84,19 @@ instance MonadBaseControl b m => MonadBaseControl b (ServerPartT m) where
     type StM (ServerPartT m) a = ComposeSt ServerPartT m a
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
+#else
+instance MonadTransControl ServerPartT where
+    newtype StT ServerPartT a = StSP {unStSP :: StT WebT (StT (ReaderT Request) a)}
+    liftWith f = ServerPartT $ liftWith $ \runReader ->
+                                 liftWith $ \runWeb ->
+                                   f $ liftM StSP . runWeb . runReader . unServerPartT
+    restoreT = ServerPartT . restoreT . restoreT . liftM unStSP
+
+instance MonadBaseControl b m => MonadBaseControl b (ServerPartT m) where
+    newtype StM (ServerPartT m) a = StMSP {unStMSP :: ComposeSt ServerPartT m a}
+    liftBaseWith = defaultLiftBaseWith StMSP
+    restoreM     = defaultRestoreM     unStMSP
+#endif
 
 -- | Particularly useful when combined with 'runWebT' to produce
 -- a @m ('Maybe' 'Response')@ from a 'Request'.
@@ -271,6 +285,7 @@ instance (MonadIO m) => MonadIO (FilterT a m) where
     liftIO = FilterT . liftIO
     {-# INLINE liftIO #-}
 
+#if MIN_VERSION_monad_control(1,0,0)
 instance MonadTransControl (FilterT a) where
     type StT (FilterT a) b = StT (Lazy.WriterT (FilterFun a)) b
     liftWith f = FilterT $ liftWith $ \run -> f $ run . unFilterT
@@ -280,6 +295,17 @@ instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
     type StM (FilterT a m) c = ComposeSt (FilterT a) m c
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
+#else
+instance MonadTransControl (FilterT a) where
+    newtype StT (FilterT a) b = StFilter {unStFilter :: StT (Lazy.WriterT (FilterFun a)) b}
+    liftWith f = FilterT $ liftWith $ \run -> f $ liftM StFilter . run . unFilterT
+    restoreT = FilterT . restoreT . liftM unStFilter
+
+instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
+    newtype StM (FilterT a m) c = StMFilter {unStMFilter :: ComposeSt (FilterT a) m c}
+    liftBaseWith = defaultLiftBaseWith StMFilter
+    restoreM     = defaultRestoreM     unStMFilter
+#endif
 
 -- | A set of functions for manipulating filters.
 --
@@ -330,6 +356,7 @@ instance (MonadIO m) => MonadIO (WebT m) where
     liftIO = WebT . liftIO
     {-# INLINE liftIO #-}
 
+#if MIN_VERSION_monad_control(1,0,0)
 instance MonadTransControl WebT where
     type StT WebT a = StT MaybeT
                        (StT (FilterT Response)
@@ -346,7 +373,24 @@ instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
     type StM (WebT m) a = ComposeSt WebT m a
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
+#else
+instance MonadTransControl WebT where
+    newtype StT WebT a = StWeb {unStWeb :: StT MaybeT
+                                             (StT (FilterT Response)
+                                               (StT (ErrorT Response) a))}
+    liftWith f = WebT $ liftWith $ \runError ->
+                          liftWith $ \runFilter ->
+                            liftWith $ \runMaybe ->
+                              f $ liftM StWeb . runMaybe .
+                                                  runFilter .
+                                                    runError . unWebT
+    restoreT = WebT . restoreT . restoreT . restoreT . liftM unStWeb
 
+instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
+    newtype StM (WebT m) a = StMWeb {unStMWeb :: ComposeSt WebT m a}
+    liftBaseWith = defaultLiftBaseWith StMWeb
+    restoreM     = defaultRestoreM     unStMWeb
+#endif
 -- | 'UnWebT' is almost exclusively used with 'mapServerPartT'. If you
 -- are not using 'mapServerPartT' then you do not need to wrap your
 -- head around this type. If you are -- the type is not as complex as
