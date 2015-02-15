@@ -83,7 +83,7 @@ Library
                        filepath,
                        hslogger               >= 1.0.2,
                        html,
-                       monad-control          >= 1.0  && < 1.1,
+                       monad-control          >= 0.3  && < 1.1,
                        mtl                    >= 2    && < 2.3,
                        old-locale,
                        parsec                            < 4,
