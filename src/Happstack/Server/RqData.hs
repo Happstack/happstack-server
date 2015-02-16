@@ -70,6 +70,7 @@ import qualified Control.Monad.RWS.Lazy as Lazy        (RWST, mapRWST)
 import qualified Control.Monad.RWS.Strict as Strict    (RWST, mapRWST)
 import Control.Monad.Error                      (Error(noMsg, strMsg), ErrorT, mapErrorT)
 import Control.Monad.Trans                      (MonadIO(..), lift)
+import Control.Monad.Trans.Except               (ExceptT, mapExceptT)
 import qualified Data.ByteString.Char8          as P
 import qualified Data.ByteString.Lazy.Char8     as L
 import qualified Data.ByteString.Lazy.UTF8      as LU
@@ -226,6 +227,11 @@ instance (Monad m, HasRqData m, Monoid w) => HasRqData (Strict.RWST r w s m) whe
 instance (Monad m, Error e, HasRqData m) => HasRqData (ErrorT e m) where
     askRqEnv      = lift askRqEnv
     localRqEnv f  = mapErrorT (localRqEnv f)
+    rqDataError e = lift (rqDataError e)
+
+instance (Monad m, HasRqData m) => HasRqData (ExceptT e m) where
+    askRqEnv      = lift askRqEnv
+    localRqEnv f  = mapExceptT (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
 -- | apply 'RqData a' to a 'RqEnv'

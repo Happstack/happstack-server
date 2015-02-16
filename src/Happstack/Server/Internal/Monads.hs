@@ -19,6 +19,7 @@ import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
 import qualified Control.Monad.RWS.Lazy as Lazy       ( RWST, mapRWST )
 import qualified Control.Monad.RWS.Strict as Strict   ( RWST, mapRWST )
 
+import Control.Monad.Trans.Except                ( ExceptT, mapExceptT )
 import Control.Monad.State.Class                      ( MonadState, get, put )
 import qualified Control.Monad.State.Lazy as Lazy     ( StateT, mapStateT )
 import qualified Control.Monad.State.Strict as Strict ( StateT, mapStateT )
@@ -748,4 +749,23 @@ instance (Error e, FilterMonad a m) => FilterMonad a (ErrorT e m) where
                   ) m
 
 instance (Error e, WebMonad a m) => WebMonad a (ErrorT e m) where
+    finishWith    = lift . finishWith
+
+-- ExceptT
+
+instance ServerMonad m => ServerMonad (ExceptT e m) where
+    askRq     = lift askRq
+    localRq f = mapExceptT $ localRq f
+
+instance (FilterMonad a m) => FilterMonad a (ExceptT e m) where
+    setFilter f   = lift $ setFilter f
+    composeFilter = lift . composeFilter
+    getFilter m = mapExceptT (\m' ->
+                                 do (eb, f) <- getFilter m'
+                                    case eb of
+                                      (Left e)  -> return (Left e)
+                                      (Right b) -> return $ Right (b, f)
+                  ) m
+
+instance WebMonad a m => WebMonad a (ExceptT e m) where
     finishWith    = lift . finishWith

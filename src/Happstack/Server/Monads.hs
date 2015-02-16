@@ -41,6 +41,7 @@ import Control.Applicative               (Alternative, Applicative)
 import Control.Monad                     (MonadPlus(mzero))
 import Control.Monad.Error               (Error, ErrorT)
 import Control.Monad.Trans               (MonadIO(..),MonadTrans(lift))
+import Control.Monad.Trans.Except        (ExceptT)
 import Control.Monad.Reader              (ReaderT)
 import qualified Control.Monad.Writer.Lazy   as Lazy   (WriterT)
 import qualified Control.Monad.Writer.Strict as Strict (WriterT)
@@ -69,6 +70,7 @@ instance (Happstack m, Monoid w) => Happstack (Strict.WriterT   w   m)
 instance (Happstack m, Monoid w) => Happstack (Lazy.RWST      r w s m)
 instance (Happstack m, Monoid w) => Happstack (Strict.RWST    r w s m)
 instance (Happstack m, Error e)  => Happstack (ErrorT e m)
+instance (Happstack m, Monoid e) => Happstack (ExceptT e m)
 
 -- | Get a header out of the request.
 getHeaderM :: (ServerMonad m) => String -> m (Maybe B.ByteString)
@@ -107,5 +109,3 @@ requireM fn handle = do
     case mbVal of
         Nothing -> mzero
         Just a -> handle a
-
-
