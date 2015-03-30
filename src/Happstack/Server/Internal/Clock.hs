@@ -12,9 +12,14 @@ import Control.Monad
 import Data.IORef
 import Data.Time.Clock       (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime)
-import Data.Time.Format      (formatTime)
 import System.IO.Unsafe
-import System.Locale
+
+#if MIN_VERSION_time(1,5,0)
+import Data.Time.Format (formatTime, defaultTimeLocale)
+#else
+import Data.Time.Format (formatTime)
+import System.Locale    (defaultTimeLocale)
+#endif
 
 import qualified Data.ByteString.Char8 as B
 

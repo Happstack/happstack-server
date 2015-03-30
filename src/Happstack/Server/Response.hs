@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, TypeSynonymInstances, ScopedTypeVariables #-}
 -- | Functions and classes related to generating a 'Response' and setting the response code. For detailed instruction see the Happstack Crash Course: <http://happstack.com/docs/crashcourse/HelloWorld.html#response_code>
-module Happstack.Server.Response 
+module Happstack.Server.Response
     ( -- * Converting values to a 'Response'
       ToMessage(..)
     , flatten
@@ -34,24 +34,29 @@ import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
 import qualified Data.Text.Lazy                  as LT
 import qualified Data.Text.Lazy.Encoding         as LT
-import           Data.Time                       (UTCTime, formatTime)
 import           Happstack.Server.Internal.Monads         (FilterMonad(composeFilter))
 import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
 import           Happstack.Server.SURI           (ToSURI)
-import           System.Locale                   (defaultTimeLocale)
 import qualified Text.Blaze.Html                 as Blaze
 import qualified Text.Blaze.Html.Renderer.Utf8   as Blaze
 import           Text.Html                       (Html, renderHtml)
 import qualified Text.XHtml                      as XHtml (Html, renderHtml)
+
+#if MIN_VERSION_time(1,5,0)
+import Data.Time     (UTCTime, formatTime, defaultTimeLocale)
+#else
+import Data.Time     (UTCTime, formatTime)
+import System.Locale (defaultTimeLocale)
+#endif
 
 -- | A low-level function to build a 'Response' from a content-type
 -- and a 'ByteString'.
 --
 -- Creates a 'Response' in a manner similar to the 'ToMessage' class,
 -- but without requiring an instance declaration.
--- 
+--
 -- example:
--- 
+--
 -- > import Data.ByteString.Char8 as C
 -- > import Data.ByteString.Lazy.Char8 as L
 -- > import Happstack.Server
@@ -85,7 +90,7 @@ toResponseBS contentType message =
 --
 -- > main = serve Nothing $ toResponse "hello, world!"
 --
--- Minimal definition: 'toMessage' (and usually 'toContentType'). 
+-- Minimal definition: 'toMessage' (and usually 'toContentType').
 class ToMessage a where
     toContentType :: a -> B.ByteString
     toContentType _ = B.pack "text/plain"
@@ -194,31 +199,31 @@ modifyResponse = composeFilter
 --
 -- A filter for setting the response code. Generally you will use a
 -- helper function like 'ok' or 'seeOther'.
--- 
+--
 -- > main = simpleHTTP nullConf $ do setResponseCode 200
 -- >                                 return "Everything is OK"
--- 
+--
 -- see also: 'resp'
-setResponseCode :: FilterMonad Response m => 
+setResponseCode :: FilterMonad Response m =>
                    Int -- ^ response code
                 -> m ()
 setResponseCode code
     = composeFilter $ \r -> r{rsCode = code}
 
 -- | Same as @'setResponseCode' status >> return val@.
--- 
+--
 -- Use this if you want to set a response code that does not already
--- have a helper function. 
--- 
+-- have a helper function.
+--
 -- > main = simpleHTTP nullConf $ resp 200 "Everything is OK"
-resp :: (FilterMonad Response m) => 
+resp :: (FilterMonad Response m) =>
         Int -- ^ response code
      -> b   -- ^ value to return
      -> m b
 resp status val = setResponseCode status >> return val
 
 -- | Respond with @200 OK@.
--- 
+--
 -- > main = simpleHTTP nullConf $ ok "Everything is OK"
 ok :: (FilterMonad Response m) => a -> m a
 ok = resp 200
@@ -239,7 +244,7 @@ movedPermanently uri res = do modifyResponse $ redirect 301 uri
                               return res
 
 -- | Respond with @302 Found@.
--- 
+--
 -- You probably want 'seeOther'. This method is not in popular use anymore, and is generally treated like 303 by most user-agents anyway.
 found :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 found uri res = do modifyResponse $ redirect 302 uri
@@ -284,7 +289,7 @@ forbidden :: (FilterMonad Response m) => a -> m a
 forbidden = resp 403
 
 -- | Respond with @404 Not Found@.
--- 
+--
 -- > main = simpleHTTP nullConf $ notFound "What you are looking for has not been found."
 notFound :: (FilterMonad Response m) => a -> m a
 notFound = resp 404
@@ -324,4 +329,4 @@ prettyResponse res@SendFile{}  =
     showString "\nrsValidator = " . shows      (rsValidator res).
     showString "\nsfFilePath  = " . shows      (sfFilePath res) .
     showString "\nsfOffset    = " . shows      (sfOffset res)   .
-    showString "\nsfCount     = " $ show       (sfCount res)    
+    showString "\nsfCount     = " $ show       (sfCount res)
