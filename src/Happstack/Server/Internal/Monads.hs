@@ -173,7 +173,7 @@ mapServerPartT' f ma = withRequest $ \rq -> mapWebT (f rq) (runServerPartT ma rq
 instance MonadTrans (ServerPartT) where
     lift m = withRequest (\_ -> lift m)
 
-instance (Monad m) => Monoid (ServerPartT m a) where
+instance (Monad m, MonadPlus m) => Monoid (ServerPartT m a) where
     mempty  = mzero
     mappend = mplus
 
@@ -486,7 +486,7 @@ instance (Monad m) => WebMonad Response (WebT m) where
 instance MonadTrans WebT where
     lift = WebT . lift . lift . lift
 
-instance (Monad m) => MonadPlus (WebT m) where
+instance (Monad m, MonadPlus m) => MonadPlus (WebT m) where
     -- | Aborts a computation.
     --
     -- This is primarily useful because 'msum' will take an array of
@@ -505,7 +505,7 @@ instance (Monad m) => FilterMonad Response (WebT m) where
           lft (Left  r, _) = Left r
           lft (Right a, f) = Right (a, f)
 
-instance (Monad m) => Monoid (WebT m a) where
+instance (Monad m, MonadPlus m) => Monoid (WebT m a) where
     mempty = mzero
     mappend = mplus
 
@@ -561,7 +561,7 @@ instance MonadWriter w m => MonadWriter w (WebT m) where
               liftWebT (Just (Right x,f)) = pass (return x)>>= (\a -> return $ Just (Right a,f))
 
 -- | Deprecated: use 'msum'.
-multi :: Monad m => [ServerPartT m a] -> ServerPartT m a
+multi :: (Monad m, MonadPlus m) => [ServerPartT m a] -> ServerPartT m a
 multi = msum
 {-# DEPRECATED multi "Use msum instead" #-}
 
