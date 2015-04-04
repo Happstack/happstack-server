@@ -65,7 +65,6 @@ import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
-import Data.Time                    (UTCTime, formatTime)
 import Data.Time.Compat             (toUTCTime)
 import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
@@ -74,11 +73,17 @@ import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqU
 import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
 import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid)
 import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
-import System.Locale                (defaultTimeLocale)
 import System.Log.Logger            (Priority(DEBUG), logM)
 import           Text.Blaze.Html             ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
+
+#if MIN_VERSION_time(1,5,0)
+import Data.Time     (UTCTime, formatTime, defaultTimeLocale)
+#else
+import System.Locale (defaultTimeLocale)
+import Data.Time     (UTCTime, formatTime)
+#endif
 
 -- * Mime-Type / Content-Type
 
