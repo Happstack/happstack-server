@@ -92,7 +92,7 @@ import Happstack.Server.Response                (requestEntityTooLarge, toRespon
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad, MonadPlus)
 
-instance (Error e) => MonadReader r (ReaderError r e) where
+instance (Error e, Monoid e) => MonadReader r (ReaderError r e) where
     ask = ReaderError ask
     local f m = ReaderError $ local f (unReaderError m)
 
@@ -157,7 +157,7 @@ instance HasRqData RqData where
     rqDataError e = mapRqData ((Left e) `apEither`) (return ())
 
 -- instance (MonadPlus m, MonadIO m, ServerMonad m) => (HasRqData m) where
-instance (MonadIO m) => HasRqData (ServerPartT m) where
+instance (MonadIO m, MonadPlus m) => HasRqData (ServerPartT m) where
     askRqEnv =
         do rq  <- askRq
            mbi <- liftIO $ if ((rqMethod rq == POST) || (rqMethod rq == PUT)) && (isDecodable (ctype rq))
