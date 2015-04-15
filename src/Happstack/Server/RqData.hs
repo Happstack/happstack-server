@@ -59,7 +59,6 @@ module Happstack.Server.RqData
     ) where
 
 import Control.Applicative                      (Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
-import Control.Concurrent.MVar                  (newMVar)
 import Control.Monad                            (MonadPlus(mzero))
 import Control.Monad.Reader                     (ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
 import qualified Control.Monad.State.Lazy as Lazy      (StateT, mapStateT)
@@ -77,15 +76,14 @@ import qualified Data.ByteString.Lazy.UTF8      as LU
 import Data.Char                                (toLower)
 import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
-import Data.Maybe                               (fromMaybe, fromJust)
+import Data.Maybe                               (fromJust)
 import Data.Monoid                              (Monoid(mempty, mappend, mconcat))
 import           Data.Text                      (Text)
 import qualified Data.Text.Lazy                 as LazyText
 import qualified Data.Text.Lazy.Encoding        as LazyText
 import Happstack.Server.Cookie                  (Cookie (cookieValue))
-import Happstack.Server.Internal.Monads         (ServerMonad(askRq, localRq), FilterMonad, WebMonad, ServerPartT, escape)
-import Happstack.Server.Internal.RFC822Headers  (parseContentType)
-import Happstack.Server.Types                   (ContentType(..), FromReqURI(..), Input(inputValue, inputFilename, inputContentType), Response, Request(rqInputsQuery, rqInputsBody, rqCookies, rqMethod), Method(POST,PUT), getHeader, readInputsBody)
+import Happstack.Server.Internal.Monads
+import Happstack.Server.Types
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 import Happstack.Server.Response                (requestEntityTooLarge, toResponse)
 
@@ -158,32 +156,9 @@ instance HasRqData RqData where
 
 -- instance (MonadPlus m, MonadIO m, ServerMonad m) => (HasRqData m) where
 instance (MonadIO m, MonadPlus m) => HasRqData (ServerPartT m) where
-    askRqEnv =
-        do rq  <- askRq
-           mbi <- liftIO $ if ((rqMethod rq == POST) || (rqMethod rq == PUT)) && (isDecodable (ctype rq))
-                           then readInputsBody rq
-                           else return (Just [])
-           return (rqInputsQuery rq, mbi, rqCookies rq)
-        where
-          ctype :: Request -> Maybe ContentType
-          ctype req = parseContentType . P.unpack =<< getHeader "content-type" req
-          isDecodable :: Maybe ContentType -> Bool
-          isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
-          isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
-          isDecodable (Just (ContentType "multipart" "form-data" _ps))             = True
-          isDecodable (Just _)                                                     = False
-
+    askRqEnv = smAskRqEnv
     rqDataError _e = mzero
-    localRqEnv f m =
-        do rq <- askRq
-           b  <- liftIO $ readInputsBody rq
-           let (q', b', c') = f (rqInputsQuery rq, b, rqCookies rq)
-           bv <- liftIO $ newMVar (fromMaybe [] b')
-           let rq' = rq { rqInputsQuery = q'
-                        , rqInputsBody = bv
-                        , rqCookies = c'
-                        }
-           localRq (const rq') m
+    localRqEnv = smLocalRqEnv
 
 ------------------------------------------------------------------------------
 -- HasRqData instances for ReaderT, StateT, WriterT, RWST, and ErrorT

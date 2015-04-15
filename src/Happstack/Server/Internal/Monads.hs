@@ -5,6 +5,8 @@ module Happstack.Server.Internal.Monads where
 
 import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 
+import Control.Concurrent                        (newMVar)
+
 import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
 import Control.Monad.Base                        ( MonadBase, liftBase )
@@ -36,14 +38,19 @@ import qualified Control.Monad.Writer.Strict as Strict ( WriterT, mapWriterT )
 import qualified Control.Monad.Writer.Class as Writer  ( listen )
 
 import Control.Monad.Trans.Maybe                 (MaybeT(MaybeT), runMaybeT)
+import qualified Data.ByteString.Char8           as P
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
 import Data.Char                                 (ord)
 import Data.List                                 (inits, isPrefixOf, stripPrefix, tails)
+import Data.Maybe                                (fromMaybe)
 import Data.Monoid                               (Monoid(mempty, mappend), Dual(..), Endo(..))
 import qualified Paths_happstack_server          as Cabal
 import qualified Data.Version                    as DV
 import Debug.Trace                               (trace)
-import Happstack.Server.Types                    (Request, Response, resultBS, setHeader)
+
+import Happstack.Server.Internal.Cookie          (Cookie)
+import Happstack.Server.Internal.RFC822Headers   (parseContentType)
+import Happstack.Server.Types
 
 -- | An alias for 'WebT' when using 'IO'.
 type Web a = WebT IO a
@@ -222,6 +229,37 @@ class Monad m => ServerMonad m where
 instance (Monad m) => ServerMonad (ServerPartT m) where
     askRq = ServerPartT $ ask
     localRq f m = ServerPartT $ local f (unServerPartT m)
+
+-- | Implementation of 'askRqEnv' for arbitrary 'ServerMonad'.
+smAskRqEnv :: (ServerMonad m, MonadIO m) => m ([(String, Input)], Maybe [(String, Input)], [(String, Cookie)])
+smAskRqEnv = do
+    rq  <- askRq
+    mbi <- liftIO $ if ((rqMethod rq == POST) || (rqMethod rq == PUT)) && (isDecodable (ctype rq))
+      then readInputsBody rq
+      else return (Just [])
+    return (rqInputsQuery rq, mbi, rqCookies rq)
+    where
+        ctype :: Request -> Maybe ContentType
+        ctype req = parseContentType . P.unpack =<< getHeader "content-type" req
+
+        isDecodable :: Maybe ContentType -> Bool
+        isDecodable Nothing                                                      = True -- assume it is application/x-www-form-urlencoded
+        isDecodable (Just (ContentType "application" "x-www-form-urlencoded" _)) = True
+        isDecodable (Just (ContentType "multipart" "form-data" _ps))             = True
+        isDecodable (Just _)                                                     = False
+
+-- | Implementation of 'localRqEnv' for arbitrary 'ServerMonad'.
+smLocalRqEnv :: (ServerMonad m, MonadIO m) => (([(String, Input)], Maybe [(String, Input)], [(String, Cookie)]) -> ([(String, Input)], Maybe [(String, Input)], [(String, Cookie)])) -> m b -> m b
+smLocalRqEnv f m = do
+    rq <- askRq
+    b  <- liftIO $ readInputsBody rq
+    let (q', b', c') = f (rqInputsQuery rq, b, rqCookies rq)
+    bv <- liftIO $ newMVar (fromMaybe [] b')
+    let rq' = rq { rqInputsQuery = q'
+                 , rqInputsBody = bv
+                 , rqCookies = c'
+                 }
+    localRq (const rq') m
 
 -------------------------------
 -- HERE BEGINS WebT definitions
