@@ -88,7 +88,9 @@ compressWithFilter :: (FilterMonad Response m) =>
 compressWithFilter compressor encoding identityAllowed =
     composeFilter $ \r ->
         case r of
-          Response{} -> setHeader "Content-Encoding" encoding $ r {rsBody = compressor $ rsBody r}
+          Response{} -> setHeader "Content-Encoding" encoding          $
+                        setHeader "Vary"             "Accept-Encoding" $
+                         r {rsBody = compressor $ rsBody r}
           _ | identityAllowed -> r
             | otherwise       -> (toResponse "") { rsCode = 406 }
 
