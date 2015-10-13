@@ -1,15 +1,16 @@
-{ mkDerivation, base, base64-bytestring, blaze-html, bytestring
+{ callPackage, mkDerivation, base, base64-bytestring, blaze-html, bytestring
 , containers, directory, exceptions, extensible-exceptions
 , filepath, hslogger, html, HUnit, monad-control, mtl, network
 , network-uri, old-locale, parsec, process, sendfile, stdenv, syb
 , system-filepath, template-haskell, text, threads, time
 , time-compat, transformers, transformers-base, transformers-compat
-, unix, utf8-string, xhtml, zlib
+, unix, utf8-string, xhtml, zlib, cabalsdist
 }:
 mkDerivation {
   pname = "happstack-server";
-  version = "7.4.3";
-  src = ./.;
+  version = "7.4.5";
+  src = cabalsdist { pathname = ./.; };
+
   buildDepends = [
     base base64-bytestring blaze-html bytestring containers directory
     exceptions extensible-exceptions filepath hslogger html
