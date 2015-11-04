@@ -2,10 +2,14 @@
 -- | Filter for compressing the 'Response' body.
 module Happstack.Server.Internal.Compression
     ( compressedResponseFilter
+    , compressedResponseFilter'
     , compressWithFilter
     , gzipFilter
     , deflateFilter
+    , identityFilter
+    , starFilter
     , encodings
+    , standardEncodingHandlers
     ) where
 import Happstack.Server.SimpleHTTP
 import Text.ParserCombinators.Parsec
@@ -20,14 +24,51 @@ import qualified Codec.Compression.Zlib as Z
 -- | reads the @Accept-Encoding@ header.  Then, if possible
 -- will compress the response body with methods @gzip@ or @deflate@.
 --
+-- This function uses 'standardEncodingHandlers'. If you want to
+-- provide alternative handers (perhaps to change compression levels),
+-- see 'compressedResponseFilter''
+--
 -- > main =
 -- >   simpleHTTP nullConf $
 -- >      do str <- compressedResponseFilter
 -- >         return $ toResponse ("This response compressed using: " ++ str)
-compressedResponseFilter::
+compressedResponseFilter :: (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m) =>
+                            m String -- ^ name of the encoding chosen
+compressedResponseFilter = compressedResponseFilter' standardEncodingHandlers
+
+-- | reads the @Accept-Encoding@ header.  Then, if possible
+-- will compress the response body using one of the supplied filters.
+--
+-- A filter function takes two arguments. The first is a 'String' with
+-- the value to be used as the 'Content-Encoding' header. The second
+-- is 'Bool' which indicates if the compression filter is allowed to
+-- fallback to @identity@.
+--
+-- This is important if the resource being sent using sendfile, since
+-- sendfile does not provide a compression option. If @identity@ is
+-- allowed, then the file can be sent uncompressed using sendfile. But
+-- if @identity@ is not allowed, then the filter will need to return
+-- error 406.
+--
+-- You should probably always include the @identity@ and @*@ encodings
+-- as acceptable.
+--
+-- > myFilters :: (FilterMonad Response m) => [(String, String -> Bool -> m ()]
+-- > myFilters = [ ("gzip"    , gzipFilter)
+-- >             , ("identity", identityFilter)
+-- >             , ("*"       , starFilter)
+-- >             ]
+-- >
+-- > main =
+-- >   simpleHTTP nullConf $
+-- >      do let filters =
+-- > str <- compressedResponseFilter'
+-- >         return $ toResponse ("This response compressed using: " ++ str)
+compressedResponseFilter' ::
     (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m)
-    => m String -- ^ name of the encoding chosen
-compressedResponseFilter = do
+    => [(String, String -> Bool -> m ())]  -- ^ compression filter assoc list
+    -> m String                            -- ^ name of the encoding chosen
+compressedResponseFilter' encodingHandlers = do
     getHeaderM "Accept-Encoding" >>=
         (maybe (return "identity") installHandler)
 
@@ -35,7 +76,7 @@ compressedResponseFilter = do
     badEncoding = "Encoding returned not in the list of known encodings"
 
     installHandler accept = do
-      let eEncoding = bestEncoding allEncodings $ BS.unpack accept
+      let eEncoding = bestEncoding (map fst encodingHandlers) $ BS.unpack accept
       (coding, identityAllowed, action) <- case eEncoding of
           Left _ -> do
             setResponseCode 406
@@ -44,7 +85,7 @@ compressedResponseFilter = do
           Right encs@(a:_) -> return (a
                                      , "identity" `elem` encs
                                      , fromMaybe (fail badEncoding)
-                                          (lookup a allEncodingHandlers)
+                                          (lookup a encodingHandlers)
                                      )
           Right [] -> fail badEncoding
       action coding identityAllowed
@@ -73,13 +114,31 @@ deflateFilter::(FilterMonad Response m) =>
              -> m ()
 deflateFilter = compressWithFilter Z.compress
 
+-- | compression filter for the identity encoding (aka, do nothing)
+--
+-- see also: 'compressedResponseFilter'
+identityFilter :: (FilterMonad Response m) =>
+                  String  -- ^ encoding to use for Content-Encoding header
+               -> Bool    -- ^ fallback to identity for SendFile (irrelavant for this filter)
+               -> m ()
+identityFilter = compressWithFilter id
+
+-- | compression filter for the * encoding
+--
+-- This filter always fails.
+starFilter :: (FilterMonad Response m) =>
+              String  -- ^ encoding to use for Content-Encoding header
+           -> Bool    -- ^ fallback to identity for SendFile (irrelavant for this filter)
+           -> m ()
+starFilter _ _ = fail "chose * as content encoding"
+
 -- | Ignore the @Accept-Encoding@ header in the 'Request' and attempt to compress the body of the response using the supplied compressor.
 --
 -- We can not compress files being transfered using 'SendFile'. If
 -- @identity@ is an allowed encoding, then just return the 'Response'
--- unmodified. Otherwise we return "406 Not Acceptable".
+-- unmodified. Otherwise we return @406 Not Acceptable@.
 --
--- see also: 'gzipFilter' and 'defaultFilter'
+-- see also: 'gzipFilter', 'deflateFilter', 'identityFilter', 'starFilter', 'compressedResponseFilter''
 compressWithFilter :: (FilterMonad Response m) =>
                       (L.ByteString -> L.ByteString) -- ^ function to compress the body
                    -> String -- ^ encoding to use for Content-Encoding header
@@ -137,11 +196,18 @@ bestEncoding availableEncodings encs = do
                           | otherwise = compare (m0 mI) (m0 mJ)
 
 
-allEncodingHandlers:: (FilterMonad Response m) => [(String, String -> Bool -> m ())]
-allEncodingHandlers = zip allEncodings handlers
+-- | an assoc list of encodings and their corresponding compression
+-- functions.
+--
+-- e.g.
+--
+-- > [("gzip", gzipFilter), ("identity", identityFilter), ("*",starFilter)]
+standardEncodingHandlers :: (FilterMonad Response m) =>
+                            [(String, String -> Bool -> m ())]
+standardEncodingHandlers = zip standardEncodings handlers
 
-allEncodings :: [String]
-allEncodings =
+standardEncodings :: [String]
+standardEncodings =
     ["gzip"
     ,"x-gzip"
 --    ,"compress" -- as far as I can tell there is no haskell library that supports this
@@ -153,13 +219,13 @@ allEncodings =
 
 handlers::(FilterMonad Response m) => [String -> Bool -> m ()]
 handlers =
-    [gzipFilter
-    ,gzipFilter
+    [ gzipFilter
+    , gzipFilter
 --    ,compressFilter
 --    ,compressFilter
-    ,deflateFilter
-    , \encoding _ -> setHeaderM "Accept-Encoding" encoding
-    ,const $ fail "chose * as content encoding"
+    , deflateFilter
+    , identityFilter
+    , starFilter
     ]
 
 -- | a parser for the Accept-Encoding header
