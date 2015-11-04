@@ -13,7 +13,7 @@ module Happstack.Server.Internal.Types
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
-     HttpVersion(..), Length(..), Method(..), Headers, continueHTTP,
+     HttpVersion(..), Length(..), Method(..), canHaveBody, Headers, continueHTTP,
      Host, ContentType(..),
      readDec', fromReadS, readM, FromReqURI(..)
     ) where
@@ -132,8 +132,20 @@ logMAccess host user time requestLine responseCode size referer userAgent =
     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host user time requestLine responseCode size referer userAgent
 
 -- | HTTP request method
-data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
-               deriving(Show,Read,Eq,Ord,Typeable,Data)
+data Method = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT | PATCH | EXTENSION ByteString
+    deriving (Show,Read,Eq,Ord,Typeable,Data)
+
+-- | Does the method support a message body?
+--
+-- For extension methods, we assume yes.
+canHaveBody :: Method
+            -> Bool
+canHaveBody POST          = True
+canHaveBody PUT           = True
+canHaveBody PATCH         = True
+canHaveBody DELETE        = True
+canHaveBody (EXTENSION _) = True
+canHaveBody _             = False
 
 -- | an HTTP header
 data HeaderPair = HeaderPair

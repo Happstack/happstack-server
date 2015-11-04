@@ -50,6 +50,7 @@ import Debug.Trace                               (trace)
 
 import Happstack.Server.Internal.Cookie          (Cookie)
 import Happstack.Server.Internal.RFC822Headers   (parseContentType)
+import Happstack.Server.Internal.Types           (canHaveBody)
 import Happstack.Server.Types
 import Prelude                                   (Bool(..), Either(..), Eq(..), Functor(..), IO(..), Monad(..), Char, Maybe(..), String, Show(..), ($), (.), (>), (++), (&&), (||), (=<<), const, concatMap, flip, id, otherwise, zip)
 
@@ -235,7 +236,7 @@ instance (Monad m) => ServerMonad (ServerPartT m) where
 smAskRqEnv :: (ServerMonad m, MonadIO m) => m ([(String, Input)], Maybe [(String, Input)], [(String, Cookie)])
 smAskRqEnv = do
     rq  <- askRq
-    mbi <- liftIO $ if ((rqMethod rq == POST) || (rqMethod rq == PUT)) && (isDecodable (ctype rq))
+    mbi <- liftIO $ if (canHaveBody (rqMethod rq)) && (isDecodable (ctype rq))
       then readInputsBody rq
       else return (Just [])
     return (rqInputsQuery rq, mbi, rqCookies rq)

@@ -536,11 +536,11 @@ lookPairsBS =
        let bdy = fromMaybeBody "lookPairsBS" "" mBody
        return $ map (\(n,vbs) -> (n, inputValue vbs)) (query ++ bdy)
 
--- | The POST\/PUT body of a Request is not received or decoded unless
+-- | The body of a 'Request' is not received or decoded unless
 -- this function is invoked.
 --
--- It is an error to try to use the look functions for a POST\/PUT
--- request with out first calling this function.
+-- It is an error to try to use the look functions for a
+-- 'Request' with out first calling this function.
 --
 -- It is ok to call 'decodeBody' at the beginning of every request:
 --
@@ -588,7 +588,7 @@ decodeBody bp =
 -- >         (Right a) | otherwise -> errorHandler "invalid"
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
--- the request method is POST or PUT.
+-- the request method is POST, PUT, PATCH, etc.
 getDataFn :: (HasRqData m, ServerMonad m) =>
              RqData a -- ^ 'RqData' monad to evaluate
           -> m (Either [String] a) -- ^ return 'Left' errors or 'Right' a
@@ -600,7 +600,7 @@ getDataFn rqData =
 -- or 'mzero' on failure.
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
--- the request method is POST or PUT.
+-- the request method is POST, PUT, PATCH, etc.
 withDataFn :: (HasRqData m, MonadPlus m, ServerMonad m) => RqData a -> (a -> m r) -> m r
 withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 
@@ -630,14 +630,14 @@ withDataFn fn handle = getDataFn fn >>= either (const mzero) handle
 -- >         (Right a) | otherwise -> errorHandler "invalid"
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
--- the request method is POST or PUT.
+-- the request method is POST, PUT, PATCH, etc.
 getData :: (HasRqData m, ServerMonad m, FromData a) => m (Either [String] a)
 getData = getDataFn fromData
 
 -- | similar to 'getData' except it calls a subhandler on success or 'mzero' on failure.
 --
 -- NOTE: you must call 'decodeBody' prior to calling this function if
--- the request method is POST or PUT.
+-- the request method is POST, PUT, PATCH, etc.
 withData :: (HasRqData m, FromData a, MonadPlus m, ServerMonad m) => (a -> m r) -> m r
 withData = withDataFn fromData
 

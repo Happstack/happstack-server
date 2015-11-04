@@ -43,7 +43,7 @@ defaultBodyPolicy tmpDir md mr mh =
                }
 
 bodyInput :: (MonadIO m) => BodyPolicy -> Request -> m ([(String, Input)], Maybe String)
-bodyInput _ req | ((rqMethod req /= POST) && (rqMethod req /= PUT)) || (not (isDecodable ctype)) =
+bodyInput _ req | (not (canHaveBody (rqMethod req))) || (not (isDecodable ctype)) =
     do _ <- liftIO $ tryPutMVar (rqInputsBody req) []
        return ([], Nothing)
     where

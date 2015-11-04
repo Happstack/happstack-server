@@ -194,15 +194,17 @@ responseLine l = case B.words ((B.concat . L.toChunks) l) of
 method :: B.ByteString -> Method
 method r = fj $ lookup r mtable
     where fj (Just x) = x
-          fj Nothing  = error "invalid request method"
-          mtable = [(P.pack "GET",     GET),
-                    (P.pack "HEAD",    HEAD),
-                    (P.pack "POST",    POST),
-                    (P.pack "PUT",     PUT),
-                    (P.pack "DELETE",  DELETE),
-                    (P.pack "TRACE",   TRACE),
-                    (P.pack "OPTIONS", OPTIONS),
-                    (P.pack "CONNECT", CONNECT)]
+          fj Nothing  = EXTENSION r
+          mtable = [ (P.pack "GET",     GET)
+                   , (P.pack "HEAD",    HEAD)
+                   , (P.pack "POST",    POST)
+                   , (P.pack "PUT",     PUT)
+                   , (P.pack "DELETE",  DELETE)
+                   , (P.pack "TRACE",   TRACE)
+                   , (P.pack "OPTIONS", OPTIONS)
+                   , (P.pack "CONNECT", CONNECT)
+                   , (P.pack "PATCH",   PATCH)
+                   ]
 
 -- Result side
 
