@@ -10,7 +10,7 @@ homepage:            http://happstack.com
 Category:            Web, Happstack
 Build-Type:          Simple
 Cabal-Version:       >= 1.8
-Extra-Source-Files:  tests/Happstack/Server/Tests.hs
+Extra-Source-Files:  tests/Happstack/Server/Tests.hs README.md
 
 source-repository head
     type:     git
