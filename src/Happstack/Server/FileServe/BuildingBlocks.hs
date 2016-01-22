@@ -70,6 +70,7 @@ import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, c
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
+import Happstack.Server.Internal.Types (SendFile(..))
 import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
 import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid)
 import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
@@ -169,7 +170,7 @@ sendFileResponse :: String  -- ^ content-type string
                  -> Response
 sendFileResponse ct filePath mModTime offset count =
     let res = ((setHeader "Content-Type" ct) $
-               (SendFile 200 Map.empty (nullRsFlags { rsfLength = ContentLength }) Nothing filePath offset count)
+               (SendFile 200 Map.empty (nullRsFlags { rsfLength = ContentLength }) Nothing (SinglePart filePath offset count))
               )
     in case mModTime of
          Nothing -> res

@@ -19,6 +19,7 @@ import Happstack.Server.Internal.Compression
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.MessageWrap
+import Happstack.Server.Internal.Types (SendFile(..))
 import Happstack.Server.SURI(ToSURI(..), path, query)
 import Test.HUnit as HU (Test(..), (~:), (@?=), (@=?), assertEqual)
 import Text.ParserCombinators.Parsec
@@ -174,7 +175,7 @@ uncompressedSendFile =
       do req <- mkRequest GET "/sendfile" [] Map.empty L.empty
          res <- simpleHTTP'' compressPart req
          assertEqual "respone code"     (rsCode res) 200
-         assertEqual "filepath"         (sfFilePath res) "/dev/null"
+         assertEqual "filepath"         (sfFilePath (sfSendFile res)) "/dev/null"
          assertEqual "Content-Encoding" ((hName &&& hValue) <$> Map.lookup (B.pack "content-encoding") (rsHeaders res)) Nothing
 
 compressedResponseGZ :: Test
@@ -201,7 +202,7 @@ compressedSendFile =
       do req <- mkRequest GET "/sendfile" [] (Map.singleton (B.pack "accept-encoding") (HeaderPair (B.pack "Accept-Encoding") [B.pack " gzip;q=1"])) L.empty
          res <- simpleHTTP'' compressPart req
          assertEqual "respone code"     (rsCode res) 200
-         assertEqual "filepath"         (sfFilePath res) "/dev/null"
+         assertEqual "filepath"         (sfFilePath (sfSendFile res)) "/dev/null"
          assertEqual "Content-Encoding" ((hName &&& hValue) <$> Map.lookup (B.pack "content-encoding") (rsHeaders res)) Nothing
 
 compressedSendFileNoIdentity :: Test

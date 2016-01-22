@@ -14,6 +14,7 @@ import Control.Monad
 import Data.List(elemIndex)
 import Data.Char(toLower)
 import Data.Maybe ( fromMaybe, fromJust, isJust, isNothing )
+import Data.Monoid ((<>))
 import Data.Time      (UTCTime)
 import Prelude hiding (last)
 import qualified Data.ByteString.Char8 as P
@@ -34,6 +35,7 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import Happstack.Server.Internal.Monads (failResponse)
 import qualified Happstack.Server.Internal.TimeoutManager as TM
+import Network.HTTP.Types (ByteRange(..), renderByteRanges)
 import Numeric
 import System.Directory (removeFile)
 import System.IO
@@ -221,7 +223,7 @@ putAugmentedResult timeoutIO req res = do
         -- standard bytestring response
         Response {} -> do
             let isChunked = rsfLength (rsFlags res) == TransferEncodingChunked && isHTTP1_1 req
-            sendTop (if isChunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) isChunked
+            sendTop (if isChunked then Nothing else (Just (fromIntegral (L.length (rsBody res))))) isChunked res
             when (rqMethod req /= HEAD)
                      (let body = if isChunked
                                  then chunk (rsBody res)
@@ -231,15 +233,30 @@ putAugmentedResult timeoutIO req res = do
         -- the handle *should* be closed by the garbage collector
 
         SendFile {} -> do
-            let infp = sfFilePath res
-                off = sfOffset res
-                count = sfCount res
-            sendTop (Just count) False
-            TM.tickle (toHandle timeoutIO)
-            toSendFile timeoutIO infp off count
+               case sfSendFile res of
+                 (SinglePart infp off count) -> do
+                     sendTop (Just count) False res
+                     TM.tickle (toHandle timeoutIO)
+                     toSendFile timeoutIO infp off count
+                 (MultiPart filepath contentLength contentType boundary byteranges) -> do
+                     sendTop Nothing {- (Just count) -} False res -- FIXME: calculate length so that pipelining works
+                     TM.tickle (toHandle timeoutIO)
+                     mapM_ sendPart byteranges
+                     toPut timeoutIO (P.pack "\r\n--" <> boundary <> P.pack "--\r\n")
+                     where
+                       sendBoundary = toPut timeoutIO (P.pack "\r\n--" <> boundary <> P.pack "\r\n")
+                       sendHeaders (f, t) =
+                           toPut timeoutIO $
+                                     (P.pack "Content-Type: ") <> contentType <> (P.pack "\r\nContent-Range: ") <>
+                                     renderByteRanges [ByteRangeFromTo f t]  <> P.pack ("/"++(show mpContentLength)++"\r\n")
+
+                       sendPart br@(f, t) =
+                           do sendBoundary
+                              sendHeaders br
+                              toSendFile timeoutIO filepath (fromIntegral f) (fromIntegral $ t - f)
 
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
-          sendTop cl isChunked = do
+          sendTop cl isChunked res = do
               allHeaders <- augmentHeaders req res cl isChunked
               toPut timeoutIO $ B.concat $ concat
                  [ (pversion $ rqVersion req)          -- Print HTTP version
@@ -313,6 +330,8 @@ http11 = P.pack "HTTP/1.1"
 
 -- * ByteString Constants
 
+acceptRangesC :: B.ByteString
+acceptRangesC = P.pack "Accept-Ranges"
 connectionC :: B.ByteString
 connectionC      = P.pack "Connection"
 connectionCLower :: B.ByteString
@@ -331,6 +350,8 @@ contentLengthC :: B.ByteString
 contentLengthC   = P.pack "Content-Length"
 contentlengthC :: B.ByteString
 contentlengthC   = P.pack "content-length"
+contentRangeC :: B.ByteString
+contentRangeC = P.pack "Content-Range"
 dateC :: B.ByteString
 dateC            = P.pack "Date"
 dateCLower :: B.ByteString

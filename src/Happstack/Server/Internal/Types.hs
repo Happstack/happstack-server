@@ -1,8 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, FlexibleInstances, RankNTypes #-}
 
 module Happstack.Server.Internal.Types
-    (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
-     takeRequestBody, readInputsBody,
+    (FilePart(..), SendFile(..), Request(..), Response(..), RqBody(..), Input(..),
+     HeaderPair(..), takeRequestBody, readInputsBody,
      rqURL, mkHeaders,
      getHeader, getHeaderBS, getHeaderUnsafe,
      hasHeader, hasHeaderBS, hasHeaderUnsafe,
@@ -12,7 +12,7 @@ module Happstack.Server.Internal.Types
      LogAccess, logMAccess, Conf(..), nullConf, result, resultBS,
      redirect, -- redirect_, redirect', redirect'_,
      isHTTP1_0, isHTTP1_1,
-     RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
+     RsFlags(..), nullRsFlags, chunked, noContentLength, contentLength,
      HttpVersion(..), Length(..), Method(..), canHaveBody, Headers, continueHTTP,
      Host, ContentType(..),
      readDec', fromReadS, readM, FromReqURI(..)
@@ -42,6 +42,7 @@ import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
+import Network.HTTP.Types (ByteRanges)
 import Numeric (readDec, readSigned)
 import System.Log.Logger (Priority(..), logM)
 import Text.Show.Functions ()
@@ -203,6 +204,31 @@ data Input = Input
 -- | hostname & port
 type Host = (String, Int) -- ^ (hostname, port)
 
+-- | 'FilePart' is a triple of a 'FilePath', offset, and count
+--
+-- This is mostly used with 'SendFile'.
+
+data FilePart
+    = FilePart { fpFilePath  :: FilePath  -- ^ file handle to send from
+               , fpOffset    :: Integer   -- ^ offset to start at
+               , fpCount     :: Integer    -- ^ number of bytes to send
+               , fpByteRange :: Maybe [HeaderPair] -- ^ Content-Type and Content-Range headers for multipart/byteranges
+               }
+      deriving (Show, Typeable)
+
+data SendFile
+    = SinglePart { sfFilePath   :: FilePath  -- ^ file handle to send from
+                 , spOffset     :: Integer   -- ^ offset to start at
+                 , spCount      :: Integer   -- ^ number of bytes to send
+                 }
+    | MultiPart { sfFilePath     :: FilePath   -- ^ file handle to send from
+                , mpContentLength :: Integer    -- ^ the complete length
+                , mpContentType  :: ByteString
+                , mpBoundary     :: ByteString
+                , mpByteRanges   :: [(Integer, Integer)]
+                }
+      deriving (Eq, Show, Typeable)
+
 -- | an HTTP Response
 data Response
     = Response  { rsCode      :: Int
@@ -215,9 +241,7 @@ data Response
                 , rsHeaders   :: Headers
                 , rsFlags     :: RsFlags
                 , rsValidator :: Maybe (Response -> IO Response)
-                , sfFilePath  :: FilePath  -- ^ file handle to send from
-                , sfOffset    :: Integer   -- ^ offset to start at
-                , sfCount     :: Integer    -- ^ number of bytes to send
+                , sfSendFile  :: SendFile
                 }
       deriving (Typeable)
 
@@ -235,9 +259,7 @@ instance Show Response where
         showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
         showString "\nrsFlags     = " . shows      (rsFlags res)    .
         showString "\nrsValidator = " . shows      (rsValidator res).
-        showString "\nsfFilePath  = " . shows      (sfFilePath res) .
-        showString "\nsfOffset    = " . shows      (sfOffset res)   .
-        showString "\nsfCount     = " . shows      (sfCount res)
+        showString "\nsfSendFile  = " . shows      (sfSendFile res)
 
 -- what should the status code be ?
 instance Error Response where

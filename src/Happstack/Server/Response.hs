@@ -16,7 +16,9 @@ module Happstack.Server.Response
     , notFound
     , prettyResponse
     , requestEntityTooLarge
+    , rangeNotSatisfiable
     , seeOther
+    , notModified
     , found
     , movedPermanently
     , tempRedirect
@@ -188,7 +190,7 @@ ifModifiedSince modTime request response =
         notmodified = getHeader "if-modified-since" request == Just (B.pack $ repr)
     in if notmodified
           then noContentLength $ result 304 "" -- Not Modified
-          else setHeader "Last-modified" repr response
+          else setHeader "Last-Modified" repr response
 
 -- | Deprecated:  use 'composeFilter'.
 modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
@@ -263,6 +265,13 @@ seeOther :: (FilterMonad Response m, ToSURI uri) => uri -> res -> m res
 seeOther uri res = do modifyResponse $ redirect 303 uri
                       return res
 
+-- | Respond with @304 Not Modified@.
+--
+-- A @304 Not Modified@ response may not contain a message-body. If you try to supply one, it will be dutifully ignored.
+notModified :: (FilterMonad Response m) => a -> m a
+notModified a =
+    composeFilter (\r -> noContentLength (r { rsCode = 304, rsBody = L.empty })) >> return a
+
 -- | Respond with @307 Temporary Redirect@.
 --
 -- > main = simpleHTTP nullConf $ tempRedirect "http://example.org/" "What you are looking for is temporarily at http://example.org/"
@@ -300,6 +309,11 @@ notFound = resp 404
 requestEntityTooLarge :: (FilterMonad Response m) => a -> m a
 requestEntityTooLarge = resp 413
 
+-- | Respond with @416 Range Not Satisfiable@.
+--
+rangeNotSatisfiable :: (FilterMonad Response m) => a -> m a
+rangeNotSatisfiable = resp 416
+
 -- | Respond with @500 Internal Server Error@.
 --
 -- > main = simpleHTTP nullConf $ internalServerError "Sorry, there was an internal server error."
@@ -314,19 +328,4 @@ badGateway = resp 502
 
 -- | A nicely formatted rendering of a 'Response'
 prettyResponse :: Response -> String
-prettyResponse res@Response{}  =
-    showString   "================== Response ================" .
-    showString "\nrsCode      = " . shows      (rsCode res)     .
-    showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
-    showString "\nrsFlags     = " . shows      (rsFlags res)    .
-    showString "\nrsBody      = " . shows      (rsBody res)     .
-    showString "\nrsValidator = " $ show       (rsValidator res)
-prettyResponse res@SendFile{}  =
-    showString   "================== Response ================" .
-    showString "\nrsCode      = " . shows      (rsCode res)     .
-    showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
-    showString "\nrsFlags     = " . shows      (rsFlags res)    .
-    showString "\nrsValidator = " . shows      (rsValidator res).
-    showString "\nsfFilePath  = " . shows      (sfFilePath res) .
-    showString "\nsfOffset    = " . shows      (sfOffset res)   .
-    showString "\nsfCount     = " $ show       (sfCount res)
+prettyResponse res = show res
