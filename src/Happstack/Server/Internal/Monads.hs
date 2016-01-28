@@ -52,7 +52,7 @@ import Happstack.Server.Internal.Cookie          (Cookie)
 import Happstack.Server.Internal.RFC822Headers   (parseContentType)
 import Happstack.Server.Internal.Types           (canHaveBody)
 import Happstack.Server.Types
-import Prelude                                   (Bool(..), Either(..), Eq(..), Functor(..), IO(..), Monad(..), Char, Maybe(..), String, Show(..), ($), (.), (>), (++), (&&), (||), (=<<), const, concatMap, flip, id, otherwise, zip)
+import Prelude                                   (Bool(..), Either(..), Eq(..), Functor(..), IO, Monad(..), Char, Maybe(..), String, Show(..), ($), (.), (>), (++), (&&), (||), (=<<), const, concatMap, flip, id, otherwise, zip)
 
 -- | An alias for 'WebT' when using 'IO'.
 type Web a = WebT IO a
