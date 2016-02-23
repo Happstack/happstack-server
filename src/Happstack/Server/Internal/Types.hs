@@ -15,7 +15,8 @@ module Happstack.Server.Internal.Types
      RsFlags(..), nullRsFlags, contentLength, chunked, noContentLength,
      HttpVersion(..), Length(..), Method(..), canHaveBody, Headers, continueHTTP,
      Host, ContentType(..),
-     readDec', fromReadS, readM, FromReqURI(..)
+     readDec', fromReadS, readM, FromReqURI(..),
+     showRsValidator
     ) where
 
 import Control.Monad.Error (Error(strMsg))
@@ -44,7 +45,6 @@ import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
 import Numeric (readDec, readSigned)
 import System.Log.Logger (Priority(..), logM)
-import Text.Show.Functions ()
 
 -- | HTTP version
 data HttpVersion = HttpVersion Int Int
@@ -223,21 +223,24 @@ data Response
 
 instance Show Response where
     showsPrec _ res@Response{}  =
-        showString   "================== Response ================" .
-        showString "\nrsCode      = " . shows      (rsCode res)     .
-        showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
-        showString "\nrsFlags     = " . shows      (rsFlags res)    .
-        showString "\nrsBody      = " . shows      (rsBody res)     .
-        showString "\nrsValidator = " . shows      (rsValidator res)
+        showString   "================== Response ================"                    .
+        showString "\nrsCode      = " . shows      (rsCode res)                        .
+        showString "\nrsHeaders   = " . shows      (rsHeaders res)                     .
+        showString "\nrsFlags     = " . shows      (rsFlags res)                       .
+        showString "\nrsBody      = " . shows      (rsBody res)                        .
+        showString "\nrsValidator = " . shows      (showRsValidator (rsValidator res))
     showsPrec _ res@SendFile{}  =
-        showString   "================== Response ================" .
-        showString "\nrsCode      = " . shows      (rsCode res)     .
-        showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
-        showString "\nrsFlags     = " . shows      (rsFlags res)    .
-        showString "\nrsValidator = " . shows      (rsValidator res).
-        showString "\nsfFilePath  = " . shows      (sfFilePath res) .
-        showString "\nsfOffset    = " . shows      (sfOffset res)   .
+        showString   "================== Response ================"                    .
+        showString "\nrsCode      = " . shows      (rsCode res)                        .
+        showString "\nrsHeaders   = " . shows      (rsHeaders res)                     .
+        showString "\nrsFlags     = " . shows      (rsFlags res)                       .
+        showString "\nrsValidator = " . shows      (showRsValidator (rsValidator res)) .
+        showString "\nsfFilePath  = " . shows      (sfFilePath res)                    .
+        showString "\nsfOffset    = " . shows      (sfOffset res)                      .
         showString "\nsfCount     = " . shows      (sfCount res)
+
+showRsValidator :: Maybe (Response -> IO Response) -> String
+showRsValidator = maybe "Nothing" (const "Just <function>")
 
 -- what should the status code be ?
 instance Error Response where

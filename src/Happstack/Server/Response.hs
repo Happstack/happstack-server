@@ -35,6 +35,7 @@ import qualified Data.Text.Encoding              as T
 import qualified Data.Text.Lazy                  as LT
 import qualified Data.Text.Lazy.Encoding         as LT
 import           Happstack.Server.Internal.Monads         (FilterMonad(composeFilter))
+import           Happstack.Server.Internal.Types
 import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
 import           Happstack.Server.SURI           (ToSURI)
 import qualified Text.Blaze.Html                 as Blaze
@@ -315,18 +316,18 @@ badGateway = resp 502
 -- | A nicely formatted rendering of a 'Response'
 prettyResponse :: Response -> String
 prettyResponse res@Response{}  =
-    showString   "================== Response ================" .
-    showString "\nrsCode      = " . shows      (rsCode res)     .
-    showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
-    showString "\nrsFlags     = " . shows      (rsFlags res)    .
-    showString "\nrsBody      = " . shows      (rsBody res)     .
-    showString "\nrsValidator = " $ show       (rsValidator res)
+    showString   "================== Response ================"       .
+    showString "\nrsCode      = " . shows      (rsCode res)           .
+    showString "\nrsHeaders   = " . shows      (rsHeaders res)        .
+    showString "\nrsFlags     = " . shows      (rsFlags res)          .
+    showString "\nrsBody      = " . shows      (rsBody res)           .
+    showString "\nrsValidator = " $ showRsValidator (rsValidator res)
 prettyResponse res@SendFile{}  =
-    showString   "================== Response ================" .
-    showString "\nrsCode      = " . shows      (rsCode res)     .
-    showString "\nrsHeaders   = " . shows      (rsHeaders res)  .
-    showString "\nrsFlags     = " . shows      (rsFlags res)    .
-    showString "\nrsValidator = " . shows      (rsValidator res).
-    showString "\nsfFilePath  = " . shows      (sfFilePath res) .
-    showString "\nsfOffset    = " . shows      (sfOffset res)   .
+    showString   "================== Response ================"                    .
+    showString "\nrsCode      = " . shows      (rsCode res)                        .
+    showString "\nrsHeaders   = " . shows      (rsHeaders res)                     .
+    showString "\nrsFlags     = " . shows      (rsFlags res)                       .
+    showString "\nrsValidator = " . shows      (showRsValidator (rsValidator res)) .
+    showString "\nsfFilePath  = " . shows      (sfFilePath res)                    .
+    showString "\nsfOffset    = " . shows      (sfOffset res)                      .
     showString "\nsfCount     = " $ show       (sfCount res)
