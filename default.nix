@@ -8,7 +8,7 @@
 }:
 mkDerivation {
   pname = "happstack-server";
-  version = "7.4.5";
+  version = "7.4.6.1";
   src = cabalsdist { pathname = ./.; };
 
   buildDepends = [
