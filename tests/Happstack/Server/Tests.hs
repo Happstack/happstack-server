@@ -21,12 +21,19 @@ import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.MessageWrap
 import Happstack.Server.Internal.Types (SendFile(..))
 import Happstack.Server.SURI(ToSURI(..), path, query)
+import Happstack.Server.RangeTest (rangeTests)
 import Test.HUnit as HU (Test(..), (~:), (@?=), (@=?), assertEqual)
+import Test.Hspec (Spec, describe)
+import Test.Hspec.Contrib.HUnit (fromHUnitTest)
 import Text.ParserCombinators.Parsec
 
--- |All of the tests for happstack-util should be listed here.
-allTests :: Test
-allTests =
+allTests :: Spec
+allTests = do
+  describe "HUnit Tests" $ fromHUnitTest allHUnitTests
+  rangeTests
+
+allHUnitTests :: Test
+allHUnitTests =
     "happstack-server tests" ~: [ cookieParserTest
                                 , acceptEncodingParserTest
                                 , multipart

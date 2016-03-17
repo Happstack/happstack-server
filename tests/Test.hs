@@ -2,12 +2,14 @@ module Main where
 
 import Happstack.Server.Tests (allTests)
 import Test.HUnit (errors, failures, putTextToShowS,runTestText, runTestTT)
+import Test.Hspec
 import System.Exit (exitFailure)
 import System.IO (hIsTerminalDevice, stdout)
 
 -- |A simple driver for running the local test suite.
 main :: IO ()
-main =
+main = hspec allTests
+{-
     do c <- do istty <- hIsTerminalDevice stdout
                if istty
                   then runTestTT allTests
@@ -17,3 +19,4 @@ main =
        case (failures c) + (errors c) of
          0 -> return ()
          _ -> exitFailure
+-}
