@@ -191,7 +191,37 @@ rangeTests =
                         _ -> False)
        it "Response has response code 206" $ \res -> do
         rsCode res `shouldBe` 206
-
+     -- a weak attempt to check that laziness is working
+     describe "Range: bytes=1-3,5-8" $ do
+      let brs = [ByteRangeFromTo 1 3, ByteRangeFromTo 5 8]
+      before (fakeServer GET "/" [] (addHeaderBS (C.pack "Range") (renderByteRanges brs) Map.empty) Lazy.empty
+               (ok $ addHeaderBS (original hContentLength) (C.pack "10000000000") $ toResponse (take 10000000000 $ cycle "0123456789"))) $ do
+       it "Response has Content-Type: multipart/byteranges;" $ \res -> do
+        (getHeader "Content-Type" res) `shouldBe` (Just (C.pack "multipart/byteranges; boundary=multipart_byteranges_boundary_XXX"))
+       it "Response has correct body" $ \res -> do
+         parseMultipartBody (CLazy.pack "multipart_byteranges_boundary_XXX") (rsBody res) `shouldSatisfy`
+           (\parts -> case parts of
+                        ([Happstack.BodyPart h1 b1, Happstack.BodyPart h2 b2], _) -> (b1 == CLazy.pack "123") && (b2 == CLazy.pack "5678")
+                        _ -> False)
+       it "Response has response code 206" $ \res -> do
+        rsCode res `shouldBe` 206
+     {- This test exposes a flaw in withRange/Happstack. Even though withRange aims to allow the garbage collector to collect the unused parts of the response
+        body -- something is holding a reference to the Response and so we end up forcing the entire Response into memory.
+     -}
+     describe "Range: bytes=1-3,5-8" $ do
+      let brs = [ByteRangeFromTo 1 3, ByteRangeFromTo 1000000000 1000000001 ]
+      before (fakeServer GET "/" [] (addHeaderBS (C.pack "Range") (renderByteRanges brs) Map.empty) Lazy.empty
+               (ok $ addHeaderBS (original hContentLength) (C.pack "10000000000") $ toResponse (take 10000000000 $ cycle "0123456789"))) $ do
+       it "Response has Content-Type: multipart/byteranges;" $ \res -> do
+        (getHeader "Content-Type" res) `shouldBe` (Just (C.pack "multipart/byteranges; boundary=multipart_byteranges_boundary_XXX"))
+       it "Response has correct body" $ \res -> do
+         parseMultipartBody (CLazy.pack "multipart_byteranges_boundary_XXX") (rsBody res) `shouldSatisfy`
+           (\parts -> case parts of
+                        ([Happstack.BodyPart h1 b1, Happstack.BodyPart h2 b2], _) -> (b1 == CLazy.pack "123") && (b2 == CLazy.pack "5678")
+                        _ -> False)
+       it "Response has response code 206" $ \res -> do
+        rsCode res `shouldBe` 206
+    -}
     describe "SendFile Multipart Responses" $ do
      describe "Range: bytes=1-3,5-8" $ do
       let brs = [ByteRangeFromTo 1 3, ByteRangeFromTo 5 8]

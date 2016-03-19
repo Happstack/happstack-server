@@ -1,3 +1,14 @@
+{- | The module attempts to add support for ByteRanges.
+
+However, it definitely contains a few bugs. The most significant known
+bug is that when using ByteRanges for lazy ByteStrings, the head of
+the ByteString is not garbage collected resulting a space leak.
+
+I suspect the fix would require making the Response body be an IORef,
+which is a big pill to swallow. I would rather wait and do this
+correctly in hyperdrive.
+
+-}
 module Happstack.Server.Range where
 
 import qualified Blaze.ByteString.Builder       as Blaze
@@ -7,8 +18,10 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as CLazy
 import qualified Data.ByteString.Char8 as C
 import Data.CaseInsensitive (original)
+import qualified Data.Map                        as M
 import Data.Monoid ((<>))
 import Happstack.Server.SimpleHTTP
+import Happstack.Server.Types (nullRsFlags)
 import Happstack.Server.Internal.Multipart as Happstack (BodyPart(..), parseMultipartBody)
 import Happstack.Server.Internal.Types as Happstack (SendFile(..), getHeaderUnsafe)
 import Network.HTTP.Types (ByteRanges, ByteRange(..), hRange, hIfRange, hContentType, renderByteRanges, renderByteRange, parseByteRanges)
@@ -226,14 +239,22 @@ withRange part =
                                                      Nothing -> ((toResponse ()) { rsCode = 416 }) -- FIXME: add headers
                                                      Just [] -> ((toResponse ()) { rsCode = 416 }) -- FIXME: add headers
                                                      Just ranges ->
-                                                         let boundary =  "multipart_byteranges_boundary_XXX"
+                                                         let boundary =  "multipart_byteranges_boundary_XXX" -- FIXME: should be more random
                                                              ct = case getHeaderBS (original hContentType) (rsHeaders response) of
                                                                     Nothing -> "application/octet-stream"
-                                                                    (Just ct') -> C.unpack ct'
+                                                                    (Just ct') -> C.unpack $! ct'
                                                          in setHeaderBS (original hContentType) (C.pack $ "multipart/byteranges; boundary=" ++ boundary) $
-                                                            response { rsCode = 206
-                                                                     , rsBody = showMultipartBody boundary (MultiPart.MultiPart (map (mkPart contentLength ct (rsBody response)) ranges)) -- FIXME: probably a space leak
+                                                            Response { rsCode      = 206
+                                                                     , rsHeaders   = M.empty -- rsHeaders response
+                                                                     , rsFlags     = nullRsFlags -- rsFlags   response
+                                                                     , rsBody      = showMultipartBody boundary (mkMultipart contentLength ct (rsBody response) ranges)
+                                                                     , rsValidator = Nothing
                                                                      }
+{-
+                                                            response { rsCode = 206
+                                                                     , rsBody = showMultipartBody boundary (mkMultipart contentLength ct (rsBody response) ranges)
+                                                                     }
+-}
                                              SendFile {} ->
                                                  case sfSendFile response of
                                                    (SinglePart filePath offset count)
@@ -243,7 +264,7 @@ withRange part =
                                                              Nothing -> ((toResponse ()) { rsCode = 416 }) -- FIXME: add headers
                                                              Just [] -> ((toResponse ()) { rsCode = 416 }) -- FIXME: add headers
                                                              Just ranges ->
-                                                                 let boundary =  C.pack "multipart_byteranges_boundary_XXX"
+                                                                 let boundary =  C.pack "multipart_byteranges_boundary_XXX" -- FIXME: should be more random
                                                                      ct = case getHeaderBS (original hContentType) (rsHeaders response) of
                                                                             Nothing -> C.pack "application/octet-stream"
                                                                             (Just ct') -> ct'
@@ -314,6 +335,18 @@ withRange part =
                        , (HeaderName "Content-Range", (C.unpack $ renderByteRanges [ByteRangeFromTo f t]) ++ "/" ++ show contentLength)
                        ]
               (Lazy.take (fromInteger (1 + t - f)) $ Lazy.drop (fromInteger f) $ body)
+      -- (MultiPart.MultiPart (map (mkPart contentLength ct (rsBody response)) ranges)) -- FIXME: probably a space leak
+      mkMultipart :: Integer -> String -> Lazy.ByteString -> [(Integer, Integer)] -> MultiPart.MultiPart
+      mkMultipart contentLength ct body ranges = MultiPart.MultiPart (mkBodyParts contentLength ct 0 body ranges)
+
+      -- by this time we should be able to assume ranges are non-overlapping due to earlier checks
+      mkBodyParts :: Integer -> String -> Integer -> Lazy.ByteString -> [(Integer, Integer)] -> [MultiPart.BodyPart]
+      mkBodyParts _ _ _ remainingBody [] = []
+      mkBodyParts contentLength ct offset remainingBody ((f, t):rest) =
+        let (bdy, remainingBody') = Lazy.splitAt (fromIntegral $ 1 + t - f) (Lazy.drop (fromIntegral $ (f - offset)) remainingBody)
+        in (MultiPart.BodyPart [ (HeaderName "Content-Type", ct)
+                               , (HeaderName "Content-Range", ("bytes " ++ (C.unpack $ renderByteRange (ByteRangeFromTo f t)) ++ "/" ++ show contentLength))
+                               ] bdy) : (mkBodyParts contentLength ct (t + 1) remainingBody' rest)
 
 {-
       mkFilePart :: String -> FilePath -> ByteRange -> FilePart
