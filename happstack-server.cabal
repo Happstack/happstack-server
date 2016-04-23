@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             7.4.6.1
+Version:             7.5
 Synopsis:            Web related tools and services.
 Description:         Happstack Server provides an HTTP server and a rich set of functions for routing requests, handling query parameters, generating responses, working with cookies, serving files, and more. For in-depth documentation see the Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>
 License:             BSD3
@@ -23,6 +23,10 @@ Flag template_haskell
 
 flag network-uri
     description: Get Network.URI from the network-uri package
+    default: True
+
+flag hslogger
+    description: If True use hslogger, otherwise use logging and fast-logger
     default: True
 
 Library
@@ -72,6 +76,12 @@ Library
                        network-uri >= 2.6 && < 2.7
   else
      build-depends:    network               < 2.6
+
+  if flag(hslogger)
+     build-depends:    hslogger               >= 1.0.2
+  else
+     build-depends:    logging
+
   Build-Depends:       base                   >= 4    && < 5,
                        base64-bytestring      == 1.0.*,
                        blaze-html             >= 0.5  && < 0.9,
@@ -81,7 +91,6 @@ Library
                        exceptions,
                        extensible-exceptions,
                        filepath,
-                       hslogger               >= 1.0.2,
                        html,
                        monad-control          >= 0.3  && < 1.1,
                        mtl                    >= 2    && < 2.3,
@@ -92,6 +101,8 @@ Library
                        system-filepath        >= 0.3.1,
                        syb,
                        text                   >= 0.10  && < 1.3,
+                       th-lift,
+                       th-orphans,
                        time,
                        time-compat,
                        threads                >= 0.5,

@@ -44,7 +44,9 @@ import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
 import Numeric (readDec, readSigned)
+#if defined(MIN_VERSION_hslogger)
 import System.Log.Logger (Priority(..), logM)
+#endif
 
 -- | HTTP version
 data HttpVersion = HttpVersion Int Int
@@ -129,7 +131,11 @@ nullConf =
 -- see also: 'Conf'
 logMAccess :: forall t. FormatTime t => LogAccess t
 logMAccess host user time requestLine responseCode size referer userAgent =
+#if defined(MIN_VERSION_hslogger)
     logM "Happstack.Server.AccessLog.Combined" INFO $ formatRequestCombined host user time requestLine responseCode size referer userAgent
+#else
+    error "logMAccess"
+#endif
 
 -- | HTTP request method
 data Method = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT | PATCH | EXTENSION ByteString

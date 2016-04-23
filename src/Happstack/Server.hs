@@ -57,6 +57,8 @@ module Happstack.Server
     , module Happstack.Server.Error
     -- * I18N
     , module Happstack.Server.I18N
+    -- * Logging functions
+    , module Happstack.Server.Internal.LogFormat
     -- * Web-related Monads
     , module Happstack.Server.Monads
     -- * Proxying
@@ -88,6 +90,7 @@ import Happstack.Server.Auth
 import Happstack.Server.Cookie
 import Happstack.Server.Error
 import Happstack.Server.I18N
+import Happstack.Server.Internal.LogFormat (logNotice, logWarn, logDebug, logError, __LOC__)
 import Happstack.Server.Response
 import Happstack.Server.Routing
 import Happstack.Server.Proxy

@@ -1,8 +1,9 @@
-{-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns, CPP, OverloadedStrings, ScopedTypeVariables #-}
 module Happstack.Server.Internal.Listen(listen, listen',listenOn,listenOnIPv4) where
 
 import Happstack.Server.Internal.Types          (Conf(..), Request, Response)
 import Happstack.Server.Internal.Handler        (request)
+import Happstack.Server.Internal.LogFormat      (__LOC__, logError, logNotice)
 import Happstack.Server.Internal.Socket         (acceptLite)
 import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register, forceTimeoutAll)
 import Happstack.Server.Internal.TimeoutSocket  as TS
@@ -10,6 +11,10 @@ import qualified Control.Concurrent.Thread.Group as TG
 import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad
+import Data.Monoid ((<>))
+import Data.Text (pack, Text)
+import Language.Haskell.TH (litE, stringL)
+import Language.Haskell.TH.Syntax (location, loc_module)
 import Network.BSD                              (getProtocolNumber)
 import Network                                  (Socket)
 import Network.Socket as Socket (SocketOption(KeepAlive), close, setSocketOption,
@@ -26,10 +31,6 @@ import System.Posix.Signals
 {-
 #endif
 -}
-import System.Log.Logger (Priority(..), logM)
-log':: Priority -> String -> IO ()
-log' = logM "Happstack.Server.HTTP.Listen"
-
 
 {-
    Network.listenOn binds randomly to IPv4 or IPv6 or both,
@@ -90,8 +91,8 @@ listen' s conf hand = do
                Just tg -> \m -> fst `liftM` TG.forkIO tg m
   tm <- initialize ((timeout conf) * (10^(6 :: Int)))
   -- http:// loop
-  log' NOTICE ("Listening for http:// on port " ++ show port')
-  let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ log' ERROR ("HTTP request failed with: " ++ show x)
+  logNotice $__LOC__ ("Listening for http:// on port " <> pack (show port'))
+  let eh (x::SomeException) = when ((fromException x) /= Just ThreadKilled) $ logError $__LOC__ ("HTTP request failed with: " <> pack (show x))
       work (sock, hn, p) =
           do tid <- myThreadId
              thandle <- register tm (killThread tid)
@@ -102,7 +103,7 @@ listen' s conf hand = do
              close sock
       loop = forever $ do w <- acceptLite s
                           fork $ work w
-      pe e = log' ERROR ("ERROR in http accept thread: " ++ show e)
+      pe e = logError $__LOC__ ("ERROR in http accept thread: " <> pack (show e))
       infi :: IO ()
       infi = loop `catchSome` pe >> infi
 

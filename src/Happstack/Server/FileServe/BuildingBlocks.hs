@@ -65,15 +65,20 @@ import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
+import Data.Monoid                  ((<>))
+import Data.Text                    (pack)
 import Data.Time.Compat             (toUTCTime)
 import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
+import Happstack.Server.Internal.LogFormat (logDebug, __LOC__)
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
 import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
 import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid)
 import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
+#if defined(MIN_VERSION_hslogger)
 import System.Log.Logger            (Priority(DEBUG), logM)
+#endif
 import           Text.Blaze.Html             ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -356,7 +361,7 @@ fileServe' :: ( WebMonad Response m
 fileServe' serveFn mimeFn indexFn localPath = do
     rq <- askRq
     if (not $ isSafePath (rqPaths rq))
-       then do liftIO $ logM "Happstack.Server.FileServe" DEBUG ("fileServe: unsafe filepath " ++ show (rqPaths rq))
+       then do liftIO $ logDebug $__LOC__ (pack ("fileServe: unsafe filepath " <> show (rqPaths rq)))
                mzero
        else do let fp = joinPath (localPath : rqPaths rq)
                fe <- liftIO $ doesFileExist fp
@@ -364,7 +369,7 @@ fileServe' serveFn mimeFn indexFn localPath = do
                let status | de   = "DIR"
                           | fe   = "file"
                           | True = "NOT FOUND"
-               liftIO $ logM "Happstack.Server.FileServe" DEBUG ("fileServe: "++show fp++" \t"++status)
+               liftIO $ logDebug $__LOC__ (pack ("fileServe: " <> show fp <> " \t" <> status))
                if de
                   then if last (rqUri rq) == '/'
                           then indexFn fp
