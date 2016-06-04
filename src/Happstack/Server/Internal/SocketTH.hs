@@ -20,7 +20,11 @@ supportsIPv6 = $(let c = ["Network.Socket.SockAddrInet6", "Network.Socket.Intern
                  in
                  do info <- reify d
                     case info of
+#if MIN_VERSION_template_haskell(2,11,0)
+                      TyConI (DataD _ _ _ _ cs _) ->
+#else
                       TyConI (DataD _ _ _ cs _) ->
+#endif
                         if any isInet6 cs
                           then [| True |]
                           else [| False |]
