@@ -6,6 +6,7 @@ module Happstack.Server.Internal.Monads where
 import Control.Applicative                       (Applicative, pure, (<*>), Alternative(empty,(<|>)))
 
 import Control.Concurrent                        (newMVar)
+import Control.Exception                         (throwIO)
 
 import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
@@ -50,7 +51,8 @@ import Debug.Trace                               (trace)
 
 import Happstack.Server.Internal.Cookie          (Cookie)
 import Happstack.Server.Internal.RFC822Headers   (parseContentType)
-import Happstack.Server.Internal.Types           (canHaveBody)
+import Happstack.Server.Internal.Types           (EscapeHTTP(..), canHaveBody)
+import Happstack.Server.Internal.TimeoutIO       (TimeoutIO)
 import Happstack.Server.Types
 import Prelude                                   (Bool(..), Either(..), Eq(..), Functor(..), IO, Monad(..), Char, Maybe(..), String, Show(..), ($), (.), (>), (++), (&&), (||), (=<<), const, concatMap, flip, id, otherwise, zip)
 
@@ -809,3 +811,8 @@ instance (FilterMonad a m) => FilterMonad a (ExceptT e m) where
 
 instance WebMonad a m => WebMonad a (ExceptT e m) where
     finishWith    = lift . finishWith
+
+escapeHTTP :: (ServerMonad m, MonadIO m) =>
+              (TimeoutIO -> IO ())
+           -> m a
+escapeHTTP h = liftIO (throwIO (EscapeHTTP h))

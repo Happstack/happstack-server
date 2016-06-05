@@ -34,6 +34,16 @@ sPutTickle thandle sock cs =
        return ()
 {-# INLINE sPutTickle #-}
 
+sGet :: TM.Handle
+     -> Socket
+     -> IO (Maybe B.ByteString)
+sGet handle socket =
+  do s <- N.recv socket 65536
+     TM.tickle handle
+     if S.null s
+       then pure Nothing
+       else pure (Just s)
+
 sGetContents :: TM.Handle
              -> Socket         -- ^ Connected socket
              -> IO L.ByteString  -- ^ Data received
@@ -79,6 +89,7 @@ timeoutSocketIO handle socket =
     TimeoutIO { toHandle      = handle
               , toShutdown    = sClose socket
               , toPutLazy     = sPutLazyTickle handle socket
+              , toGet         = sGet           handle socket
               , toPut         = sPutTickle     handle socket
               , toGetContents = sGetContents   handle socket
               , toSendFile    = sendFileTickle handle socket

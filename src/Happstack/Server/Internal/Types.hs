@@ -16,9 +16,11 @@ module Happstack.Server.Internal.Types
      HttpVersion(..), Length(..), Method(..), canHaveBody, Headers, continueHTTP,
      Host, ContentType(..),
      readDec', fromReadS, readM, FromReqURI(..),
-     showRsValidator
+     showRsValidator, EscapeHTTP(..)
     ) where
 
+
+import Control.Exception (Exception, SomeException)
 import Control.Monad.Error (Error(strMsg))
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Control.Concurrent.Thread.Group as TG
@@ -43,6 +45,7 @@ import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.LogFormat (formatRequestCombined)
+import Happstack.Server.Internal.TimeoutIO (TimeoutIO)
 import Numeric (readDec, readSigned)
 import System.Log.Logger (Priority(..), logM)
 
@@ -515,3 +518,17 @@ instance FromReqURI Bool    where
       "1"     -> Just True
       "true"  -> Just True
       _       -> Nothing
+
+------------------------------------------------------------------------------
+-- EscapeHTTP - escape hatched use by websockets
+------------------------------------------------------------------------------
+
+-- | Escape from the HTTP world and get direct access to the underlying 'TimeoutIO' functions
+data EscapeHTTP
+  = EscapeHTTP (TimeoutIO -> IO ())
+    deriving (Typeable)
+
+instance Exception EscapeHTTP
+
+instance Show EscapeHTTP where
+  show (EscapeHTTP {})         = "<EscapeHTTP _>"

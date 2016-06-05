@@ -15,6 +15,7 @@ data TimeoutIO = TimeoutIO
     { toHandle      :: Handle
     , toPutLazy     :: L.ByteString -> IO ()
     , toPut         :: B.ByteString -> IO ()
+    , toGet         :: IO (Maybe B.ByteString)
     , toGetContents :: IO L.ByteString
     , toSendFile    :: FilePath -> Offset -> ByteCount -> IO ()
     , toShutdown    :: IO ()
