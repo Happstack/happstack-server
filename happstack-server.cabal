@@ -120,7 +120,6 @@ Library
                        TypeSynonymInstances, PatternGuards
                        CPP, ForeignFunctionInterface
   ghc-options:         -Wall -fwarn-tabs
-  GHC-Prof-Options:    -auto-all
   -- The policy is to support GHC versions no older than the GHC stable
   -- branch that was used by the latest Haskell Platform release
   -- available 18 months ago. In order to avoid people spending time
