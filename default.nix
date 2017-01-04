@@ -9,8 +9,8 @@
 mkDerivation {
   pname = "happstack-server";
   version = "7.4.6.1";
-  src = cabalsdist { pathname = ./.; };
-
+#  src = cabalsdist { pathname = ./.; };
+  src = ./.;
   buildDepends = [
     base base64-bytestring blaze-html bytestring containers directory
     exceptions extensible-exceptions filepath hslogger html
