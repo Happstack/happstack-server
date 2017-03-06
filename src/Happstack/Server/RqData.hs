@@ -3,7 +3,7 @@
 --
 -- For in-depth documentation see the following section of the Happstack Crash Course:
 --
--- <http://happstack.com/docs/crashcourse/RqData.html>
+-- <http://www.happstack.com/docs/crashcourse/index.html#parsing-request-data-from-the-query_string-cookies-and-request-body>
 module Happstack.Server.RqData
     ( -- * Looking up keys
       -- ** Form Values and Query Parameters
