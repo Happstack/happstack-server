@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, PatternGuards, ScopedTypeVariables, TypeSynonymInstances #-}
--- | Route an incoming 'Request' to a handler. For more in-depth documentation see this section of the Happstack Crash Course: <http://happstack.com/docs/crashcourse/RouteFilters.html>
+-- | Route an incoming 'Request' to a handler. For more in-depth documentation see this section of the Happstack Crash Course: <http://www.happstack.com/docs/crashcourse/index.html#route-filters>
 module Happstack.Server.Routing
     ( -- * Route by scheme
       http
