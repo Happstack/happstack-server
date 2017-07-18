@@ -4,6 +4,7 @@
 -}
 module Happstack.Server.Internal.Timeout where
 
+import           Control.Applicative           (pure)
 import           Control.Concurrent            (ThreadId, forkIO, killThread, threadDelay, threadWaitWrite)
 import           Control.Exception             (SomeException, catch, throw)
 import           Control.Monad                 (liftM, when)
