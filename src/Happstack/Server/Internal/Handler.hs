@@ -56,7 +56,7 @@ rloop :: TimeoutIO
 rloop timeoutIO mlog host handler inputStr
     | L.null inputStr = return ()
     | otherwise
-    = join $
+    = (join $
       do let parseRequest
                  = do
                       (topStr, restStr) <- required "failed to separate request" $ splitAtEmptyLine inputStr
@@ -76,7 +76,7 @@ rloop timeoutIO mlog host handler inputStr
          case parseRequest of
            Left err -> error $ "failed to parse HTTP request: " ++ err
            Right (m, u, cookies, v, headers, body, nextRequest)
-               -> return $
+              -> pure $
                   do bodyRef        <- newMVar (Body body)
                      bodyInputRef   <- newEmptyMVar
                      let req = Request (toSecure timeoutIO) m (pathEls (path u)) (path u) (query u)
@@ -85,7 +85,9 @@ rloop timeoutIO mlog host handler inputStr
                      let ioseq act = act >>= \x -> x `seq` return x
 
                      (res, handlerKilled) <- ((, False) `liftM` ioseq (handler req))
-                         `E.catch` \(e::E.SomeException) -> return (failResponse (show e), fromException e == Just ThreadKilled)
+                         `E.catches` [ Handler $ \(e::EscapeHTTP)      -> throwIO e -- need to handle this higher up
+                                     , Handler $ \(e::E.SomeException) -> pure (failResponse (show e), fromException e == Just ThreadKilled)
+                                     ]
 
                      case mlog of
                        Nothing -> return ()
@@ -106,7 +108,12 @@ rloop timeoutIO mlog host handler inputStr
                      cleanupTempFiles req
                      -- do not continue if handler was killed
                      when (not handlerKilled && continueHTTP req res) $
-                         rloop timeoutIO mlog host handler nextRequest
+                         rloop timeoutIO mlog host handler nextRequest) `E.catch` (escapeHttpHandler timeoutIO)
+
+escapeHttpHandler :: TimeoutIO
+                  -> EscapeHTTP
+                  -> IO ()
+escapeHttpHandler tio (EscapeHTTP f) = f tio
 
 -- NOTE: if someone took the inputs and never put them back, then they are responsible for the cleanup
 cleanupTempFiles :: Request -> IO ()

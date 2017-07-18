@@ -35,6 +35,8 @@ module Happstack.Server.Monads
       -- * MonadPlus helpers
     , require
     , requireM
+    -- * escapeHTTP
+    , escapeHTTP
     ) where
 
 import Control.Applicative               (Alternative, Applicative)
@@ -109,3 +111,4 @@ requireM fn handle = do
     case mbVal of
         Nothing -> mzero
         Just a -> handle a
+
