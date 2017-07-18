@@ -8,6 +8,7 @@ module Happstack.Server.Internal.Handler
 
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
+import Control.Applicative (pure)
 import Control.Concurrent (newMVar, newEmptyMVar, tryTakeMVar)
 import Control.Exception.Extensible as E
 import Control.Monad
