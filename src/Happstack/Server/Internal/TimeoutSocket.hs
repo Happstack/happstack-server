@@ -4,6 +4,7 @@
 -}
 module Happstack.Server.Internal.TimeoutSocket where
 
+import           Control.Applicative           (pure)
 import           Control.Concurrent            (threadWaitWrite)
 import           Control.Exception             as E (catch, throw)
 import           Control.Monad                 (liftM, when)
