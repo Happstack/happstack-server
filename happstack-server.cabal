@@ -130,6 +130,7 @@ Library
     buildable: False
 
 Test-Suite happstack-server-tests
+  Default-language:    Haskell2010
   Type: exitcode-stdio-1.0
   Main-Is: Test.hs
   GHC-Options: -threaded
