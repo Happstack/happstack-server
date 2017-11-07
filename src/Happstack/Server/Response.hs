@@ -97,7 +97,7 @@ class ToMessage a where
     toContentType _ = B.pack "text/plain"
     toMessage :: a -> L.ByteString
     toMessage = error "Happstack.Server.SimpleHTTP.ToMessage.toMessage: Not defined"
-    toResponse:: a -> Response
+    toResponse :: a -> Response
     toResponse val =
         let bs = toMessage val
             res = Response 200 M.empty nullRsFlags bs Nothing
