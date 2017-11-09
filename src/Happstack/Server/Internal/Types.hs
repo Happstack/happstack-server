@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, FlexibleInstances, RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances, DeriveAnyClass, DeriveDataTypeable, DeriveGeneric, FlexibleInstances, RankNTypes #-}
 
 module Happstack.Server.Internal.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
@@ -20,6 +20,7 @@ module Happstack.Server.Internal.Types
     ) where
 
 
+import Control.DeepSeq (NFData)
 import Control.Exception (Exception, SomeException)
 import Control.Monad.Error (Error(strMsg))
 import Control.Monad.Trans (MonadIO(liftIO))
@@ -40,6 +41,7 @@ import Data.List
 import Data.Word  (Word, Word8, Word16, Word32, Word64)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as Lazy
+import GHC.Generics (Generic)
 import Happstack.Server.SURI
 import Data.Char (toLower)
 import Happstack.Server.Internal.RFC822Headers ( ContentType(..) )
@@ -155,7 +157,7 @@ data HeaderPair = HeaderPair
     { hName :: ByteString     -- ^ header name
     , hValue :: [ByteString]  -- ^ header value (or values if multiple occurances of the header are present)
     }
-    deriving (Read,Show)
+    deriving (Read,Show,Generic,NFData)
 
 -- | a Map of HTTP headers
 --
@@ -171,12 +173,12 @@ data Length
     = ContentLength             -- ^ automatically add a @Content-Length@ header to the 'Response'
     | TransferEncodingChunked   -- ^ do not add a @Content-Length@ header. Do use @chunked@ output encoding
     | NoContentLength           -- ^ do not set @Content-Length@ or @chunked@ output encoding.
-      deriving (Eq, Ord, Read, Show, Enum)
+      deriving (Eq, Ord, Read, Show, Enum, Generic, NFData)
 
 -- | Result flags
 data RsFlags = RsFlags
     { rsfLength :: Length
-    } deriving (Show,Read,Typeable)
+    } deriving (Show,Read,Typeable,Generic,NFData)
 
 -- | Default RsFlags: automatically use @Transfer-Encoding: Chunked@.
 nullRsFlags :: RsFlags
@@ -222,7 +224,7 @@ data Response
                 , sfOffset    :: Integer   -- ^ offset to start at
                 , sfCount     :: Integer    -- ^ number of bytes to send
                 }
-      deriving (Typeable)
+      deriving (Generic, NFData, Typeable)
 
 instance Show Response where
     showsPrec _ res@Response{}  =

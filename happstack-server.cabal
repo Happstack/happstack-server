@@ -79,6 +79,7 @@ Library
                        blaze-html             >= 0.5  && < 0.10,
                        bytestring,
                        containers,
+                       deepseq,
                        directory,
                        exceptions,
                        extensible-exceptions,
