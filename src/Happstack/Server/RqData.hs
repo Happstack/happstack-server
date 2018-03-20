@@ -78,6 +78,7 @@ import Data.Either                              (partitionEithers)
 import Data.Generics                            (Data, Typeable)
 import Data.Maybe                               (fromJust)
 import Data.Monoid                              (Monoid(mempty, mappend, mconcat))
+import qualified Data.Semigroup                 as SG
 import           Data.Text                      (Text)
 import qualified Data.Text.Lazy                 as LazyText
 import qualified Data.Text.Lazy.Encoding        as LazyText
@@ -113,9 +114,12 @@ apEither (Right f)    (Right a)    = Right (f a)
 newtype Errors a = Errors { unErrors :: [a] }
     deriving (Eq, Ord, Show, Read, Data, Typeable)
 
+instance SG.Semigroup (Errors a) where
+    (Errors x) <> (Errors y) = Errors (x ++ y)
+
 instance Monoid (Errors a) where
     mempty = Errors []
-    (Errors x) `mappend` (Errors y) = Errors (x ++ y)
+    mappend = (SG.<>)
     mconcat errs = Errors $ concatMap unErrors errs
 
 instance Error (Errors String) where
