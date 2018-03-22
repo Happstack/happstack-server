@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, FlexibleContexts, ScopedTypeVariables, Rank2Types #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, FlexibleContexts, ScopedTypeVariables, Rank2Types #-}
 -- | Build your own file serving functions
 --
 -- If the functions in "Happstack.Server.FileServe" do not quite do

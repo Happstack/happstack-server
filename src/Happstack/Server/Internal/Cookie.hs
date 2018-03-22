@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP, DeriveDataTypeable #-}
 
 -- http://tools.ietf.org/html/rfc2109
 module Happstack.Server.Internal.Cookie

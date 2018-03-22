@@ -116,7 +116,7 @@ Library
      Build-Depends:    unix
      cpp-options:      -DUNIX
 
-  Extensions:          DeriveDataTypeable, MultiParamTypeClasses,
+  Other-extensions:    DeriveDataTypeable, MultiParamTypeClasses,
                        TypeFamilies, FlexibleContexts, OverlappingInstances,
                        FlexibleInstances, UndecidableInstances, ScopedTypeVariables,
                        TypeSynonymInstances, PatternGuards
