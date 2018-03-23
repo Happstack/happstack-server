@@ -116,10 +116,11 @@ Library
      Build-Depends:    unix
      cpp-options:      -DUNIX
 
-  Other-extensions:    DeriveDataTypeable, MultiParamTypeClasses,
-                       TypeFamilies, FlexibleContexts, OverlappingInstances,
-                       FlexibleInstances, UndecidableInstances, ScopedTypeVariables,
-                       TypeSynonymInstances, PatternGuards
+  Default-Extensions:  OverlappingInstances
+  Other-Extensions:    DeriveDataTypeable, MultiParamTypeClasses,
+                       TypeFamilies, FlexibleContexts,
+                       FlexibleInstances, UndecidableInstances,
+                       ScopedTypeVariables, TypeSynonymInstances, PatternGuards
                        CPP, ForeignFunctionInterface
   ghc-options:         -Wall -fwarn-tabs
   -- The policy is to support GHC versions no older than the GHC stable
