@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# OPTIONS -fno-cse #-}
 module Happstack.Server.Internal.Clock
     ( getApproximateTime

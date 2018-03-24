@@ -45,6 +45,7 @@ import Data.Char                                 (ord)
 import Data.List                                 (inits, isPrefixOf, stripPrefix, tails)
 import Data.Maybe                                (fromMaybe)
 import Data.Monoid                               (Monoid(mempty, mappend), Dual(..), Endo(..))
+import qualified Data.Semigroup                  as SG
 import qualified Paths_happstack_server          as Cabal
 import qualified Data.Version                    as DV
 import Debug.Trace                               (trace)
@@ -184,9 +185,12 @@ mapServerPartT' f ma = withRequest $ \rq -> mapWebT (f rq) (runServerPartT ma rq
 instance MonadTrans (ServerPartT) where
     lift m = withRequest (\_ -> lift m)
 
+instance (Monad m, MonadPlus m) => SG.Semigroup (ServerPartT m a) where
+    (<>) = mplus
+
 instance (Monad m, MonadPlus m) => Monoid (ServerPartT m a) where
     mempty  = mzero
-    mappend = mplus
+    mappend = (SG.<>)
 
 instance (Monad m, Functor m) => Applicative (ServerPartT m) where
     pure = return
@@ -282,12 +286,14 @@ smLocalRqEnv f m = do
 data SetAppend a = Set a | Append a
     deriving (Eq, Show)
 
-instance Monoid a => Monoid (SetAppend a) where
-   mempty = Append mempty
+instance Monoid a => SG.Semigroup (SetAppend a) where
+   Set    x <> Append y = Set    (x `mappend` y)
+   Append x <> Append y = Append (x `mappend` y)
+   _        <> Set y    = Set y
 
-   Set    x `mappend` Append y = Set    (x `mappend` y)
-   Append x `mappend` Append y = Append (x `mappend` y)
-   _        `mappend` Set y    = Set y
+instance Monoid a => Monoid (SetAppend a) where
+   mempty  = Append mempty
+   mappend = (SG.<>)
 
 -- | Extract the value from a 'SetAppend'.
 -- Note that a 'SetAppend' is actually a @CoPointed@ from:
@@ -547,9 +553,12 @@ instance (Monad m) => FilterMonad Response (WebT m) where
           lft (Left  r, _) = Left r
           lft (Right a, f) = Right (a, f)
 
+instance (Monad m, MonadPlus m) => SG.Semigroup (WebT m a) where
+    (<>) = mplus
+
 instance (Monad m, MonadPlus m) => Monoid (WebT m a) where
-    mempty = mzero
-    mappend = mplus
+    mempty  = mzero
+    mappend = (SG.<>)
 
 -- | For when you really need to unpack a 'WebT' entirely (and not
 -- just unwrap the first layer with 'unWebT').

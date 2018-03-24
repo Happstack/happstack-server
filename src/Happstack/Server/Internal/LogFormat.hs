@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Happstack.Server.Internal.LogFormat
   ( formatTimeCombined
   , formatRequestCombined
