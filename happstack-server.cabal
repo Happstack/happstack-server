@@ -139,7 +139,7 @@ Test-Suite happstack-server-tests
   GHC-Options: -threaded
   hs-source-dirs: tests
   Build-depends: HUnit,
-                 base,
+                 base >= 4    && < 5,
                  bytestring,
                  containers,
                  happstack-server,
