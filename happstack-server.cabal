@@ -11,7 +11,7 @@ Category:            Web, Happstack
 Build-Type:          Simple
 Cabal-Version:       >= 1.10
 Extra-Source-Files:  tests/Happstack/Server/Tests.hs README.md
-tested-with:         GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.2, GHC==8.0.1, GHC==8.2.2
+tested-with:         GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.2, GHC==8.0.1, GHC==8.2.2, GHC==8.4.1
 
 source-repository head
     type:     git
