@@ -72,11 +72,16 @@ type FileSaver = FilePath               -- ^ tempdir
                 -> IO (Bool, Int64 , FilePath)  -- ^ truncated?, saved bytes, saved filename
 
 defaultFileSaver :: FilePath -> Int64 -> FilePath -> ByteString -> IO (Bool, Int64, FilePath)
-defaultFileSaver tmpDir diskQuota filename b =
+defaultFileSaver tmpDir diskQuota filename b
+  | pathSeparator filename = error ("Filename contains path separators: " ++ show filename)
+  | otherwise =
     do (fn, h) <- openBinaryTempFile tmpDir filename
        (trunc, len) <- hPutLimit diskQuota h b
        hClose h
        return (trunc, len, fn)
+ where
+   pathSeparator :: String -> Bool
+   pathSeparator template = any (\x-> x == '/' || x == '\\') template
 
 defaultInputIter :: FileSaver -> FilePath -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Work -> IO InputIter
 defaultInputIter fileSaver tmpDir diskCount ramCount headerCount maxDisk maxRAM maxHeader (BodyWork ctype ps b)
