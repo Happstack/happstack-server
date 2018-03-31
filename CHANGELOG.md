@@ -2,7 +2,7 @@
 =====
 
  - anyone using base < 4.10 should upgrade to 7.5.1 or higher
- - disallow path separator in filename for POST data
+ - disallow path separator in filename for POST data (reported by Hamid Ebadi)
 
 7.4.6
 =====
