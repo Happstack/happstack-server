@@ -87,6 +87,7 @@ import Happstack.Server.Internal.Monads
 import Happstack.Server.Types
 import Happstack.Server.Internal.MessageWrap    (BodyPolicy(..), bodyInput, defaultBodyPolicy)
 import Happstack.Server.Response                (requestEntityTooLarge, toResponse)
+import Network.URI.Encode                       (decode)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad, MonadPlus)
@@ -451,7 +452,9 @@ lookCookie name
     = do (_query,_body, cookies) <- askRqEnv
          case lookup (map toLower name) cookies of -- keys are lowercased
            Nothing -> rqDataError $ strMsg $ "lookCookie: cookie not found: " ++ name
-           Just c  -> return c
+           Just c  -> return c{cookieValue = f c}
+  where
+    f cookie = decode . init . tail $ cookieValue cookie
 
 -- | gets the named cookie as a string
 lookCookieValue :: (Functor m, Monad m, HasRqData m) => String -> m String
