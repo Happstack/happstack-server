@@ -454,7 +454,7 @@ lookCookie name
            Nothing -> rqDataError $ strMsg $ "lookCookie: cookie not found: " ++ name
            Just c  -> return c{cookieValue = f c}
   where
-    f = unEscapeString . init . tail . cookieValue 
+    f = unEscapeString . cookieValue 
 
 -- | gets the named cookie as a string
 lookCookieValue :: (Functor m, Monad m, HasRqData m) => String -> m String
