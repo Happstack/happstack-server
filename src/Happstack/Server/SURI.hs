@@ -60,7 +60,10 @@ a_path a (SURI u) = SURI $ u {URI.uriPath=a}
 --
 -- e.g. @\"hello%2Fworld\"@ -> @\"hello/world\"@
 percentDecode :: String -> String
-percentDecode = URI.unEscapeString
+percentDecode [] = ""
+percentDecode ('%':x1:x2:s) | isHexDigit x1 && isHexDigit x2 =
+    chr (digitToInt x1 * 16 + digitToInt x2) : percentDecode s
+percentDecode (c:s) = c : percentDecode s
 
 unEscape, unEscapeQS :: String -> String
 unEscapeQS = percentDecode . map (\x->if x=='+' then ' ' else x)
