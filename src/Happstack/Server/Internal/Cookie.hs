@@ -24,7 +24,7 @@ import Data.List             ((\\), intersperse)
 import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Happstack.Server.Internal.Clock (getApproximateUTCTime)
-import Network.URI.Encode    (encode)
+import Network.URI           (escapeURIString)
 import Text.ParserCombinators.Parsec hiding (token)
 
 #if MIN_VERSION_time(1,5,0)
@@ -104,7 +104,11 @@ mkCookieHeader mLife cookie =
       , (,) "Path="    (cookiePath cookie)
       , (,) "Version=" (s cookieVersion)
       ]
-    formatTime' = formatTime defaultTimeLocale "%a, %d-%b-%Y %X GMT"
+    formatTime' =
+      formatTime defaultTimeLocale "%a, %d-%b-%Y %X GMT"
+    encode =
+      escapeURIString
+        (\c -> c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'] ++ "-_.~"))
     s f | f cookie == "" = ""
         | otherwise      = '\"' : (encode $ f cookie) ++ "\""
   in
