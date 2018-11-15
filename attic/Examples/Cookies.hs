@@ -93,7 +93,7 @@ viewCookieCss = concat
   , "} "
   , "form { "
   , "  padding: 40px 60px;"
-  , "  border: 1px solid navy; border-radius: 15px;"
+  , "  border: 1px solid silver; border-radius: 15px;"
   , "  background-color: rgb(235,235,255);"
   , "  box-shadow: 1px 1px 5px 3px rgba(0,0,0,0.2);"
   , "  }"
