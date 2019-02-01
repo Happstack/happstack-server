@@ -24,6 +24,7 @@ import Data.List             ((\\), intersperse)
 import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Happstack.Server.Internal.Clock (getApproximateUTCTime)
+import Network.URI           (escapeURIString)
 import Text.ParserCombinators.Parsec hiding (token)
 
 #if MIN_VERSION_time(1,5,0)
@@ -95,21 +96,28 @@ mkCookie key val = Cookie "1" "/" "" key val False False
 -- the first argument to this function.
 mkCookieHeader :: Maybe (Int, UTCTime) -> Cookie -> String
 mkCookieHeader mLife cookie =
-    let l = [("Domain=",  cookieDomain cookie)
-            ,("Max-Age=", maybe "" (show . max 0 . fst) mLife)
-            ,("expires=", maybe "" (formatTime defaultTimeLocale "%a, %d-%b-%Y %X GMT" . snd) mLife)
-            ,("Path=",    cookiePath cookie)
-            ,("Version=", s cookieVersion)]
-        s f | f cookie == "" = ""
-        s f   = '\"' : concatMap e (f cookie) ++ "\""
-        e c | fctl c || c == '"' = ['\\',c]
-            | otherwise          = [c]
-    in concat $ intersperse ";" ((cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ] ++
-                                 (if secure cookie then ["Secure"] else []) ++
-                                 (if httpOnly cookie then ["HttpOnly"] else []))
+  let
+    l =
+      [ (,) "Domain="  (cookieDomain cookie)
+      , (,) "Max-Age=" (maybe "" (show . max 0 . fst) mLife)
+      , (,) "expires=" (maybe "" (formatTime'  . snd) mLife)
+      , (,) "Path="    (cookiePath cookie)
+      , (,) "Version=" (s cookieVersion)
+      ]
+    formatTime' =
+      formatTime defaultTimeLocale "%a, %d-%b-%Y %X GMT"
+    encode =
+      escapeURIString
+        (\c -> c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'] ++ "-_.~"))
+    s f | f cookie == "" = ""
+        | otherwise      = '\"' : (encode $ f cookie) ++ "\""
+  in
+    concat $ intersperse ";" $
+         (cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ]
+      ++ (if secure   cookie then ["Secure"]   else [])
+      ++ (if httpOnly cookie then ["HttpOnly"] else [])
 
-fctl :: Char -> Bool
-fctl ch = ch == chr 127 || ch <= chr 31
+
 
 -- | Not an supported api.  Takes a cookie header and returns
 -- either a String error message or an array of parsed cookies
@@ -193,4 +201,3 @@ getCookie' s h = do
 
 low :: String -> String
 low = map toLower
-
