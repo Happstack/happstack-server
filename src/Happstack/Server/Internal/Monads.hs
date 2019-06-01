@@ -16,6 +16,7 @@ import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
                                                  , Error, MonadError, throwError
                                                  , catchError, mapErrorT
                                                  )
+import qualified Control.Monad.Fail as Fail
 import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
                                                  , MonadReader, ask, local, mapReaderT
                                                  )
@@ -70,7 +71,7 @@ type ServerPart a = ServerPartT IO a
 --
 -- see also: 'simpleHTTP', 'ServerMonad', 'FilterMonad', 'WebMonad', and 'HasRqData'
 newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m) a }
-    deriving (Monad, MonadPlus, Functor)
+    deriving (Monad, MonadPlus, Functor, Fail.MonadFail)
 
 instance MonadCatch m => MonadCatch (ServerPartT m) where
     catch action handle = ServerPartT $ catch (unServerPartT action) (unServerPartT . handle)
@@ -499,6 +500,9 @@ instance Monad m => Monad (WebT m) where
     return a = WebT $ return a
     {-# INLINE return #-}
     fail s = lift (fail s)
+
+instance Fail.MonadFail m => Fail.MonadFail (WebT m) where
+    fail s = lift (Fail.fail s)
 
 -- | 'WebMonad' provides a means to end the current computation
 -- and return a 'Response' immediately.  This provides an

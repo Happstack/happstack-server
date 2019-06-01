@@ -82,6 +82,7 @@ Library
                        directory,
                        exceptions,
                        extensible-exceptions,
+                       fail,
                        filepath,
                        hslogger               >= 1.0.2,
                        html,
