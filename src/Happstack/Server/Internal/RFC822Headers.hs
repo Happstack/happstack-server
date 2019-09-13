@@ -94,7 +94,11 @@ p_parameter =
      -- where nothing is escaped in the filename parameter
      -- of the content-disposition header in multipart/form-data
      let litStr = if p_name == "filename"
-                   then buggyLiteralString
+                   then choice [ try ((lookAhead $ do
+                                        void (literalString >>
+                                              p_parameter))
+                                     >> literalString)
+                               , buggyLiteralString]
                    else literalString
      p_value <- litStr <|> p_token
      return (map toLower p_name, p_value)
