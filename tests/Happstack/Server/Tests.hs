@@ -19,6 +19,7 @@ import Happstack.Server.Internal.Compression
 import Happstack.Server.Internal.Cookie
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.MessageWrap
+import Happstack.Server.Internal.RFC822Headers (ContentDisposition(..), parseContentDisposition)
 import Happstack.Server.SURI(ToSURI(..), path, query)
 import Test.HUnit as HU (Test(..), (~:), (@?=), (@=?), assertEqual)
 import Text.ParserCombinators.Parsec
@@ -32,6 +33,7 @@ allTests =
                                 , compressFilterResponseTest
                                 , matchMethodTest
                                 , cookieHeaderOrderTest
+                                , pContentDispositionFilename
                                 ]
 
 cookieParserTest :: Test
@@ -236,3 +238,12 @@ matchMethodTest =
   where
     gethead = [GET, HEAD]
     others  = [POST, PUT, DELETE, TRACE, OPTIONS, CONNECT]
+
+
+-- | https://github.com/Happstack/happstack-server/pull/56
+pContentDispositionFilename :: Test
+pContentDispositionFilename =
+  "pContentDispositionFilename" ~:
+    do let doesNotWorkWithOldParserButWithNew = "form-data; filename=\"file.pdf\"; name=\"file\"" :: String
+       c <- parseContentDisposition doesNotWorkWithOldParserButWithNew
+       assertEqual "parseContentDisposition" c (ContentDisposition "form-data" [("filename","file.pdf"),("name","file")])

@@ -1,5 +1,5 @@
 Name:                happstack-server
-Version:             7.5.2
+Version:             7.5.3
 Synopsis:            Web related tools and services.
 Description:         Happstack Server provides an HTTP server and a rich set of functions for routing requests, handling query parameters, generating responses, working with cookies, serving files, and more. For in-depth documentation see the Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>
 License:             BSD3
@@ -47,6 +47,7 @@ Library
                        Happstack.Server.Internal.LogFormat
                        Happstack.Server.Internal.MessageWrap
                        Happstack.Server.Internal.Multipart
+                       Happstack.Server.Internal.RFC822Headers
                        Happstack.Server.Internal.Socket
                        Happstack.Server.Internal.TimeoutIO
                        Happstack.Server.Internal.TimeoutManager
@@ -64,7 +65,6 @@ Library
   Other-modules:
                        Happstack.Server.Internal.Clock
                        Happstack.Server.Internal.LazyLiner
-                       Happstack.Server.Internal.RFC822Headers
                        Happstack.Server.Internal.SocketTH
                        Happstack.Server.SURI.ParseURI
                        Paths_happstack_server
