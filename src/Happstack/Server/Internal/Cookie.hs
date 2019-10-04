@@ -177,13 +177,13 @@ cookiesParser = cookies
 -- | Get all cookies from the HTTP request. The cookies are ordered per RFC from
 -- the most specific to the least specific. Multiple cookies with the same
 -- name are allowed to exist.
-getCookies :: Monad m => C.ByteString -> m [Cookie]
+getCookies :: MonadFail m => C.ByteString -> m [Cookie]
 getCookies h = getCookies' h >>=  either (fail. ("Cookie parsing failed!"++)) return
 
 -- | Get the most specific cookie with the given name. Fails if there is no such
 -- cookie or if the browser did not escape cookies in a proper fashion.
 -- Browser support for escaping cookies properly is very diverse.
-getCookie :: Monad m => String -> C.ByteString -> m Cookie
+getCookie :: MonadFail m => String -> C.ByteString -> m Cookie
 getCookie s h = getCookie' s h >>= either (const $ fail ("getCookie: " ++ show s)) return
 
 getCookies' :: Monad m => C.ByteString -> m (Either String [Cookie])
@@ -196,7 +196,7 @@ getCookie' s h = do
     return $ do -- Either
        cooks <- cs
        case filter (\x->(==)  (low s)  (cookieName x) ) cooks of
-            [] -> fail "No cookie found"
+            [] -> Left "No cookie found"
             f -> return $ head f
 
 low :: String -> String

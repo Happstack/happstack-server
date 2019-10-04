@@ -12,7 +12,7 @@ import qualified Data.ByteString.Char8         as B
 import qualified Data.ByteString.Lazy.Char8    as L
 import qualified Data.ByteString.Lazy.Internal as L
 import qualified Data.ByteString               as S
-import           Network.Socket                (sClose)
+import           Network.Socket                (close)
 import qualified Network.Socket.ByteString     as N
 import qualified Happstack.Server.Internal.TimeoutManager as TM
 import           Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
@@ -88,7 +88,7 @@ iterTickle thandle =
 timeoutSocketIO :: TM.Handle -> Socket -> TimeoutIO
 timeoutSocketIO handle socket =
     TimeoutIO { toHandle      = handle
-              , toShutdown    = sClose socket
+              , toShutdown    = close socket
               , toPutLazy     = sPutLazyTickle handle socket
               , toGet         = sGet           handle socket
               , toPut         = sPutTickle     handle socket

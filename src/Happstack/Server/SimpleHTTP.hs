@@ -87,7 +87,7 @@ import Data.Maybe                                (fromMaybe)
 import qualified Data.Version                    as DV
 import Happstack.Server.Internal.Monads          (FilterFun, WebT(..), unFilterFun, runServerPartT, ununWebT)
 import qualified Happstack.Server.Internal.Listen as Listen (listen, listen',listenOn, listenOnIPv4) -- So that we can disambiguate 'Writer.listen'
-import Network                                   (Socket)
+import Network.Socket                            (Socket)
 import qualified Paths_happstack_server          as Cabal
 import System.Console.GetOpt                     ( OptDescr(Option)
                                                  , ArgDescr(ReqArg)
