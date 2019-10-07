@@ -58,8 +58,6 @@ module Happstack.Server.SimpleHTTP
     , module Happstack.Server.Response
     -- ** Request Routing
     , module Happstack.Server.Routing
-    -- ** Proxying
-    , module Happstack.Server.Proxy
     -- ** Looking up values in Query String, Request Body, and Cookies
     , module Happstack.Server.RqData
     -- ** Output Validation
@@ -76,7 +74,6 @@ import Happstack.Server.Monads
 import Happstack.Server.Cookie
 import Happstack.Server.Error
 import Happstack.Server.Types
-import Happstack.Server.Proxy
 import Happstack.Server.Routing
 import Happstack.Server.RqData
 import Happstack.Server.Response

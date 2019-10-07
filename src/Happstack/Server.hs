@@ -10,7 +10,7 @@ Portability :  GHC-only, Windows, Linux, FreeBSD, OS X
 Happstack.Server provides a self-contained HTTP server and a rich collection of types and functions for routing Requests, generating Responses, working with query parameters, form data, and cookies, serving files and more.
 
 A very simple, \"Hello World!\" web app looks like:
- 
+
 > import Happstack.Server
 > main = simpleHTTP nullConf $ ok "Hello World!"
 
@@ -33,12 +33,12 @@ For each incoming 'Request' the server would fork a new thread, run
 the client. But, that would be a pretty barren wasteland to work in.
 
 The model for 'ServerPart' is essential the same, except we use the
-much richer 'ServerPart' monad instead of the 'IO' monad. 
+much richer 'ServerPart' monad instead of the 'IO' monad.
 
 For in-depth documentation and runnable examples I highly recommend The Happstack Crash Course <http://happstack.com/docs/crashcourse/index.html>.
 
 -}
-module Happstack.Server 
+module Happstack.Server
     ( -- * HTTP Server
       module Happstack.Server.SimpleHTTP
     -- * Request Routing
@@ -59,19 +59,14 @@ module Happstack.Server
     , module Happstack.Server.I18N
     -- * Web-related Monads
     , module Happstack.Server.Monads
-    -- * Proxying
-    , module Happstack.Server.Proxy
     -- * Output Validation
     , module Happstack.Server.Validation
     -- * HTTP Types
     , module Happstack.Server.Types
-    -- * Other
-    , module Happstack.Server.Client
 --    , module Happstack.Server.Internal.Monads
     )
     where
 
-import Happstack.Server.Client
 import Happstack.Server.SimpleHTTP       (simpleHTTP
                                          , simpleHTTP'
                                          , simpleHTTP''
@@ -90,7 +85,6 @@ import Happstack.Server.Error
 import Happstack.Server.I18N
 import Happstack.Server.Response
 import Happstack.Server.Routing
-import Happstack.Server.Proxy
 import Happstack.Server.RqData
 import Happstack.Server.Validation
 import Happstack.Server.Types

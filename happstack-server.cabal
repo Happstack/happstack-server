@@ -33,7 +33,6 @@ Library
                        Happstack.Server.Auth
                        Happstack.Server.Cookie
                        Happstack.Server.Compression
-                       Happstack.Server.Client
                        Happstack.Server.Error
                        Happstack.Server.FileServe
                        Happstack.Server.FileServe.BuildingBlocks
@@ -54,7 +53,6 @@ Library
                        Happstack.Server.Internal.TimeoutSocket
                        Happstack.Server.Internal.Monads
                        Happstack.Server.Monads
-                       Happstack.Server.Proxy
                        Happstack.Server.Response
                        Happstack.Server.Routing
                        Happstack.Server.RqData
