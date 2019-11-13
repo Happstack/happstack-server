@@ -1,9 +1,7 @@
-module Happstack.Server.I18N 
+module Happstack.Server.I18N
      ( acceptLanguage
      , bestLanguage
      ) where
-
-import Control.Applicative ((<$>))
 
 import Control.Arrow ((>>>), first, second)
 import Data.Function (on)

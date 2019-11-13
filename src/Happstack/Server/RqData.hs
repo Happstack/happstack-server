@@ -58,7 +58,7 @@ module Happstack.Server.RqData
     , HasRqData(askRqEnv, localRqEnv,rqDataError)
     ) where
 
-import Control.Applicative                      (Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad), (<$>))
+import Control.Applicative                      (Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad))
 import Control.Monad                            (MonadPlus(mzero))
 import Control.Monad.Reader                     (ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
 import qualified Control.Monad.State.Lazy as Lazy      (StateT, mapStateT)

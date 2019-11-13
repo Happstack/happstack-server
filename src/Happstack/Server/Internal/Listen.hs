@@ -10,14 +10,9 @@ import qualified Control.Concurrent.Thread.Group as TG
 import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad
+import qualified Data.Maybe as Maybe
 import Network.BSD                              (getProtocolNumber)
-import Network                                  (Socket)
-import Network.Socket as Socket (SocketOption(KeepAlive), close, setSocketOption,
-                                 socket, Family(..), SockAddr,
-                                 SocketOption(..), SockAddr(..),
-                                 iNADDR_ANY, maxListenQueue, SocketType(..),
-                                 bindSocket)
-import qualified Network.Socket                 as Socket (listen, inet_addr)
+import qualified Network.Socket                 as Socket
 import System.IO.Error                          (isFullError)
 {-
 #ifndef mingw32_HOST_OS
@@ -37,45 +32,58 @@ log' = logM "Happstack.Server.HTTP.Listen"
    Lets make it use IPv4 only for now.
 -}
 
-listenOn :: Int -> IO Socket
+listenOn :: Int -> IO Socket.Socket
 listenOn portm = do
     proto <- getProtocolNumber "tcp"
     E.bracketOnError
-        (socket AF_INET Stream proto)
-        (close)
+        (Socket.socket Socket.AF_INET Socket.Stream proto)
+        (Socket.close)
         (\sock -> do
-            setSocketOption sock ReuseAddr 1
-            bindSocket sock (SockAddrInet (fromIntegral portm) iNADDR_ANY)
-            Socket.listen sock (max 1024 maxListenQueue)
+            Socket.setSocketOption sock Socket.ReuseAddr 1
+            Socket.bind sock (Socket.SockAddrInet (fromIntegral portm) iNADDR_ANY)
+            Socket.listen sock (max 1024 Socket.maxListenQueue)
             return sock
         )
 
 listenOnIPv4 :: String  -- ^ IP address to listen on (must be an IP address not a host name)
              -> Int     -- ^ port number to listen on
-             -> IO Socket
+             -> IO Socket.Socket
 listenOnIPv4 ip portm = do
     proto <- getProtocolNumber "tcp"
-    hostAddr <- Socket.inet_addr ip
+    hostAddr <- inet_addr ip
     E.bracketOnError
-        (socket AF_INET Stream proto)
-        (close)
+        (Socket.socket Socket.AF_INET Socket.Stream proto)
+        (Socket.close)
         (\sock -> do
-            setSocketOption sock ReuseAddr 1
-            bindSocket sock (SockAddrInet (fromIntegral portm) hostAddr)
-            Socket.listen sock (max 1024 maxListenQueue)
+            Socket.setSocketOption sock Socket.ReuseAddr 1
+            Socket.bind sock (Socket.SockAddrInet (fromIntegral portm) hostAddr)
+            Socket.listen sock (max 1024 Socket.maxListenQueue)
             return sock
         )
+
+inet_addr :: String -> IO Socket.HostAddress
+inet_addr ip = do
+  addrInfos <- Socket.getAddrInfo (Just Socket.defaultHints) (Just ip) (Just "tcp")
+  let getHostAddress addrInfo = case Socket.addrAddress addrInfo of
+        Socket.SockAddrInet _ hostAddress -> Just hostAddress
+        _ -> Nothing
+  maybe (fail "inet_addr: no HostAddress") pure
+    . Maybe.listToMaybe
+    $ Maybe.mapMaybe getHostAddress addrInfos
+
+iNADDR_ANY :: Socket.HostAddress
+iNADDR_ANY = 0
 
 -- | Bind and listen port
 listen :: Conf -> (Request -> IO Response) -> IO ()
 listen conf hand = do
     let port' = port conf
     lsocket <- listenOn port'
-    setSocketOption lsocket KeepAlive 1
+    Socket.setSocketOption lsocket Socket.KeepAlive 1
     listen' lsocket conf hand
 
 -- | Use a previously bind port and listen
-listen' :: Socket -> Conf -> (Request -> IO Response) -> IO ()
+listen' :: Socket.Socket -> Conf -> (Request -> IO Response) -> IO ()
 listen' s conf hand = do
 {-
 #ifndef mingw32_HOST_OS
@@ -99,14 +107,14 @@ listen' s conf hand = do
              request timeoutIO (logAccess conf) (hn,fromIntegral p) hand `E.catch` eh
              -- remove thread from timeout table
              cancel thandle
-             close sock
+             Socket.close sock
       loop = forever $ do w <- acceptLite s
                           fork $ work w
       pe e = log' ERROR ("ERROR in http accept thread: " ++ show e)
       infi :: IO ()
       infi = loop `catchSome` pe >> infi
 
-  infi `finally` (close s >> forceTimeoutAll tm)
+  infi `finally` (Socket.close s >> forceTimeoutAll tm)
 
 {--
 #ifndef mingw32_HOST_OS
