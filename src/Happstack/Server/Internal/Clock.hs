@@ -7,7 +7,6 @@ module Happstack.Server.Internal.Clock
     , formatHttpDate
     ) where
 
-import Control.Applicative   ((<$>))
 import Control.Concurrent
 import Control.Monad
 import Data.IORef

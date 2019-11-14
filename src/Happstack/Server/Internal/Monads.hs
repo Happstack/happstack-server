@@ -400,11 +400,6 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
 newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
     deriving (Functor)
 
-#if MIN_VERSION_base(4,9,0)
-instance MonadFail m => MonadFail (WebT m) where
-    fail s = lift (Fail.fail s)
-#endif
-
 instance MonadCatch m => MonadCatch (WebT m) where
     catch action handle = WebT $ catch (unWebT action) (unWebT . handle)
 
@@ -511,7 +506,12 @@ instance Monad m => Monad (WebT m) where
     {-# INLINE (>>=) #-}
     return a = WebT $ return a
     {-# INLINE return #-}
-    fail s = lift (fail s)
+
+#if MIN_VERSION_base(4,9,0)
+instance MonadFail m => MonadFail (WebT m) where
+#endif
+
+    fail s = lift (Fail.fail s)
 
 -- | 'WebMonad' provides a means to end the current computation
 -- and return a 'Response' immediately.  This provides an

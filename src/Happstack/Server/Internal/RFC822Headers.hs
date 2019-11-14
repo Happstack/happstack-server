@@ -44,6 +44,7 @@ module Happstack.Server.Internal.RFC822Headers
       ) where
 
 import Control.Monad
+import Control.Monad.Fail (MonadFail)
 import Data.Char
 import Data.List
 import Text.ParserCombinators.Parsec
@@ -53,7 +54,7 @@ type Header = (String, String)
 pHeaders :: Parser [Header]
 pHeaders = many pHeader
 
-parseHeaders :: Monad m => SourceName -> String -> m [Header]
+parseHeaders :: MonadFail m => SourceName -> String -> m [Header]
 parseHeaders = parseM pHeaders
 
 pHeader :: Parser Header
@@ -149,10 +150,10 @@ pContentType =
 -- | Parse the standard representation of a content-type.
 --   If the input cannot be parsed, this function calls
 --   'fail' with a (hopefully) informative error message.
-parseContentType :: Monad m => String -> m ContentType
+parseContentType :: MonadFail m => String -> m ContentType
 parseContentType = parseM pContentType "Content-type"
 
-getContentType :: Monad m => [Header] -> m ContentType
+getContentType :: MonadFail m => [Header] -> m ContentType
 getContentType hs = lookupM "content-type" hs >>= parseContentType
 
 --
@@ -169,11 +170,11 @@ pContentTransferEncoding =
      c_cte <- p_token
      return $ ContentTransferEncoding (map toLower c_cte)
 
-parseContentTransferEncoding :: Monad m => String -> m ContentTransferEncoding
+parseContentTransferEncoding :: MonadFail m => String -> m ContentTransferEncoding
 parseContentTransferEncoding =
     parseM pContentTransferEncoding "Content-transfer-encoding"
 
-getContentTransferEncoding :: Monad m => [Header] -> m ContentTransferEncoding
+getContentTransferEncoding :: MonadFail m => [Header] -> m ContentTransferEncoding
 getContentTransferEncoding hs =
     lookupM "content-transfer-encoding" hs >>= parseContentTransferEncoding
 
@@ -192,10 +193,10 @@ pContentDisposition =
      c_parameters <- many p_parameter
      return $ ContentDisposition (map toLower c_cd) c_parameters
 
-parseContentDisposition :: Monad m => String -> m ContentDisposition
+parseContentDisposition :: MonadFail m => String -> m ContentDisposition
 parseContentDisposition = parseM pContentDisposition "Content-disposition"
 
-getContentDisposition :: Monad m => [Header] -> m ContentDisposition
+getContentDisposition :: MonadFail m => [Header] -> m ContentDisposition
 getContentDisposition hs =
     lookupM "content-disposition" hs  >>= parseContentDisposition
 
@@ -203,13 +204,13 @@ getContentDisposition hs =
 -- * Utilities
 --
 
-parseM :: Monad m => Parser a -> SourceName -> String -> m a
+parseM :: MonadFail m => Parser a -> SourceName -> String -> m a
 parseM p n inp =
   case parse p n inp of
     Left e -> fail (show e)
     Right x -> return x
 
-lookupM :: (Monad m, Eq a, Show a) => a -> [(a,b)] -> m b
+lookupM :: (MonadFail m, Eq a, Show a) => a -> [(a,b)] -> m b
 lookupM n = maybe (fail ("No such field: " ++ show n)) return . lookup n
 
 --

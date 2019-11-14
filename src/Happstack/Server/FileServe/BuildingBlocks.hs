@@ -54,7 +54,6 @@ module Happstack.Server.FileServe.BuildingBlocks
      isDot
     ) where
 
-import Control.Applicative          ((<$>))
 import Control.Exception.Extensible as E (IOException, bracket, catch)
 import Control.Monad                (MonadPlus(mzero), msum)
 import Control.Monad.Trans          (MonadIO(liftIO))

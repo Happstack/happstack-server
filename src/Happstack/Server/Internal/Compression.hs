@@ -1,4 +1,4 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts #-}
+{-# LANGUAGE CPP,NoMonomorphismRestriction, FlexibleContexts #-}
 -- | Filter for compressing the 'Response' body.
 module Happstack.Server.Internal.Compression
     ( compressedResponseFilter
@@ -14,6 +14,9 @@ module Happstack.Server.Internal.Compression
 import Happstack.Server.SimpleHTTP
 import Text.ParserCombinators.Parsec
 import Control.Monad
+#if !MIN_VERSION_base(4,13,0)
+import Control.Monad.Fail (MonadFail)
+#endif
 import Data.Maybe
 import Data.List
 import qualified Data.ByteString.Char8 as BS
@@ -32,7 +35,7 @@ import qualified Codec.Compression.Zlib as Z
 -- >   simpleHTTP nullConf $
 -- >      do str <- compressedResponseFilter
 -- >         return $ toResponse ("This response compressed using: " ++ str)
-compressedResponseFilter :: (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m) =>
+compressedResponseFilter :: (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m, MonadFail m) =>
                             m String -- ^ name of the encoding chosen
 compressedResponseFilter = compressedResponseFilter' standardEncodingHandlers
 
@@ -65,7 +68,7 @@ compressedResponseFilter = compressedResponseFilter' standardEncodingHandlers
 -- > str <- compressedResponseFilter'
 -- >         return $ toResponse ("This response compressed using: " ++ str)
 compressedResponseFilter' ::
-    (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m)
+    (FilterMonad Response m, MonadPlus m, WebMonad Response m, ServerMonad m, MonadFail m)
     => [(String, String -> Bool -> m ())]  -- ^ compression filter assoc list
     -> m String                            -- ^ name of the encoding chosen
 compressedResponseFilter' encodingHandlers = do
@@ -84,7 +87,7 @@ compressedResponseFilter' encodingHandlers = do
 
           Right encs@(a:_) -> return (a
                                      , "identity" `elem` encs
-                                     , fromMaybe (fail badEncoding)
+                                     , fromMaybe (\ _ _ -> fail badEncoding)
                                           (lookup a encodingHandlers)
                                      )
           Right [] -> fail badEncoding
@@ -126,7 +129,7 @@ identityFilter = compressWithFilter id
 -- | compression filter for the * encoding
 --
 -- This filter always fails.
-starFilter :: (FilterMonad Response m) =>
+starFilter :: (FilterMonad Response m, MonadFail m) =>
               String  -- ^ encoding to use for Content-Encoding header
            -> Bool    -- ^ fallback to identity for SendFile (irrelavant for this filter)
            -> m ()
@@ -202,7 +205,7 @@ bestEncoding availableEncodings encs = do
 -- e.g.
 --
 -- > [("gzip", gzipFilter), ("identity", identityFilter), ("*",starFilter)]
-standardEncodingHandlers :: (FilterMonad Response m) =>
+standardEncodingHandlers :: (FilterMonad Response m, MonadFail m) =>
                             [(String, String -> Bool -> m ())]
 standardEncodingHandlers = zip standardEncodings handlers
 
@@ -217,7 +220,7 @@ standardEncodings =
     ,"*"
     ]
 
-handlers::(FilterMonad Response m) => [String -> Bool -> m ()]
+handlers::(FilterMonad Response m, MonadFail m) => [String -> Bool -> m ()]
 handlers =
     [ gzipFilter
     , gzipFilter

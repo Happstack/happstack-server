@@ -22,6 +22,7 @@ module Happstack.Server.Internal.Types
 
 import Control.Exception (Exception, SomeException)
 import Control.Monad.Error (Error(strMsg))
+import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Control.Concurrent.Thread.Group as TG
 import Control.Concurrent.MVar
@@ -465,7 +466,7 @@ readDec' s =
     _    -> error "readDec' failed."
 
 -- | Read in any monad.
-readM :: (Monad m, Read t) => String -> m t
+readM :: (MonadFail m, Read t) => String -> m t
 readM s = case reads s of
             [(v,"")] -> return v
             _        -> fail "readM: parse error"
