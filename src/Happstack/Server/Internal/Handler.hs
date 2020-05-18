@@ -64,8 +64,8 @@ rloop timeoutIO mlog host handler inputStr
                       (rql, headerStr)  <- required "failed to separate headers/body" $ splitAtCRLF topStr
                       let (m,u,v) = requestLine rql
                       headers' <- case parseHeaders "host" (L.unpack headerStr) of
-		        Nothing -> Left "failed to parse host header"
-			Just x -> Right x
+                        Nothing -> Left "failed to parse host header"
+                        Just x -> Right x
                       let headers = mkHeaders headers'
                       let contentLen = fromMaybe 0 $ fmap fst (P.readInt =<< getHeaderUnsafe contentlengthC headers)
                       (body, nextRequest) <- case () of
@@ -143,7 +143,7 @@ parseResponse inputStr =
        let (_,code) = responseLine rsl
        headers' <- case parseHeaders "host" (L.unpack headerStr) of
          Nothing -> Left "failed to parse host header"
-	 Just x -> Right x
+         Just x -> Right x
        let headers = mkHeaders headers'
        let mbCL = fmap fst (B.readInt =<< getHeader "content-length" headers)
        (body,_) <-
