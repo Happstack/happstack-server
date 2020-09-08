@@ -1,3 +1,8 @@
+7.6.2
+=====
+
+ - added support for specifying SameSite attribute
+
 7.6.0
 =====
 
