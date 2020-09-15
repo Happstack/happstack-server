@@ -4,7 +4,7 @@
 module Happstack.Server.Internal.Cookie
     ( Cookie(..)
     , CookieLife(..)
-    , CookieXOriginOption(..)
+    , SameSite(..)
     , calcLife
     , mkCookie
     , mkCookieHeader
@@ -45,7 +45,7 @@ data Cookie = Cookie
     , cookieValue   :: String
     , secure        :: Bool
     , httpOnly      :: Bool
-    , sameSiteOpts  :: CookieXOriginOption
+    , sameSite      :: SameSite
     } deriving(Show,Eq,Read,Typeable,Data)
 
 -- | Specify the lifetime of a cookie.
@@ -66,7 +66,7 @@ data CookieLife
 --
 -- Note that most or all web clients require the cookie to be secure if "none" is
 -- specified.
-data CookieXOriginOption
+data SameSite
     = SameSiteLax
     -- ^ The cookie is sent in first party contexts as well as linked requests initiated
     -- from other contexts.
@@ -77,19 +77,15 @@ data CookieXOriginOption
     -- secure.
     | SameSiteNoValue
     -- ^ The default; used if you do not wish a SameSite attribute present at all.
-      deriving (Eq, Ord, Typeable, Data)
+      deriving (Eq, Ord, Typeable, Data, Show, Read)
 
-instance Show CookieXOriginOption where
-    show SameSiteLax = "Lax"
-    show SameSiteStrict = "Strict"
-    show SameSiteNone = "None"
-    show SameSiteNoValue = ""
-
-instance Read CookieXOriginOption where
-    readsPrec _ "Lax"    = [(SameSiteLax, "")]
-    readsPrec _ "Strict" = [(SameSiteStrict, "")]
-    readsPrec _ "None"   = [(SameSiteNone, "")]
-    readsPrec _ ""       = [(SameSiteNoValue, "")]
+displaySameSite :: SameSite -> String
+displaySameSite ss =
+  case ss of
+    SameSiteLax     -> "SameSite=Lax"
+    SameSiteStrict  -> "SameSite=Strict"
+    SameSiteNone    -> "SameSite=None"
+    SameSiteNoValue -> ""
 
 -- convert 'CookieLife' to the argument needed for calling 'mkCookieHeader'
 calcLife :: CookieLife -> IO (Maybe (Int, UTCTime))
@@ -106,7 +102,7 @@ calcLife Expired =
 
 -- | Creates a cookie with a default version of 1, empty domain, a
 -- path of "/", secure == False, httpOnly == False and
--- sameSiteOpts == SameSiteNoValue
+-- sameSite == SameSiteNoValue
 --
 -- see also: 'addCookie'
 mkCookie :: String  -- ^ cookie name
@@ -149,9 +145,8 @@ mkCookieHeader mLife cookie =
          (cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ]
       ++ (if secure   cookie then ["Secure"]   else [])
       ++ (if httpOnly cookie then ["HttpOnly"] else [])
-      ++ (if sameSiteOpts cookie /= SameSiteNoValue
-             then ["SameSite=" ++ (show . sameSiteOpts $ cookie)]
-             else [])
+      ++ (if sameSite cookie /= SameSiteNoValue
+          then [displaySameSite . sameSite $ cookie] else [])
 
 -- | Not an supported api.  Takes a cookie header and returns
 -- either a String error message or an array of parsed cookies

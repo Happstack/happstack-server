@@ -3,7 +3,7 @@
 module Happstack.Server.Cookie
     ( Cookie(..)
     , CookieLife(..)
-    , CookieXOriginOption(..)
+    , SameSite(..)
     , mkCookie
     , addCookie
     , addCookies
@@ -13,7 +13,7 @@ module Happstack.Server.Cookie
 
 import Control.Monad.Trans              (MonadIO(..))
 import Happstack.Server.Internal.Monads (FilterMonad, composeFilter)
-import Happstack.Server.Internal.Cookie (Cookie(..), CookieLife(..), CookieXOriginOption(..), calcLife, mkCookie, mkCookieHeader)
+import Happstack.Server.Internal.Cookie (Cookie(..), CookieLife(..), SameSite(..), calcLife, mkCookie, mkCookieHeader)
 import Happstack.Server.Types           (Response, addHeader)
 
 -- | Add the 'Cookie' to 'Response'.
