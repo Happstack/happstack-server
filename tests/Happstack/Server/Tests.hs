@@ -41,24 +41,24 @@ cookieParserTest =
     "cookieParserTest" ~:
     [parseCookies "$Version=1;Cookie1=value1;$Path=\"/testpath\";$Domain=example.com;cookie2=value2"
         @?= (Right [
-            Cookie "1" "/testpath" "example.com" "cookie1" "value1" False False
-          , Cookie "1" "" "" "cookie2" "value2" False False
+            Cookie "1" "/testpath" "example.com" "cookie1" "value1" False False SameSiteNoValue
+          , Cookie "1" "" "" "cookie2" "value2" False False SameSiteNoValue
           ])
     ,parseCookies "  \t $Version = \"1\" ; cookie1 = \"randomcrap!@#%^&*()-_+={}[]:;'<>,.?/\\|\" , $Path=/  "
         @?= (Right [
-            Cookie "1" "/" "" "cookie1" "randomcrap!@#%^&*()-_+={}[]:;'<>,.?/|" False False
+            Cookie "1" "/" "" "cookie1" "randomcrap!@#%^&*()-_+={}[]:;'<>,.?/|" False False SameSiteNoValue
           ])
     ,parseCookies " cookie1 = value1  "
         @?= (Right [
-            Cookie "" "" "" "cookie1" "value1" False False
+            Cookie "" "" "" "cookie1" "value1" False False SameSiteNoValue
           ])
     ,parseCookies " $Version=\"1\";buggygooglecookie = valuewith=whereitshouldnotbe  "
         @?= (Right [
-            Cookie "1" "" "" "buggygooglecookie" "valuewith=whereitshouldnotbe" False False
+            Cookie "1" "" "" "buggygooglecookie" "valuewith=whereitshouldnotbe" False False SameSiteNoValue
           ])
     , parseCookies "foo=\"\\\"bar\\\"\""
         @?= (Right [
-              Cookie "" "" ""  "foo" "\"bar\"" False False
+              Cookie "" "" ""  "foo" "\"bar\"" False False SameSiteNoValue
              ])
     ]
 

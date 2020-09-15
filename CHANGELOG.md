@@ -1,4 +1,4 @@
-7.6.2
+7.7.0
 =====
 
  - added support for specifying SameSite attribute
