@@ -4,6 +4,7 @@
 module Happstack.Server.Internal.Cookie
     ( Cookie(..)
     , CookieLife(..)
+    , SameSite(..)
     , calcLife
     , mkCookie
     , mkCookieHeader
@@ -44,6 +45,7 @@ data Cookie = Cookie
     , cookieValue   :: String
     , secure        :: Bool
     , httpOnly      :: Bool
+    , sameSite      :: SameSite
     } deriving(Show,Eq,Read,Typeable,Data)
 
 -- | Specify the lifetime of a cookie.
@@ -60,6 +62,31 @@ data CookieLife
     | Expired         -- ^ cookie already expired
       deriving (Eq, Ord, Read, Show, Typeable)
 
+-- | Options for specifying third party cookie behaviour.
+--
+-- Note that most or all web clients require the cookie to be secure if "none" is
+-- specified.
+data SameSite
+    = SameSiteLax
+    -- ^ The cookie is sent in first party contexts as well as linked requests initiated
+    -- from other contexts.
+    | SameSiteStrict
+    -- ^ The cookie is sent in first party contexts only.
+    | SameSiteNone
+    -- ^ The cookie is sent in first as well as third party contexts if the cookie is
+    -- secure.
+    | SameSiteNoValue
+    -- ^ The default; used if you do not wish a SameSite attribute present at all.
+      deriving (Eq, Ord, Typeable, Data, Show, Read)
+
+displaySameSite :: SameSite -> String
+displaySameSite ss =
+  case ss of
+    SameSiteLax     -> "SameSite=Lax"
+    SameSiteStrict  -> "SameSite=Strict"
+    SameSiteNone    -> "SameSite=None"
+    SameSiteNoValue -> ""
+
 -- convert 'CookieLife' to the argument needed for calling 'mkCookieHeader'
 calcLife :: CookieLife -> IO (Maybe (Int, UTCTime))
 calcLife Session = return Nothing
@@ -74,13 +101,14 @@ calcLife Expired =
 
 
 -- | Creates a cookie with a default version of 1, empty domain, a
--- path of "/", secure == False and httpOnly == False
+-- path of "/", secure == False, httpOnly == False and
+-- sameSite == SameSiteNoValue
 --
 -- see also: 'addCookie'
 mkCookie :: String  -- ^ cookie name
          -> String  -- ^ cookie value
          -> Cookie
-mkCookie key val = Cookie "1" "/" "" key val False False
+mkCookie key val = Cookie "1" "/" "" key val False False SameSiteNoValue
 
 -- | Set a Cookie in the Result.
 -- The values are escaped as per RFC 2109, but some browsers may
@@ -117,8 +145,8 @@ mkCookieHeader mLife cookie =
          (cookieName cookie++"="++s cookieValue):[ (k++v) | (k,v) <- l, "" /= v ]
       ++ (if secure   cookie then ["Secure"]   else [])
       ++ (if httpOnly cookie then ["HttpOnly"] else [])
-
-
+      ++ (if sameSite cookie /= SameSiteNoValue
+          then [displaySameSite . sameSite $ cookie] else [])
 
 -- | Not an supported api.  Takes a cookie header and returns
 -- either a String error message or an array of parsed cookies
@@ -142,7 +170,7 @@ cookiesParser = cookies
             val<-value
             path<-option "" $ try (cookieSep >> cookie_path)
             domain<-option "" $ try (cookieSep >> cookie_domain)
-            return $ Cookie ver path domain (low name) val False False
+            return $ Cookie ver path domain (low name) val False False SameSiteNoValue
           cookie_version = cookie_special "$Version"
           cookie_path = cookie_special "$Path"
           cookie_domain = cookie_special "$Domain"
