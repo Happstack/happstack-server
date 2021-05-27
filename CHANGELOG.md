@@ -1,3 +1,8 @@
+7.7.1
+=====
+
+ - fix listenOnIPv4 / inet_addr
+
 7.7.0
 =====
 
