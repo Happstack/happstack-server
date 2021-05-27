@@ -63,7 +63,7 @@ listenOnIPv4 ip portm = do
 
 inet_addr :: String -> IO Socket.HostAddress
 inet_addr ip = do
-  addrInfos <- Socket.getAddrInfo (Just Socket.defaultHints) (Just ip) (Just "tcp")
+  addrInfos <- Socket.getAddrInfo (Just Socket.defaultHints) (Just ip) Nothing
   let getHostAddress addrInfo = case Socket.addrAddress addrInfo of
         Socket.SockAddrInet _ hostAddress -> Just hostAddress
         _ -> Nothing
