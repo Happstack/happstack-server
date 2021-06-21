@@ -11,9 +11,9 @@ import Control.Exception.Extensible             as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad
 import qualified Data.Maybe as Maybe
-import Network.BSD                              (getProtocolNumber)
 import qualified Network.Socket                 as Socket
 import System.IO.Error                          (isFullError)
+import Foreign.C (CInt)
 {-
 #ifndef mingw32_HOST_OS
 -}
@@ -25,6 +25,12 @@ import System.Log.Logger (Priority(..), logM)
 log':: Priority -> String -> IO ()
 log' = logM "Happstack.Server.HTTP.Listen"
 
+-- Meant to be TCP in practise.
+-- See https://www.gnu.org/software/libc/manual/html_node/Creating-a-Socket.html
+-- which says "zero is usually right".  It could theoretically be SCTP, but it
+-- would be a bizarre system that defaults to SCTP over TCP.
+proto :: CInt
+proto = Socket.defaultProtocol
 
 {-
    Network.listenOn binds randomly to IPv4 or IPv6 or both,
@@ -34,7 +40,6 @@ log' = logM "Happstack.Server.HTTP.Listen"
 
 listenOn :: Int -> IO Socket.Socket
 listenOn portm = do
-    proto <- getProtocolNumber "tcp"
     E.bracketOnError
         (Socket.socket Socket.AF_INET Socket.Stream proto)
         (Socket.close)
@@ -49,7 +54,6 @@ listenOnIPv4 :: String  -- ^ IP address to listen on (must be an IP address not 
              -> Int     -- ^ port number to listen on
              -> IO Socket.Socket
 listenOnIPv4 ip portm = do
-    proto <- getProtocolNumber "tcp"
     hostAddr <- inet_addr ip
     E.bracketOnError
         (Socket.socket Socket.AF_INET Socket.Stream proto)
