@@ -60,16 +60,18 @@ import Control.Monad.Trans          (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as S
 import Data.Data                    (Data, Typeable)
-import Data.List                    (sort)
+import Data.Foldable                (toList, foldl')
+import Data.List                    (sort, isPrefixOf)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
-import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
+import           Data.Sequence      (Seq ((:|>), (:<|)), (|>), (<|))
+import qualified Data.Sequence      as Seq
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
 import Happstack.Server.Types       (Length(ContentLength), Request(rqPaths, rqUri), Response(SendFile), RsFlags(rsfLength), nullRsFlags, result, resultBS, setHeader)
-import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime)
-import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid)
+import System.Directory             (doesDirectoryExist, doesFileExist, getDirectoryContents, getModificationTime, makeAbsolute)
+import System.FilePath              ((</>), addTrailingPathSeparator, hasDrive, isPathSeparator, joinPath, takeExtension, isValid, normalise, splitDirectories, isAbsolute)
 import System.IO                    (IOMode(ReadMode), hFileSize, hClose, openBinaryFile, withBinaryFile)
 import System.Log.Logger            (Priority(DEBUG), logM)
 import           Text.Blaze.Html             ((!))
@@ -319,7 +321,7 @@ serveFileFrom :: (ServerMonad m, FilterMonad Response m, MonadIO m, MonadPlus m)
               -> FilePath                 -- ^ path to the file to serve
               -> m Response
 serveFileFrom root mimeFn fp =
-    maybe no yes $ combineSafe root fp
+    combineSafe root fp >>= maybe no yes
   where
     no  = forbidden $ toResponse "Directory traversal forbidden"
     yes = serveFile mimeFn
@@ -383,15 +385,43 @@ fileServe' serveFn mimeFn indexFn localPath = do
 -- Nothing
 -- >>> combineSafe "/var/uploads/" "../uploads/home/../etc/passwd"
 -- Just "/var/uploads/etc/passwd"
-combineSafe :: FilePath -> FilePath -> Maybe FilePath
-combineSafe root path =
-    if commonPrefix [root', joined] == root'
-      then Just $ encodeString joined
-      else Nothing
+combineSafe :: MonadIO m => FilePath -> FilePath -> m (Maybe FilePath)
+combineSafe root path = do
+    root' <- liftIO $ makeAbsolute root
+    let path' = normalise path
+    pure $
+        case combineReduce root' path' of
+            Just combined | root' `isPrefixOf` combined ->
+                Just combined
+            _ ->
+                Nothing
   where
-    root'  = decodeString root
-    path'  = decodeString path
-    joined = collapse $ append root' path'
+    -- Combine an absolute path with another path, reducing any @..@ elements
+    combineReduce :: FilePath -> FilePath -> Maybe FilePath
+    combineReduce r p
+        | isAbsolute r = Just $
+            let splitP = splitDirectories p
+                splitR = splitDirectories r
+                -- Split off the head and re-add it after processing the tail with @go@
+                headP :<| tailP = Seq.fromList splitP
+                headR :<| tailR = Seq.fromList splitR
+            in joinPath $ toList $
+                -- If @p@ is absolute, then process it against the root path, dropping @r@ completely
+                if isAbsolute p
+                    then headP <| foldl' go Seq.Empty (toList tailP)
+                    else headR <| foldl' go tailR splitP
+        -- If the root is not absolute, it is unclear how to handle arbitrary @..@ elements in a safe way
+        | otherwise = Nothing
+
+    -- | Build up a 'Seq' representation of @path@, reducing any @..@ elements
+    -- This function assumes the 'Seq' is a split absolute path, with the beginning part removed.
+    --
+    -- Note that this functionality has been removed from the filepath package
+    -- See: <https://neilmitchell.blogspot.com/2015/10/filepaths-are-subtle-symlinks-are-hard.html>
+    go :: Seq FilePath -> FilePath -> Seq FilePath
+    go Seq.Empty ".." = Seq.Empty -- Going up beyond the top level just returns the top level
+    go (s :|> _) ".." = s         -- Going up a level pops an element off the right side of the Seq
+    go s         p    = s |> p    -- Just add an element to the right side of the Seq
 
 isSafePath :: [FilePath] -> Bool
 isSafePath [] = True
