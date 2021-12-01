@@ -5,3 +5,5 @@ dist
 .env
 .anvil
 .ghc.environment.*
+cabal.project.local
+hie.yaml
