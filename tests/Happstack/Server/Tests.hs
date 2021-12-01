@@ -13,7 +13,7 @@ import qualified Data.ByteString.Lazy  as L
 import qualified Data.Map              as Map
 import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart, Headers, RqBody(Body), HttpVersion(..)
                                              , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength, matchMethod)
-import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
+import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse, combineSafe)
 import Happstack.Server.Cookie
 import Happstack.Server.Internal.Compression
 import Happstack.Server.Internal.Cookie
@@ -34,6 +34,7 @@ allTests =
                                 , matchMethodTest
                                 , cookieHeaderOrderTest
                                 , pContentDispositionFilename
+                                , combineSafeTest
                                 ]
 
 cookieParserTest :: Test
@@ -247,3 +248,18 @@ pContentDispositionFilename =
     do let doesNotWorkWithOldParserButWithNew = "form-data; filename=\"file.pdf\"; name=\"file\"" :: String
        c <- parseContentDisposition doesNotWorkWithOldParserButWithNew
        assertEqual "parseContentDisposition" c (ContentDisposition "form-data" [("filename","file.pdf"),("name","file")])
+
+-- | Make sure 'combineSafe' works correctly
+combineSafeTest :: Test
+combineSafeTest =
+  "combineSafeTest" ~:
+    do r1 <- combineSafe "/var/uploads/" "etc/passwd"
+       r2 <- combineSafe "/var/uploads/" "/etc/passwd"
+       r3 <- combineSafe "/var/uploads/" "../../etc/passwd"
+       r4 <- combineSafe "/var/uploads/" "../uploads/home/../etc/passwd"
+       r5 <- combineSafe "/var/uploads/" "../../../../var/uploads/etc"
+       r1 @?= Just "/var/uploads/etc/passwd"
+       r2 @?= Nothing
+       r3 @?= Nothing
+       r4 @?= Just "/var/uploads/etc/passwd"
+       r5 @?= Just "/var/uploads/etc"
