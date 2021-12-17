@@ -35,6 +35,7 @@ import Happstack.Server.SURI.ParseURI
 import Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import Happstack.Server.Internal.Monads (failResponse)
 import qualified Happstack.Server.Internal.TimeoutManager as TM
+import Network.Sendfile (FileRange(PartOfFile), rangeOffset, rangeLength)
 import Numeric
 import System.Directory (removeFile)
 import System.IO
@@ -248,7 +249,7 @@ putAugmentedResult timeoutIO req res = do
                 count = sfCount res
             sendTop (Just count) False
             TM.tickle (toHandle timeoutIO)
-            toSendFile timeoutIO infp off count
+            toSendFile timeoutIO infp PartOfFile { rangeOffset=off, rangeLength=count }
 
     where ph (HeaderPair k vs) = map (\v -> P.concat [k, fsepC, v, crlfC]) vs
           sendTop cl isChunked = do

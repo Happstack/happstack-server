@@ -5,7 +5,7 @@ module Happstack.Server.Internal.TimeoutIO
 import qualified Data.ByteString.Char8          as B
 import qualified Data.ByteString.Lazy.Char8     as L
 import Happstack.Server.Internal.TimeoutManager (Handle)
-import Network.Socket.SendFile                  (ByteCount, Offset)
+import Network.Sendfile                         (FileRange)
 
 
 -- |TimeoutIO is a record which abstracts out all the network IO
@@ -17,7 +17,7 @@ data TimeoutIO = TimeoutIO
     , toPut         :: B.ByteString -> IO ()
     , toGet         :: IO (Maybe B.ByteString)
     , toGetContents :: IO L.ByteString
-    , toSendFile    :: FilePath -> Offset -> ByteCount -> IO ()
+    , toSendFile    :: FilePath -> FileRange -> IO ()
     , toShutdown    :: IO ()
     , toSecure      :: Bool
     }

@@ -17,7 +17,7 @@ import qualified Network.Socket.ByteString     as N
 import qualified Happstack.Server.Internal.TimeoutManager as TM
 import           Happstack.Server.Internal.TimeoutIO (TimeoutIO(..))
 import           Network.Socket (Socket, ShutdownCmd(..), shutdown)
-import           Network.Socket.SendFile (Iter(..), ByteCount, Offset, sendFileIterWith')
+import           Network.Sendfile (sendfile)
 import           Network.Socket.ByteString (sendAll)
 import           System.IO.Error (isDoesNotExistError, ioeGetErrorType)
 import           System.IO.Unsafe (unsafeInterleaveIO)
@@ -63,28 +63,6 @@ sGetContents handle sock = loop where
         return L.Empty
       else L.Chunk s `liftM` loop
 
-
-sendFileTickle :: TM.Handle -> Socket -> FilePath -> Offset -> ByteCount -> IO ()
-sendFileTickle thandle outs fp offset count =
-    sendFileIterWith' (iterTickle thandle) outs fp 65536 offset count
-
-iterTickle :: TM.Handle -> IO Iter -> IO ()
-iterTickle thandle =
-    iterTickle'
-    where
-      iterTickle' :: (IO Iter -> IO ())
-      iterTickle' iter =
-          do r <- iter
-             TM.tickle thandle
-             case r of
-               (Done _) ->
-                      return ()
-               (WouldBlock _ fd cont) ->
-                   do threadWaitWrite fd
-                      iterTickle' cont
-               (Sent _ cont) ->
-                   do iterTickle' cont
-
 timeoutSocketIO :: TM.Handle -> Socket -> TimeoutIO
 timeoutSocketIO handle socket =
     TimeoutIO { toHandle      = handle
@@ -93,6 +71,6 @@ timeoutSocketIO handle socket =
               , toGet         = sGet           handle socket
               , toPut         = sPutTickle     handle socket
               , toGetContents = sGetContents   handle socket
-              , toSendFile    = sendFileTickle handle socket
+              , toSendFile    = \filepath range -> sendfile socket filepath range (pure ())
               , toSecure      = False
               }

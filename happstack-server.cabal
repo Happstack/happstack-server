@@ -83,7 +83,7 @@ Library
                        parsec                            < 4,
                        process,
                        semigroups             >= 0.16,
-                       sendfile               >= 0.7.1 && < 0.8,
+                       simple-sendfile        >= 0.2,
                        system-filepath        >= 0.3.1,
                        syb,
                        text                   >= 0.10  && < 1.3,
