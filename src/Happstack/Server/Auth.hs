@@ -2,8 +2,12 @@
 -- | Support for basic access authentication <http://en.wikipedia.org/wiki/Basic_access_authentication>
 module Happstack.Server.Auth where
 
+import Data.Foldable (foldl')
+import Data.Bits (xor, (.|.))
+import Data.Maybe (fromMaybe)
 import Control.Monad                             (MonadPlus(mzero, mplus))
 import Data.ByteString.Base64                    as Base64
+import qualified Data.ByteString                 as BS
 import qualified Data.ByteString.Char8           as B
 import qualified Data.Map                        as M
 import Happstack.Server.Monads                   (Happstack, escape, getHeaderM, setHeaderM)
@@ -72,9 +76,29 @@ basicAuthBy validLogin realmName xs = basicAuthImpl `mplus` xs
 
 -- | Function that looks up the plain text password for username in a
 -- Map and returns True if it matches with the given password.
+--
+-- Note: The implementation is hardened against timing attacks but not
+-- completely safe. Ideally you should build your own predicate, using
+-- a robust constant-time equality comparison from a cryptographic
+-- library like sodium.
 validLoginPlaintext ::
   M.Map String String -- ^ the username password map
   -> B.ByteString -- ^ the username
   -> B.ByteString -- ^ the password
   -> Bool
 validLoginPlaintext authMap name password = M.lookup (B.unpack name) authMap == Just (B.unpack password)
+validLoginPlaintext authMap name password = fromMaybe False $ do
+    r <- M.lookup (B.unpack name) authMap
+    pure (constTimeEq (B.pack r) password)
+  where
+    -- (Mostly) constant time equality of bytestrings to prevent timing attacks by testing out passwords. This still
+    -- allows to extract the length of the configured password via timing attacks. This implementation is still brittle
+    -- in the sense that it relies on GHC not unrolling or vectorizing the loop.
+    {-# NOINLINE constTimeEq #-}
+    constTimeEq :: BS.ByteString -> BS.ByteString -> Bool
+    constTimeEq x y
+      | BS.length x /= BS.length y
+      = False
+
+      | otherwise
+      = foldl' (.|.) 0 (BS.zipWith xor x y) == 0
