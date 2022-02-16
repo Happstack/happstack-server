@@ -86,7 +86,6 @@ validLoginPlaintext ::
   -> B.ByteString -- ^ the username
   -> B.ByteString -- ^ the password
   -> Bool
-validLoginPlaintext authMap name password = M.lookup (B.unpack name) authMap == Just (B.unpack password)
 validLoginPlaintext authMap name password = fromMaybe False $ do
     r <- M.lookup (B.unpack name) authMap
     pure (constTimeEq (B.pack r) password)
