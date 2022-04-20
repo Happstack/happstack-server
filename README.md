@@ -1,4 +1,4 @@
-# happstack-server [![Hackage Status](https://img.shields.io/hackage/v/happstack-server.svg)][hackage] [![Build Status](https://travis-ci.com/Happstack/happstack-server.svg?branch=master)](https://travis-ci.com/Happstack/happstack-server)
+# happstack-server [![Hackage Status](https://img.shields.io/hackage/v/happstack-server.svg)][hackage]
 
 [hackage]: https://hackage.haskell.org/package/happstack-server
 

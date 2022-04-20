@@ -109,7 +109,7 @@ https = guardRq rqSecure
 --
 -- > handler :: ServerPart Response
 -- > handler =
--- >     do methodOnly [GET, HEAD]
+-- >     do method [GET, HEAD]
 -- >        ...
 method :: (ServerMonad m, MonadPlus m, MatchMethod method) => method -> m ()
 method meth = guardRq $ \rq -> matchMethod meth (rqMethod rq)
