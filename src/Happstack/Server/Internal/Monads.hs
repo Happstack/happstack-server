@@ -12,9 +12,11 @@ import Control.Monad                             ( MonadPlus(mzero, mplus), ap, 
                                                  )
 import Control.Monad.Base                        ( MonadBase, liftBase )
 import Control.Monad.Catch                       ( MonadCatch(..), MonadThrow(..) )
-import Control.Monad.Error                       ( ErrorT(ErrorT), runErrorT
-                                                 , Error, MonadError, throwError
-                                                 , catchError, mapErrorT
+#if !MIN_VERSION_mtl(2,3,0)
+import Control.Monad.Error                       ( ErrorT, Error, mapErrorT )
+#endif
+import Control.Monad.Except                      ( MonadError, throwError
+                                                 , catchError
                                                  )
 #if MIN_VERSION_base(4,9,0)
 import Control.Monad.Fail                        (MonadFail)
@@ -26,7 +28,7 @@ import Control.Monad.Reader                      ( ReaderT(ReaderT), runReaderT
 import qualified Control.Monad.RWS.Lazy as Lazy       ( RWST, mapRWST )
 import qualified Control.Monad.RWS.Strict as Strict   ( RWST, mapRWST )
 
-import Control.Monad.Trans.Except                ( ExceptT, mapExceptT )
+import Control.Monad.Trans.Except                ( ExceptT(ExceptT), mapExceptT, runExceptT )
 import Control.Monad.State.Class                      ( MonadState, get, put )
 import qualified Control.Monad.State.Lazy as Lazy     ( StateT, mapStateT )
 import qualified Control.Monad.State.Strict as Strict ( StateT, mapStateT )
@@ -93,7 +95,6 @@ instance (MonadIO m) => MonadIO (ServerPartT m) where
     liftIO = ServerPartT . liftIO
     {-# INLINE liftIO #-}
 
-#if MIN_VERSION_monad_control(1,0,0)
 instance MonadTransControl ServerPartT where
     type StT ServerPartT a = StT WebT (StT (ReaderT Request) a)
     liftWith f = ServerPartT $ liftWith $ \runReader ->
@@ -105,19 +106,6 @@ instance MonadBaseControl b m => MonadBaseControl b (ServerPartT m) where
     type StM (ServerPartT m) a = ComposeSt ServerPartT m a
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
-#else
-instance MonadTransControl ServerPartT where
-    newtype StT ServerPartT a = StSP {unStSP :: StT WebT (StT (ReaderT Request) a)}
-    liftWith f = ServerPartT $ liftWith $ \runReader ->
-                                 liftWith $ \runWeb ->
-                                   f $ liftM StSP . runWeb . runReader . unServerPartT
-    restoreT = ServerPartT . restoreT . restoreT . liftM unStSP
-
-instance MonadBaseControl b m => MonadBaseControl b (ServerPartT m) where
-    newtype StM (ServerPartT m) a = StMSP {unStMSP :: ComposeSt ServerPartT m a}
-    liftBaseWith = defaultLiftBaseWith StMSP
-    restoreM     = defaultRestoreM     unStMSP
-#endif
 
 -- | Particularly useful when combined with 'runWebT' to produce
 -- a @m ('Maybe' 'Response')@ from a 'Request'.
@@ -342,7 +330,6 @@ instance (MonadIO m) => MonadIO (FilterT a m) where
     liftIO = FilterT . liftIO
     {-# INLINE liftIO #-}
 
-#if MIN_VERSION_monad_control(1,0,0)
 instance MonadTransControl (FilterT a) where
     type StT (FilterT a) b = StT (Lazy.WriterT (FilterFun a)) b
     liftWith f = FilterT $ liftWith $ \run -> f $ run . unFilterT
@@ -352,17 +339,6 @@ instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
     type StM (FilterT a m) c = ComposeSt (FilterT a) m c
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
-#else
-instance MonadTransControl (FilterT a) where
-    newtype StT (FilterT a) b = StFilter {unStFilter :: StT (Lazy.WriterT (FilterFun a)) b}
-    liftWith f = FilterT $ liftWith $ \run -> f $ liftM StFilter . run . unFilterT
-    restoreT = FilterT . restoreT . liftM unStFilter
-
-instance MonadBaseControl b m => MonadBaseControl b (FilterT a m) where
-    newtype StM (FilterT a m) c = StMFilter {unStMFilter :: ComposeSt (FilterT a) m c}
-    liftBaseWith = defaultLiftBaseWith StMFilter
-    restoreM     = defaultRestoreM     unStMFilter
-#endif
 
 -- | A set of functions for manipulating filters.
 --
@@ -397,7 +373,7 @@ instance (Monad m) => FilterMonad a (FilterT a m) where
     getFilter     = FilterT . listens unFilterFun . unFilterT
 
 -- | The basic 'Response' building object.
-newtype WebT m a = WebT { unWebT :: ErrorT Response (FilterT (Response) (MaybeT m)) a }
+newtype WebT m a = WebT { unWebT :: ExceptT Response (FilterT (Response) (MaybeT m)) a }
     deriving (Functor)
 
 instance MonadCatch m => MonadCatch (WebT m) where
@@ -413,41 +389,23 @@ instance (MonadIO m) => MonadIO (WebT m) where
     liftIO = WebT . liftIO
     {-# INLINE liftIO #-}
 
-#if MIN_VERSION_monad_control(1,0,0)
 instance MonadTransControl WebT where
     type StT WebT a = StT MaybeT
                        (StT (FilterT Response)
-                        (StT (ErrorT Response) a))
+                        (StT (ExceptT Response) a))
     liftWith f = WebT $ liftWith $ \runError ->
                           liftWith $ \runFilter ->
                             liftWith $ \runMaybe ->
                               f $ runMaybe .
                                    runFilter .
-                                    runError . unWebT
+                                    runExceptT . unWebT
     restoreT = WebT . restoreT . restoreT . restoreT
 
 instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
     type StM (WebT m) a = ComposeSt WebT m a
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
-#else
-instance MonadTransControl WebT where
-    newtype StT WebT a = StWeb {unStWeb :: StT MaybeT
-                                             (StT (FilterT Response)
-                                               (StT (ErrorT Response) a))}
-    liftWith f = WebT $ liftWith $ \runError ->
-                          liftWith $ \runFilter ->
-                            liftWith $ \runMaybe ->
-                              f $ liftM StWeb . runMaybe .
-                                                  runFilter .
-                                                    runError . unWebT
-    restoreT = WebT . restoreT . restoreT . restoreT . liftM unStWeb
 
-instance MonadBaseControl b m => MonadBaseControl b (WebT m) where
-    newtype StM (WebT m) a = StMWeb {unStMWeb :: ComposeSt WebT m a}
-    liftBaseWith = defaultLiftBaseWith StMWeb
-    restoreM     = defaultRestoreM     unStMWeb
-#endif
 -- | 'UnWebT' is almost exclusively used with 'mapServerPartT'. If you
 -- are not using 'mapServerPartT' then you do not need to wrap your
 -- head around this type. If you are -- the type is not as complex as
@@ -555,13 +513,13 @@ instance (Monad m, MonadPlus m) => MonadPlus (WebT m) where
     -- is exactly the semantics expected from objects that take lists
     -- of 'ServerPartT'.
     mzero = WebT $ lift $ lift $ mzero
-    mplus x y =  WebT $ ErrorT $ FilterT $ (lower x) `mplus` (lower y)
-        where lower = (unFilterT . runErrorT . unWebT)
+    mplus x y =  WebT $ ExceptT $ FilterT $ (lower x) `mplus` (lower y)
+        where lower = (unFilterT . runExceptT . unWebT)
 
 instance (Monad m) => FilterMonad Response (WebT m) where
     setFilter f = WebT $ lift $ setFilter $ f
     composeFilter f = WebT . lift . composeFilter $ f
-    getFilter     m = WebT $ ErrorT $ liftM lft $ getFilter (runErrorT $ unWebT m)
+    getFilter     m = WebT $ ExceptT $ liftM lft $ getFilter (runExceptT $ unWebT m)
         where
           lft (Left  r, _) = Left r
           lft (Right a, f) = Right (a, f)
@@ -576,11 +534,11 @@ instance (Monad m, MonadPlus m) => Monoid (WebT m a) where
 -- | For when you really need to unpack a 'WebT' entirely (and not
 -- just unwrap the first layer with 'unWebT').
 ununWebT :: WebT m a -> UnWebT m a
-ununWebT = runMaybeT . Lazy.runWriterT . unFilterT . runErrorT . unWebT
+ununWebT = runMaybeT . Lazy.runWriterT . unFilterT . runExceptT . unWebT
 
 -- | For wrapping a 'WebT' back up.  @'mkWebT' . 'ununWebT' = 'id'@
 mkWebT :: UnWebT m a -> WebT m a
-mkWebT = WebT . ErrorT . FilterT . Lazy.WriterT . MaybeT
+mkWebT = WebT . ExceptT . FilterT . Lazy.WriterT . MaybeT
 
 -- | See 'mapServerPartT' for a discussion of this function.
 mapWebT :: (UnWebT m a -> UnWebT n b)
@@ -798,6 +756,7 @@ instance (WebMonad a m, Monoid w) => WebMonad a (Strict.RWST r w s m) where
 
 -- ErrorT
 
+#if !MIN_VERSION_mtl(2,3,0)
 instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
     askRq     = lift askRq
     localRq f = mapErrorT $ localRq f
@@ -814,6 +773,7 @@ instance (Error e, FilterMonad a m) => FilterMonad a (ErrorT e m) where
 
 instance (Error e, WebMonad a m) => WebMonad a (ErrorT e m) where
     finishWith    = lift . finishWith
+#endif
 
 -- ExceptT
 

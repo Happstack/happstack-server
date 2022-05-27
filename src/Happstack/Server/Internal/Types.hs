@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, FlexibleInstances, RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances, DeriveDataTypeable, FlexibleInstances, RankNTypes, CPP #-}
 
 module Happstack.Server.Internal.Types
     (Request(..), Response(..), RqBody(..), Input(..), HeaderPair(..),
@@ -21,7 +21,9 @@ module Happstack.Server.Internal.Types
 
 
 import Control.Exception (Exception, SomeException)
+#if !MIN_VERSION_mtl(2,3,0)
 import Control.Monad.Error (Error(strMsg))
+#endif
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Control.Concurrent.Thread.Group as TG
@@ -246,11 +248,13 @@ instance Show Response where
 showRsValidator :: Maybe (Response -> IO Response) -> String
 showRsValidator = maybe "Nothing" (const "Just <function>")
 
+#if !MIN_VERSION_mtl(2,3,0)
 -- what should the status code be ?
 instance Error Response where
   strMsg str =
       setHeader "Content-Type" "text/plain; charset=UTF-8" $
        result 500 str
+#endif
 
 -- | an HTTP request
 data Request = Request

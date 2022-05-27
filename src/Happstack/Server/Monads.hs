@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, CPP #-}
 -- | This module provides four classes and some related functions
 -- which provide 'ServerPartT' with much of its web-centric behavior.
 --
@@ -41,7 +41,9 @@ module Happstack.Server.Monads
 
 import Control.Applicative               (Alternative, Applicative)
 import Control.Monad                     (MonadPlus(mzero))
+#if !MIN_VERSION_mtl(2,3,0)
 import Control.Monad.Error               (Error, ErrorT)
+#endif
 import Control.Monad.Trans               (MonadIO(..),MonadTrans(lift))
 import Control.Monad.Trans.Except        (ExceptT)
 import Control.Monad.Reader              (ReaderT)
@@ -71,7 +73,9 @@ instance (Happstack m, Monoid w) => Happstack (Lazy.WriterT   w     m)
 instance (Happstack m, Monoid w) => Happstack (Strict.WriterT   w   m)
 instance (Happstack m, Monoid w) => Happstack (Lazy.RWST      r w s m)
 instance (Happstack m, Monoid w) => Happstack (Strict.RWST    r w s m)
+#if !MIN_VERSION_mtl(2,3,0)
 instance (Happstack m, Error e)  => Happstack (ErrorT e m)
+#endif
 instance (Happstack m, Monoid e) => Happstack (ExceptT e m)
 
 -- | Get a header out of the request.
