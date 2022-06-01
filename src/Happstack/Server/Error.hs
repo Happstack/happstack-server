@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- | Some useful functions if you want to wrap the 'ServerPartT' monad transformer around the 'ErrorT' monad transformer. e.g., @'ServerPartT' ('ErrorT' e m) a@. This allows you to use 'throwError' and 'catchError' inside your monad.  
 module Happstack.Server.Error where
 
