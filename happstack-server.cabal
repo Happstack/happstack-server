@@ -84,7 +84,6 @@ Library
                        process,
                        semigroups             >= 0.16,
                        sendfile               >= 0.7.1 && < 0.8,
-                       system-filepath        >= 0.3.1,
                        syb,
                        text                   >= 0.10  && < 2.1,
                        time,
