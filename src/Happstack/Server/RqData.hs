@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, CPP #-}
+{-# LANGUAGE CPP, DeriveDataTypeable, GeneralizedNewtypeDeriving, FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, StandaloneDeriving, UndecidableInstances #-}
 -- | Functions for extracting values from the query string, form data, cookies, etc.
 --
 -- For in-depth documentation see the following section of the Happstack Crash Course:
@@ -59,7 +59,7 @@ module Happstack.Server.RqData
     ) where
 
 import Control.Applicative                      (Applicative((<*>), pure), Alternative((<|>), empty), WrappedMonad(WrapMonad, unwrapMonad))
-import Control.Monad                            (MonadPlus(mzero))
+import Control.Monad                            (MonadPlus(mzero, mplus))
 import Control.Monad.Reader                     (ReaderT(ReaderT, runReaderT), MonadReader(ask, local), mapReaderT)
 import qualified Control.Monad.State.Lazy as Lazy      (StateT, mapStateT)
 import qualified Control.Monad.State.Strict as Strict  (StateT, mapStateT)
@@ -93,11 +93,38 @@ import Happstack.Server.Response                (requestEntityTooLarge, toRespon
 import Network.URI                              (unEscapeString)
 
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
-    deriving (Functor, Applicative, Monad)
+    deriving (Functor, Monad)
 
+#if MIN_VERSION_mtl(2,3,0)
+deriving instance (Monoid e, MonadPlus (Either e)) => MonadPlus (ReaderError r e)
+#else
+deriving instance (Monoid e, DeprecatedError.Error e, MonadPlus (Either e)) => MonadPlus (ReaderError r e)
+#endif
+
+#if MIN_VERSION_mtl(2,3,0)
 instance (Monoid e) => MonadReader r (ReaderError r e) where
+#else
+instance (DeprecatedError.Error e, Monoid e) => MonadReader r (ReaderError r e) where
+#endif
     ask = ReaderError ask
     local f m = ReaderError $ local f (unReaderError m)
+
+#if MIN_VERSION_mtl(2,3,0)
+instance (Monoid e) => Applicative (ReaderError r e) where
+#else
+instance (Monoid e, DeprecatedError.Error e) => Applicative (ReaderError r e) where
+#endif
+    pure = return
+    (ReaderError (ReaderT f)) <*> (ReaderError (ReaderT a))
+        = ReaderError $ ReaderT $ \env -> (f env) `apEither` (a env)
+
+#if MIN_VERSION_mtl(2,3,0)
+instance (MonadPlus (Either e), Monoid e) => Alternative (ReaderError r e) where
+#else
+instance (Monoid e, DeprecatedError.Error e) => Alternative (ReaderError r e) where
+#endif
+    empty = unwrapMonad empty
+    f <|> g = unwrapMonad $ (WrapMonad f) <|> (WrapMonad g)
 
 apEither :: (Monoid e) => Either e (a -> b) -> Either e a -> Either e b
 apEither (Left errs1) (Left errs2) = Left (errs1 `mappend` errs2)
@@ -117,11 +144,26 @@ instance Monoid (Errors a) where
     mappend = (SG.<>)
     mconcat errs = Errors $ concatMap unErrors errs
 
+#if MIN_VERSION_transformers(0,6,0)
+instance (Alternative (Either (Errors a))) => MonadPlus (Either (Errors a)) where
+  mzero = Left (Errors [])
+  (Left _) `mplus` n = n
+  m        `mplus` _ = m
+
+instance Alternative (Either (Errors a)) where
+  empty = Left (Errors [])
+  (Left _) <|> n = n
+  m        <|> _ = m
+#endif
+
 #if !MIN_VERSION_mtl(2,3,0)
 instance DeprecatedError.Error (Errors String) where
     noMsg = Errors []
     strMsg str = Errors [str]
 #endif
+
+strMsg :: a -> Errors a
+strMsg errMsg = Errors [errMsg]
 
 {- commented out to avoid 'Defined but not used' warning.
 readerError :: (Monoid e, Error e) => e -> ReaderError r e b
@@ -141,7 +183,7 @@ type RqEnv = ([(String, Input)], Maybe [(String, Input)], [(String, Cookie)])
 -- | An applicative functor and monad for looking up key/value pairs
 -- in the QUERY_STRING, Request body, and cookies.
 newtype RqData a = RqData { unRqData :: ReaderError RqEnv (Errors String) a }
-    deriving (Functor, Monad, Applicative, MonadReader RqEnv )
+    deriving (Functor, Monad, MonadPlus, Applicative, Alternative, MonadReader RqEnv )
 
 -- | A class for monads which contain a 'RqEnv'
 class HasRqData m where
@@ -262,11 +304,6 @@ readRq key val =
       (Just a) -> Right a
       _        -> Left $ "readRq failed while parsing key: " ++ key ++ " which has the value: " ++ val
 
-
-strMsg :: a -> Errors a
-strMsg errMsg = Errors [errMsg]
-
-
 -- | convert or validate a value
 --
 -- This is similar to 'fmap' except that the function can fail by
@@ -319,6 +356,8 @@ instance (FromData a, FromData b, FromData c) => FromData (a,b,c) where
 instance (FromData a, FromData b, FromData c, FromData d) => FromData (a,b,c,d) where
     fromData = (,,,) <$> fromData <*> fromData <*> fromData <*> fromData
 
+instance FromData a => FromData (Maybe a) where
+    fromData = (Just <$> fromData) <|> (pure Nothing)
 
 -- | similar to 'Data.List.lookup' but returns all matches not just the first
 lookups :: (Eq a) => a -> [(a, b)] -> [b]
