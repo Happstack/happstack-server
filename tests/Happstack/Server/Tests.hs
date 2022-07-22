@@ -10,9 +10,11 @@ import Control.Monad
 import Data.ByteString.Lazy.Char8     (pack, unpack)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy  as L
+import Data.List (intercalate)
 import qualified Data.Map              as Map
 import Happstack.Server                      ( Request(..), Method(..), Response(..), ServerPart, Headers, RqBody(Body), HttpVersion(..)
-                                             , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength, matchMethod)
+                                             , ToMessage(..), HeaderPair(..), ok, dir, simpleHTTP'', composeFilter, noContentLength, matchMethod
+                                             , look, getDataFn)
 import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
 import Happstack.Server.Cookie
 import Happstack.Server.Internal.Compression
@@ -34,6 +36,7 @@ allTests =
                                 , matchMethodTest
                                 , cookieHeaderOrderTest
                                 , pContentDispositionFilename
+                                , applicativeTest
                                 ]
 
 cookieParserTest :: Test
@@ -247,3 +250,13 @@ pContentDispositionFilename =
     do let doesNotWorkWithOldParserButWithNew = "form-data; filename=\"file.pdf\"; name=\"file\"" :: String
        c <- parseContentDisposition doesNotWorkWithOldParserButWithNew
        assertEqual "parseContentDisposition" c (ContentDisposition "form-data" [("filename","file.pdf"),("name","file")])
+
+applicativeTest :: Test
+applicativeTest =
+  "applicativeTest" ~:
+    do req <- mkRequest GET "/response" [] mempty L.empty
+       res <- flip simpleHTTP'' req $ do
+         Left errors <- getDataFn $ (++) <$> look "a" <*> look "b"
+         pure $ intercalate "," errors
+       let ref = "Parameter not found: a,Parameter not found: b"
+       assertEqual "getDataFn/ReaderError doesn't short-circuit" ref (unpack (rsBody res))
