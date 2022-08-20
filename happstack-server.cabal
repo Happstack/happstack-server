@@ -82,7 +82,6 @@ Library
                        old-locale,
                        parsec                            < 4,
                        process,
-                       semigroups             >= 0.16,
                        sendfile               >= 0.7.1 && < 0.8,
                        system-filepath        >= 0.3.1,
                        syb,
@@ -101,6 +100,9 @@ Library
   if !os(windows)
      Build-Depends:    unix
      cpp-options:      -DUNIX
+
+  if impl(ghc < 8.0)
+     Build-Depends:    semigroups             >= 0.16
 
   if impl(ghc < 8.6)
      Default-Extensions: MonadFailDesugaring
