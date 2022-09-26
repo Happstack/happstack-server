@@ -101,9 +101,6 @@ Library
      Build-Depends:    unix
      cpp-options:      -DUNIX
 
-  if impl(ghc < 8.0)
-     Build-Depends:    semigroups             >= 0.16
-
   if impl(ghc < 8.6)
      Default-Extensions: MonadFailDesugaring
 
@@ -118,7 +115,7 @@ Library
   -- available 18 months ago. In order to avoid people spending time
   -- keeping the build working for older versions, we tell Cabal that
   -- it shouldn't allow builds with them.
-  if impl(ghc < 7.0)
+  if impl(ghc < 8.0)
     buildable: False
 
 Test-Suite happstack-server-tests
