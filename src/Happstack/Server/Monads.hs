@@ -41,8 +41,8 @@ module Happstack.Server.Monads
 
 import Control.Applicative               (Alternative, Applicative)
 import Control.Monad                     (MonadPlus(mzero))
-#if !MIN_VERSION_mtl(2,3,0)
-import Control.Monad.Error               (Error, ErrorT)
+#if !MIN_VERSION_transformers(0,6,0)
+import Control.Monad.Trans.Error         (Error, ErrorT)
 #endif
 import Control.Monad.Trans               (MonadIO(..),MonadTrans(lift))
 import Control.Monad.Trans.Except        (ExceptT)
@@ -73,7 +73,7 @@ instance (Happstack m, Monoid w) => Happstack (Lazy.WriterT   w     m)
 instance (Happstack m, Monoid w) => Happstack (Strict.WriterT   w   m)
 instance (Happstack m, Monoid w) => Happstack (Lazy.RWST      r w s m)
 instance (Happstack m, Monoid w) => Happstack (Strict.RWST    r w s m)
-#if !MIN_VERSION_mtl(2,3,0)
+#if !MIN_VERSION_transformers(0,6,0)
 instance (Happstack m, Error e)  => Happstack (ErrorT e m)
 #endif
 instance (Happstack m, Monoid e) => Happstack (ExceptT e m)

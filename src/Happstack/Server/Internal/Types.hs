@@ -21,8 +21,8 @@ module Happstack.Server.Internal.Types
 
 
 import Control.Exception (Exception, SomeException)
-#if !MIN_VERSION_mtl(2,3,0)
-import Control.Monad.Error (Error(strMsg))
+#if !MIN_VERSION_transformers(0,6,0)
+import Control.Monad.Trans.Error (Error(strMsg))
 #endif
 import Control.Monad.Fail (MonadFail)
 import Control.Monad.Trans (MonadIO(liftIO))
@@ -248,7 +248,7 @@ instance Show Response where
 showRsValidator :: Maybe (Response -> IO Response) -> String
 showRsValidator = maybe "Nothing" (const "Just <function>")
 
-#if !MIN_VERSION_mtl(2,3,0)
+#if !MIN_VERSION_transformers(0,6,0)
 -- what should the status code be ?
 instance Error Response where
   strMsg str =
