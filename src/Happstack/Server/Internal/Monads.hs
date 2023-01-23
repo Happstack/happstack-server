@@ -12,8 +12,8 @@ import Control.Monad                             ( MonadPlus(mzero, mplus), ap, 
                                                  )
 import Control.Monad.Base                        ( MonadBase, liftBase )
 import Control.Monad.Catch                       ( MonadCatch(..), MonadThrow(..) )
-#if !MIN_VERSION_mtl(2,3,0)
-import Control.Monad.Error                       ( ErrorT, Error, mapErrorT )
+#if !MIN_VERSION_transformers(0,6,0)
+import Control.Monad.Trans.Error                 ( ErrorT, Error, mapErrorT )
 #endif
 import Control.Monad.Except                      ( MonadError, throwError
                                                  , catchError
@@ -756,7 +756,7 @@ instance (WebMonad a m, Monoid w) => WebMonad a (Strict.RWST r w s m) where
 
 -- ErrorT
 
-#if !MIN_VERSION_mtl(2,3,0)
+#if !MIN_VERSION_transformers(0,6,0)
 instance (Error e, ServerMonad m) => ServerMonad (ErrorT e m) where
     askRq     = lift askRq
     localRq f = mapErrorT $ localRq f

@@ -67,8 +67,8 @@ import qualified Control.Monad.Writer.Lazy as Lazy     (WriterT, mapWriterT)
 import qualified Control.Monad.Writer.Strict as Strict (WriterT, mapWriterT)
 import qualified Control.Monad.RWS.Lazy as Lazy        (RWST, mapRWST)
 import qualified Control.Monad.RWS.Strict as Strict    (RWST, mapRWST)
-#if !MIN_VERSION_mtl(2,3,0)
-import qualified Control.Monad.Error as DeprecatedError
+#if !MIN_VERSION_transformers(0,6,0)
+import qualified Control.Monad.Trans.Error as DeprecatedError
 #endif
 import Control.Monad.Except                     (throwError)
 import Control.Monad.Trans                      (MonadIO(..), lift)
@@ -95,13 +95,13 @@ import Network.URI                              (unEscapeString)
 newtype ReaderError r e a = ReaderError { unReaderError :: ReaderT r (Either e) a }
     deriving (Functor, Monad)
 
-#if MIN_VERSION_mtl(2,3,0)
+#if MIN_VERSION_transformers(0,6,0)
 deriving instance (Monoid e, MonadPlus (Either e)) => MonadPlus (ReaderError r e)
 #else
 deriving instance (Monoid e, DeprecatedError.Error e, MonadPlus (Either e)) => MonadPlus (ReaderError r e)
 #endif
 
-#if MIN_VERSION_mtl(2,3,0)
+#if MIN_VERSION_transformers(0,6,0)
 instance (Monoid e) => MonadReader r (ReaderError r e) where
 #else
 instance (DeprecatedError.Error e, Monoid e) => MonadReader r (ReaderError r e) where
@@ -109,7 +109,7 @@ instance (DeprecatedError.Error e, Monoid e) => MonadReader r (ReaderError r e) 
     ask = ReaderError ask
     local f m = ReaderError $ local f (unReaderError m)
 
-#if MIN_VERSION_mtl(2,3,0)
+#if MIN_VERSION_transformers(0,6,0)
 instance (Monoid e) => Applicative (ReaderError r e) where
 #else
 instance (Monoid e, DeprecatedError.Error e) => Applicative (ReaderError r e) where
@@ -118,7 +118,7 @@ instance (Monoid e, DeprecatedError.Error e) => Applicative (ReaderError r e) wh
     (ReaderError (ReaderT f)) <*> (ReaderError (ReaderT a))
         = ReaderError $ ReaderT $ \env -> (f env) `apEither` (a env)
 
-#if MIN_VERSION_mtl(2,3,0)
+#if MIN_VERSION_transformers(0,6,0)
 instance (MonadPlus (Either e), Monoid e) => Alternative (ReaderError r e) where
 #else
 instance (Monoid e, DeprecatedError.Error e) => Alternative (ReaderError r e) where
@@ -156,7 +156,7 @@ instance Alternative (Either (Errors a)) where
   m        <|> _ = m
 #endif
 
-#if !MIN_VERSION_mtl(2,3,0)
+#if !MIN_VERSION_transformers(0,6,0)
 instance DeprecatedError.Error (Errors String) where
     noMsg = Errors []
     strMsg str = Errors [str]
@@ -242,7 +242,7 @@ instance (Monad m, HasRqData m, Monoid w) => HasRqData (Strict.RWST r w s m) whe
     localRqEnv f  = Strict.mapRWST (localRqEnv f)
     rqDataError e = lift (rqDataError e)
 
-#if !MIN_VERSION_mtl(2,3,0)
+#if !MIN_VERSION_transformers(0,6,0)
 instance (Monad m, DeprecatedError.Error e, HasRqData m) => HasRqData (DeprecatedError.ErrorT e m) where
     askRqEnv      = lift askRqEnv
     localRqEnv f  = DeprecatedError.mapErrorT (localRqEnv f)
