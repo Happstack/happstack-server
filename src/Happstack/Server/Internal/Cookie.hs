@@ -46,6 +46,7 @@ data Cookie = Cookie
     , secure        :: Bool
     , httpOnly      :: Bool
     , sameSite      :: SameSite
+    , partitioned   :: Bool
     } deriving(Show,Eq,Read,Typeable,Data)
 
 -- | Specify the lifetime of a cookie.
@@ -102,13 +103,13 @@ calcLife Expired =
 
 -- | Creates a cookie with a default version of 1, empty domain, a
 -- path of "/", secure == False, httpOnly == False and
--- sameSite == SameSiteNoValue
+-- sameSite == SameSiteNoValue and partitioned = False
 --
 -- see also: 'addCookie'
 mkCookie :: String  -- ^ cookie name
          -> String  -- ^ cookie value
          -> Cookie
-mkCookie key val = Cookie "1" "/" "" key val False False SameSiteNoValue
+mkCookie key val = Cookie "1" "/" "" key val False False SameSiteNoValue False
 
 -- | Set a Cookie in the Result.
 -- The values are escaped as per RFC 2109, but some browsers may
@@ -147,6 +148,7 @@ mkCookieHeader mLife cookie =
       ++ (if httpOnly cookie then ["HttpOnly"] else [])
       ++ (if sameSite cookie /= SameSiteNoValue
           then [displaySameSite . sameSite $ cookie] else [])
+      ++ (if partitioned cookie then ["Partitioned"] else [])
 
 -- | Not an supported api.  Takes a cookie header and returns
 -- either a String error message or an array of parsed cookies
@@ -170,7 +172,7 @@ cookiesParser = cookies
             val<-value
             path<-option "" $ try (cookieSep >> cookie_path)
             domain<-option "" $ try (cookieSep >> cookie_domain)
-            return $ Cookie ver path domain (low name) val False False SameSiteNoValue
+            return $ Cookie ver path domain (low name) val False False SameSiteNoValue False
           cookie_version = cookie_special "$Version"
           cookie_path = cookie_special "$Path"
           cookie_domain = cookie_special "$Domain"
