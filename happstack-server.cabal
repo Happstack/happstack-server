@@ -10,7 +10,7 @@ homepage:            http://happstack.com
 Category:            Web, Happstack
 Build-Type:          Simple
 Cabal-Version:       >= 1.10
-Extra-Source-Files:  tests/Happstack/Server/Tests.hs README.md
+Extra-Source-Files:  tests/Happstack/Server/Tests.hs README.md CHANGELOG.md
 
 tested-with:
   GHC == 9.8.1
