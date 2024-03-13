@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns, CPP, ScopedTypeVariables #-}
 module Happstack.Server.Internal.Listen(listen, listen',listenOn,listenOnIPv4) where
 
+import Data.Maybe                               (isNothing)
 import Happstack.Server.Internal.Types          (Conf(..), Request, Response)
 import Happstack.Server.Internal.Handler        (request)
 import Happstack.Server.Internal.Socket         (acceptLite)
@@ -118,7 +119,7 @@ listen' s conf hand = do
       infi :: IO ()
       infi = loop `catchSome` pe >> infi
 
-  infi `finally` (Socket.close s >> forceTimeoutAll tm)
+  infi `finally` (Socket.close s >> when (isNothing $ threadGroup conf) (forceTimeoutAll tm))
 
 {--
 #ifndef mingw32_HOST_OS
