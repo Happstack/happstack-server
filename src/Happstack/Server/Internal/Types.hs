@@ -117,7 +117,7 @@ data Conf = Conf
     , validator   :: Maybe (Response -> IO Response) -- ^ a function to validate the output on-the-fly
     , logAccess   :: forall t. FormatTime t => Maybe (LogAccess t) -- ^ function to log access requests (see also: 'logMAccess')
     , timeout     :: Int             -- ^ number of seconds to wait before killing an inactive thread
-    , threadGroup :: Maybe TG.ThreadGroup -- ^ ThreadGroup for registering spawned threads for handling requests
+    , threadGroup :: Maybe TG.ThreadGroup -- ^ ThreadGroup for registering spawned threads for handling requests.
     }
 
 -- | Default configuration contains no validator and the port is set to 8000
