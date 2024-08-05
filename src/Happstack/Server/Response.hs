@@ -26,6 +26,9 @@ module Happstack.Server.Response
     , ifModifiedSince
     ) where
 
+#if MIN_VERSION_xhtml(3000,3,0)
+import qualified Data.ByteString.Builder         as L
+#endif
 import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
@@ -140,8 +143,11 @@ instance ToMessage Html where
 
 instance ToMessage XHtml.Html where
     toContentType _ = B.pack "text/html; charset=UTF-8"
+#if MIN_VERSION_xhtml(3000,3,0)
+    toMessage = L.toLazyByteString . XHtml.renderHtml
+#else
     toMessage = LU.fromString . XHtml.renderHtml
-
+#endif
 instance ToMessage Blaze.Html where
     toContentType _ = B.pack "text/html; charset=UTF-8"
     toMessage       = Blaze.renderHtml
