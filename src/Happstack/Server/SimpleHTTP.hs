@@ -44,6 +44,7 @@ module Happstack.Server.SimpleHTTP
     , bindPort
     , bindIPv4
     , parseConfig
+    , runWebT
     , waitForTermination
     -- * Re-exported modules
     -- ** Basic ServerMonad functionality
