@@ -4,7 +4,6 @@ module Main (main) where
 import Happstack.State
 import Happstack.Server
 
-import Data.Typeable          ( Typeable )
 import System.Environment     ( getArgs, getProgName )
 import System.Exit            ( exitWith, ExitCode(ExitFailure) )
 import Control.Monad.State    ( put, get)
@@ -21,7 +20,7 @@ type MessageId = Int
 data User = User { userNick     :: Nick
                  , userLastSeen :: MessageId }
 
-data ChatState = ChatState MessageId [ (Nick, Message, MessageId) ] deriving (Typeable)
+data ChatState = ChatState MessageId [ (Nick, Message, MessageId) ]
 instance Version ChatState
 $(deriveSerialize ''ChatState)
 
@@ -73,7 +72,7 @@ main = bracket (startSystemStateMultimaster rootState) closeTxControl $ \ctl ->
                      [ do
                           mbUser <- getDataFn getUserFromCookie
                           user <- maybe mzero return mbUser
-                          msum 
+                          msum
                             [ dir "send" $ do
                                   msg <- getDataFn (look "msg") >>= maybe mzero return
                                   update $ AddMessage (userNick user) msg
@@ -82,14 +81,14 @@ main = bracket (startSystemStateMultimaster rootState) closeTxControl $ \ctl ->
                                   (newLast, msgs) <- liftIO $ getMessages (userLastSeen user)
                                   addCookie (-1) (mkCookie "last" (show newLast))
                                   ok (toResponse (format msgs))
-                              
+
                             , dir "clear" $ do
                                   addCookie (-1) (mkCookie "last" (show 0))
                                   ok (toResponse "")
                             , fileServe [] "ChatRun.html"
                             ]
                       , dir "login" $ do
-                           nick <- getDataFn (look "nick") >>= maybe mzero return 
+                           nick <- getDataFn (look "nick") >>= maybe mzero return
                            addCookie (-1) (mkCookie "nick" nick)
                            addCookie (-1) (mkCookie "last" (show 0))
                            seeOther "/" (toResponse "")

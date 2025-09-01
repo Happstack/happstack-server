@@ -3,12 +3,11 @@ module Timer where
 
 import Happstack.State
 import Happstack.Data
-import Data.Typeable
 import Data.Generics
 import Control.Monad.State (modify)
 import Control.Concurrent
 
-newtype Timer = Timer Int deriving (Typeable)
+newtype Timer = Timer Int
 instance Version Timer
 $(deriveSerialize ''Timer)
 

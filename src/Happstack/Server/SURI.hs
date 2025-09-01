@@ -23,7 +23,7 @@ module Happstack.Server.SURI
 import Control.Arrow (first)
 import Data.Char     (chr, digitToInt, isHexDigit)
 import Data.Maybe    (fromJust, isJust)
-import Data.Generics (Data, Typeable)
+import Data.Generics (Data)
 import qualified Data.Text      as Text
 import qualified Data.Text.Lazy as LazyText
 import qualified Network.URI    as URI
@@ -74,7 +74,7 @@ unEscape   = percentDecode
 isAbs :: SURI -> Bool
 isAbs = not . null . URI.uriScheme . suri
 
-newtype SURI = SURI {suri::URI.URI} deriving (Eq,Data,Typeable)
+newtype SURI = SURI {suri::URI.URI} deriving (Eq,Data)
 instance Show SURI where
     showsPrec d (SURI uri) = showsPrec d $ show uri
 instance Read SURI where

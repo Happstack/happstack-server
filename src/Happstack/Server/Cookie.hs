@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts #-}
 -- | Functions for creating, adding, and expiring cookies. To lookup cookie values see "Happstack.Server.RqData".
 module Happstack.Server.Cookie
     ( Cookie(..)
@@ -19,7 +19,7 @@ import Happstack.Server.Types           (Response, addHeader)
 -- | Add the 'Cookie' to 'Response'.
 --
 -- example
--- 
+--
 -- > main = simpleHTTP nullConf $
 -- >   do addCookie Session (mkCookie "name" "value")
 -- >      ok $ "You now have a session cookie."
@@ -33,7 +33,7 @@ addCookie life cookie =
       addHeaderM a v = composeFilter $ \res-> addHeader a v res
 
 -- | Add the list 'Cookie' to the 'Response'.
--- 
+--
 -- see also: 'addCookie'
 addCookies :: (MonadIO m, FilterMonad Response m) => [(CookieLife, Cookie)] -> m ()
 addCookies = mapM_ (uncurry addCookie)
@@ -44,5 +44,5 @@ addCookies = mapM_ (uncurry addCookie)
 -- >   do expireCookie "name"
 -- >      ok $ "The cookie has been expired."
 
-expireCookie :: (MonadIO m, FilterMonad Response m) => String -> m () 
+expireCookie :: (MonadIO m, FilterMonad Response m) => String -> m ()
 expireCookie name = addCookie Expired (mkCookie name "")

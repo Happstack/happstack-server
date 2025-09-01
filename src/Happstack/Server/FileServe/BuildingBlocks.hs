@@ -59,7 +59,7 @@ import Control.Monad                (MonadPlus(mzero), msum)
 import Control.Monad.Trans          (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as S
-import Data.Data                    (Data, Typeable)
+import Data.Data                    (Data)
 import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
@@ -523,7 +523,7 @@ browseIndex renderFn _serveFn _mimeFn _ixFiles localPath =
        listing <- renderFn localPath $ filter (/= ".") (sort c)
        ok $ toResponse $ listing
 
-data EntryKind = File | Directory | UnknownKind deriving (Eq, Ord, Read, Show, Data, Typeable, Enum)
+data EntryKind = File | Directory | UnknownKind deriving (Eq, Ord, Read, Show, Data, Enum)
 
 -- | a function to generate an HTML page showing the contents of a directory on the disk
 --
@@ -625,7 +625,7 @@ getMetaData localPath fp =
 -- | see 'serveDirectory'
 data Browsing
     = EnableBrowsing | DisableBrowsing
-      deriving (Eq, Enum, Ord, Read, Show, Data, Typeable)
+      deriving (Eq, Enum, Ord, Read, Show, Data)
 
 -- | Serve files and directories from a directory and its subdirectories using 'sendFile'.
 --

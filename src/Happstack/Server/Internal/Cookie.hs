@@ -21,7 +21,7 @@ import Control.Monad
 import Control.Monad.Fail (MonadFail)
 import qualified Data.ByteString.Char8 as C
 import Data.Char             (chr, toLower)
-import Data.Data             (Data, Typeable)
+import Data.Data             (Data)
 import Data.List             ((\\), intersperse)
 import Data.Time.Clock       (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
@@ -44,7 +44,7 @@ data Cookie = Cookie
     , httpOnly      :: Bool
     , sameSite      :: SameSite
     , partitioned   :: Bool
-    } deriving(Show,Eq,Read,Typeable,Data)
+    } deriving (Show, Eq, Read, Data)
 
 -- | Specify the lifetime of a cookie.
 --
@@ -58,7 +58,7 @@ data CookieLife
     | MaxAge Int      -- ^ life time of cookie in seconds
     | Expires UTCTime -- ^ cookie expiration date
     | Expired         -- ^ cookie already expired
-      deriving (Eq, Ord, Read, Show, Typeable)
+      deriving (Eq, Ord, Read, Show)
 
 -- | Options for specifying third party cookie behaviour.
 --
@@ -75,7 +75,7 @@ data SameSite
     -- secure.
     | SameSiteNoValue
     -- ^ The default; used if you do not wish a SameSite attribute present at all.
-      deriving (Eq, Ord, Typeable, Data, Show, Read)
+      deriving (Eq, Ord, Data, Show, Read)
 
 displaySameSite :: SameSite -> String
 displaySameSite ss =
