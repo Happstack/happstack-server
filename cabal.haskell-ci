@@ -1,1 +1,3 @@
 branches: master
+
+error-incomplete-patterns: False

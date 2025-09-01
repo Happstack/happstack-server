@@ -78,7 +78,7 @@ import qualified Data.ByteString.Lazy.Char8     as L
 import qualified Data.ByteString.Lazy.UTF8      as LU
 import Data.Char                                (toLower)
 import Data.Either                              (partitionEithers)
-import Data.Generics                            (Data, Typeable)
+import Data.Generics                            (Data)
 import Data.Maybe                               (fromJust)
 import Data.Monoid                              (Monoid(mempty, mappend, mconcat))
 import qualified Data.Semigroup                 as SG
@@ -134,7 +134,7 @@ apEither (Right f)    (Right a)    = Right (f a)
 
 -- | a list of errors
 newtype Errors a = Errors { unErrors :: [a] }
-    deriving (Eq, Ord, Show, Read, Data, Typeable)
+    deriving (Eq, Ord, Show, Read, Data)
 
 instance SG.Semigroup (Errors a) where
     (Errors x) <> (Errors y) = Errors (x ++ y)
@@ -493,7 +493,7 @@ lookCookie name
            Nothing -> rqDataError $ strMsg $ "lookCookie: cookie not found: " ++ name
            Just c  -> return c{cookieValue = f c}
   where
-    f = unEscapeString . cookieValue 
+    f = unEscapeString . cookieValue
 
 -- | gets the named cookie as a string
 lookCookieValue :: (Functor m, Monad m, HasRqData m) => String -> m String

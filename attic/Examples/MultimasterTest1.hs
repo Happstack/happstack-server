@@ -1,14 +1,13 @@
-{-# LANGUAGE TemplateHaskell, DeriveDataTypeable, MultiParamTypeClasses, TypeFamilies, FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell, MultiParamTypeClasses, TypeFamilies, FlexibleContexts #-}
 module Main where
 
 import Happstack.Server
 import Happstack.State
 
-import Data.Typeable
 import Control.Monad.State
 import Control.Monad.Reader
 
-data MyState = MyState Int deriving (Typeable)
+data MyState = MyState Int
 
 instance Version MyState
 $(deriveSerialize ''MyState)
@@ -42,4 +41,3 @@ main = do ctl <- startSystemStateMultimaster rootState
                                 seeOther "/" ""
               , do val <- query GetVal
                    ok $ "Value is: " ++ show val ]
-

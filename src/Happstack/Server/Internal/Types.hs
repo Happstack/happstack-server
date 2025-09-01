@@ -32,7 +32,6 @@ import qualified Data.Map as M
 import Data.Data (Data)
 import Data.String (fromString)
 import Data.Time.Format (FormatTime(..))
-import Data.Typeable(Typeable)
 import qualified Data.ByteString.Char8 as P
 import Data.ByteString.Char8 (ByteString,pack)
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -139,7 +138,7 @@ logMAccess host user time requestLine responseCode size referer userAgent =
 
 -- | HTTP request method
 data Method = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT | PATCH | EXTENSION ByteString
-    deriving (Show,Read,Eq,Ord,Typeable,Data)
+    deriving (Show, Read, Eq, Ord, Data)
 
 -- | Does the method support a message body?
 --
@@ -179,7 +178,7 @@ data Length
 -- | Result flags
 data RsFlags = RsFlags
     { rsfLength :: Length
-    } deriving (Show,Read,Typeable)
+    } deriving (Show, Read)
 
 -- | Default RsFlags: automatically use @Transfer-Encoding: Chunked@.
 nullRsFlags :: RsFlags
@@ -204,7 +203,7 @@ data Input = Input
     { inputValue       :: Either FilePath L.ByteString
     , inputFilename    :: Maybe FilePath
     , inputContentType :: ContentType
-    } deriving (Show, Read, Typeable)
+    } deriving (Show, Read)
 
 -- | hostname & port
 type Host = (String, Int) -- ^ (hostname, port)
@@ -225,7 +224,6 @@ data Response
                 , sfOffset    :: Integer   -- ^ offset to start at
                 , sfCount     :: Integer    -- ^ number of bytes to send
                 }
-      deriving (Typeable)
 
 instance Show Response where
     showsPrec _ res@Response{}  =
@@ -270,7 +268,7 @@ data Request = Request
     , rqHeaders     :: Headers               -- ^ the HTTP request headers
     , rqBody        :: MVar RqBody           -- ^ the raw, undecoded request body
     , rqPeer        :: Host                  -- ^ (hostname, port) of the client making the request
-    } deriving (Typeable)
+    }
 
 instance Show Request where
     showsPrec _ rq =
@@ -329,7 +327,7 @@ instance HasHeaders Headers where
     headers         = id
 
 -- | The body of an HTTP 'Request'
-newtype RqBody = Body { unBody :: L.ByteString } deriving (Read,Show,Typeable)
+newtype RqBody = Body { unBody :: L.ByteString } deriving (Read, Show)
 
 -- | Sets the Response status code to the provided Int and lifts the computation
 -- into a Monad.
@@ -531,7 +529,6 @@ instance FromReqURI Bool    where
 -- | Escape from the HTTP world and get direct access to the underlying 'TimeoutIO' functions
 data EscapeHTTP
   = EscapeHTTP (TimeoutIO -> IO ())
-    deriving (Typeable)
 
 instance Exception EscapeHTTP
 

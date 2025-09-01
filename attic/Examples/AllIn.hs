@@ -16,7 +16,7 @@ import Happstack.Data.IxSet
 import qualified Data.Map as M
 
 ------------------------------------------------
--- Define a component of state 
+-- Define a component of state
 --
 -- Real examples are HelpReqs, FlashMsgs, and sessions
 -- really you should put components in their own modules.
@@ -29,15 +29,13 @@ import qualified Data.Map as M
 -- Lets start with defining a simple state component: Session
 type SesKey = Integer
 type ETime = Integer
-newtype OldSession val = OldSession {old_unsession::[(SesKey,(ETime,val))]} 
-                   deriving (Typeable)
+newtype OldSession val = OldSession {old_unsession::[(SesKey,(ETime,val))]}
 
 instance Version (OldSession val)
 $(deriveSerialize ''OldSession)
 
 
 newtype Session val = Session { unsession :: M.Map SesKey (ETime,val) }
-                   deriving (Typeable)
 
 instance Migrate (OldSession val) (Session val) where
     migrate (OldSession sess) = Session (M.fromList sess)
@@ -71,7 +69,7 @@ getSession :: SesKey -> Query (Session val) (Maybe val)
 getSession key = do val <- liftM (M.lookup key) askSession
                     return (liftM snd val)
 
-setSession key val = do 
+setSession key val = do
                      t <- getTime
                      modSession $ M.insert key (t,val)
                      return ()
@@ -97,30 +95,30 @@ numSessions = proxyQuery $ liftM M.size askSession
 
 -- Declare these as methods. So you can access them from any IO via (query $
 -- GetSession key) or (update $ setSession key val).  When we can have
--- Data for phantom types in 6.8.2 this will look nicer 
+-- Data for phantom types in 6.8.2 this will look nicer
 
-$(mkMethods ''Session 
-  ['newSession,'setSession, 'cleanSessions,'numSessions ,'getSession]) 
+$(mkMethods ''Session
+  ['newSession,'setSession, 'cleanSessions,'numSessions ,'getSession])
 
 -- Sometimes you want maintenance on your component that the user
 -- doesn't want to worry about.
 
 maintainSessions v = do update $ CleanSessions 3600000 v
                         threadDelay (10^6 * 10) -- Once every 10 seconds
-                        maintainSessions v 
+                        maintainSessions v
 
 instance (Serialize a) => Component (Session a) where
     type Dependencies (Session a) = End
     initialValue = Session M.empty
 
--- All components need an atStart declaration though the list can be empty              
+-- All components need an atStart declaration though the list can be empty
 
 -- Now we repeat the above for a more trivial example so we have
--- multiple components in state.  But we'll use the more concise deriveAll syntax 
+-- multiple components in state.  But we'll use the more concise deriveAll syntax
 -- so you don't deal with the boilerplate of a zillion deriving declarations on each type.
 
-data UserComponent key = UserComponent {unUserComponent :: key} deriving (Typeable)
-data SingletonComponent = SingletonComponent {unSingleton :: String} deriving (Typeable)
+data UserComponent key = UserComponent {unUserComponent :: key}
+data SingletonComponent = SingletonComponent {unSingleton :: String}
 
 instance Version (UserComponent key)
 $(deriveSerialize ''UserComponent)
@@ -183,7 +181,7 @@ $(deriveAll [''Show,''Default, ''Read]
 
 data State = State { privateInt     :: Int
                    , privateString  :: String
-                   } deriving (Typeable)
+                   }
 
 instance Version State
 $(deriveSerialize ''State)
@@ -227,7 +225,7 @@ impl = dir "setGet" $ msum
              mbComp <- getData
              comp <- maybe mzero return mbComp
              liftIO $ update $ SetComponent (comp :: Int)
-             ok comp -- returned as <?xml v=1.0?><component>blah</component>. 
+             ok comp -- returned as <?xml v=1.0?><component>blah</component>.
              -- add the xslt wrapper to style the xml
              -- or write your own ToMessage instance for your return types
         ]

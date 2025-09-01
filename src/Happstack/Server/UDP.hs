@@ -1,4 +1,4 @@
-{-# LANGUAGE OverlappingInstances, FlexibleInstances, DeriveDataTypeable #-}
+{-# LANGUAGE OverlappingInstances, FlexibleInstances #-}
 module Happstack.Server.UDP
     ( UDPConfig(..)
     , Request(..)
@@ -9,7 +9,6 @@ module Happstack.Server.UDP
 import Control.Concurrent
 import Control.Exception as E
 import Control.Monad (liftM,foldM)
-import Data.Typeable
 import Foreign
 import Foreign.Marshal
 import Happstack.Util.Common ( readM )
@@ -34,7 +33,7 @@ nullUDPConfig = UDPConfig { bodyLimit = 2 * 1024
                           }
 
 
-data Request = Request { udpMsg :: BS.ByteString, udpAddr :: SockAddr} deriving Typeable
+data Request = Request { udpMsg :: BS.ByteString, udpAddr :: SockAddr}
 
 instance Show Request where
     showsPrec n (Request bs (SockAddrInet port ip)) = showsPrec n (bs, port, ip)
@@ -70,4 +69,3 @@ sendUDPMessage ip port msg =
        handle <- socketToHandle fd WriteMode
        BS.hPut handle msg
        hClose handle
-
