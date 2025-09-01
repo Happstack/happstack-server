@@ -13,6 +13,7 @@ Cabal-Version:       >= 1.10
 Extra-Source-Files:  tests/Happstack/Server/Tests.hs README.md
 
 tested-with:
+  GHC == 9.14.1
   GHC == 9.12.2
   GHC == 9.10.2
   GHC == 9.8.2
