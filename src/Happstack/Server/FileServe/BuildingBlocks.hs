@@ -64,6 +64,7 @@ import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
 import           Data.Map           (Map)
 import qualified Data.Map           as Map
+import Data.Time                    (UTCTime, formatTime, defaultTimeLocale)
 import Filesystem.Path.CurrentOS    (commonPrefix, encodeString, decodeString, collapse, append)
 import Happstack.Server.Monads      (ServerMonad(askRq), FilterMonad, WebMonad)
 import Happstack.Server.Response    (ToMessage(toResponse), ifModifiedSince, forbidden, ok, seeOther)
@@ -75,13 +76,6 @@ import System.Log.Logger            (Priority(DEBUG), logM)
 import           Text.Blaze.Html             ((!))
 import qualified Text.Blaze.Html5            as H
 import qualified Text.Blaze.Html5.Attributes as A
-
-#if MIN_VERSION_time(1,5,0)
-import Data.Time     (UTCTime, formatTime, defaultTimeLocale)
-#else
-import System.Locale (defaultTimeLocale)
-import Data.Time     (UTCTime, formatTime)
-#endif
 
 -- * Mime-Type / Content-Type
 

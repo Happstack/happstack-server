@@ -9,19 +9,12 @@ module Happstack.Server.Internal.Clock
 
 import Control.Concurrent
 import Control.Monad
+import qualified Data.ByteString.Char8 as B
 import Data.IORef
 import Data.Time.Clock       (UTCTime)
 import Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime, posixSecondsToUTCTime)
-import System.IO.Unsafe
-
-#if MIN_VERSION_time(1,5,0)
 import Data.Time.Format (formatTime, defaultTimeLocale)
-#else
-import Data.Time.Format (formatTime)
-import System.Locale    (defaultTimeLocale)
-#endif
-
-import qualified Data.ByteString.Char8 as B
+import System.IO.Unsafe
 
 data DateCache = DateCache {
       cachedPOSIXTime :: !(IORef POSIXTime)

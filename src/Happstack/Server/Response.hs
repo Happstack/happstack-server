@@ -37,6 +37,7 @@ import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
 import qualified Data.Text.Lazy                  as LT
 import qualified Data.Text.Lazy.Encoding         as LT
+import Data.Time                                 (UTCTime, formatTime, defaultTimeLocale)
 import           Happstack.Server.Internal.Monads         (FilterMonad(composeFilter))
 import           Happstack.Server.Internal.Types
 import           Happstack.Server.Types          (Response(..), Request(..), nullRsFlags, getHeader, noContentLength, redirect, result, setHeader, setHeaderBS)
@@ -46,12 +47,6 @@ import qualified Text.Blaze.Html.Renderer.Utf8   as Blaze
 import           Text.Html                       (Html, renderHtml)
 import qualified Text.XHtml                      as XHtml (Html, renderHtml)
 
-#if MIN_VERSION_time(1,5,0)
-import Data.Time     (UTCTime, formatTime, defaultTimeLocale)
-#else
-import Data.Time     (UTCTime, formatTime)
-import System.Locale (defaultTimeLocale)
-#endif
 
 -- | A low-level function to build a 'Response' from a content-type
 -- and a 'ByteString'.

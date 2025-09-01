@@ -30,9 +30,9 @@
 -- > import Happstack.Server
 -- > main = simpleHTTP nullConf $ ok "Hello World!"
 --
--- By default the server will listen on port 8000. Run the app and point your browser at: <http://localhost:8000/>
+-- By default the server will listen on port 8000. Run the app and point your browser at: <http:\/\/localhost:8000\/>
 --
--- For FastCGI support see: <http://hackage.haskell.org/package/happstack-fastcgi>
+-- For FastCGI support see: <http:\/\/hackage.haskell.org\/package\/happstack-fastcgi>
 -----------------------------------------------------------------------------
 module Happstack.Server.SimpleHTTP
     ( -- * SimpleHTTP
