@@ -59,6 +59,7 @@ import Control.Monad                (MonadPlus(mzero), msum)
 import Control.Monad.Trans          (MonadIO(liftIO))
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.ByteString.Char8 as S
+import Data.Char                    (toLower)
 import Data.Data                    (Data)
 import Data.List                    (sort)
 import Data.Maybe                   (fromMaybe)
@@ -96,7 +97,7 @@ guessContentType :: MimeMap -> FilePath -> Maybe String
 guessContentType mimeMap filepath =
     case getExt filepath of
       "" -> Nothing
-      ext -> Map.lookup ext mimeMap
+      ext -> Map.lookup (map toLower ext) mimeMap -- FIXME? @foldCase@ would be more proper than @map toLower@ but would add a dependency. But are those edge cases ever going to be relevant here?
 
 -- | try to guess the content-type of a file based on its extension
 --
@@ -121,7 +122,7 @@ asContentType = const . return
 
 -- | a list of common index files. Specifically: @index.html@, @index.xml@, @index.gif@
 --
--- Typically used as an argument to 'serveDiretory'.
+-- Typically used as an argumebnt to 'serveDiretory'.
 defaultIxFiles :: [FilePath]
 defaultIxFiles= ["index.html","index.xml","index.gif"]
 
@@ -130,6 +131,8 @@ fileNotFound :: (Monad m, FilterMonad Response m) => FilePath -> m Response
 fileNotFound fp = return $ result 404 $ "File not found " ++ fp
 
 -- | Similar to 'takeExtension' but does not include the extension separator char
+--
+-- NOTE: this does not perform case folding. So @example.jpg@ will return @.jpg@ and @example.JPG@ will return @.JPG@.
 getExt :: FilePath -> String
 getExt fp = drop 1 $ takeExtension fp
 
