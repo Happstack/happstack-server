@@ -11,7 +11,7 @@ import Control.Exception                         (throwIO)
 import Control.Monad                             ( MonadPlus(mzero, mplus), ap, liftM, msum
                                                  )
 import Control.Monad.Base                        ( MonadBase, liftBase )
-import Control.Monad.Catch                       ( MonadCatch(..), MonadThrow(..) )
+import Control.Monad.Catch                       ( MonadCatch(..), MonadMask(..), MonadThrow(..) )
 #if !MIN_VERSION_transformers(0,6,0)
 import Control.Monad.Trans.Error                 ( ErrorT, Error, mapErrorT )
 #endif
@@ -84,6 +84,11 @@ newtype ServerPartT m a = ServerPartT { unServerPartT :: ReaderT Request (WebT m
 
 instance MonadCatch m => MonadCatch (ServerPartT m) where
     catch action handle = ServerPartT $ catch (unServerPartT action) (unServerPartT . handle)
+
+instance MonadMask m => MonadMask (ServerPartT m) where
+    mask restore = ServerPartT $ mask $ \action -> unServerPartT $ restore (ServerPartT . action . unServerPartT)
+    uninterruptibleMask restore = ServerPartT $ uninterruptibleMask $ \action -> unServerPartT $ restore (ServerPartT . action . unServerPartT)
+    generalBracket acquire release use = ServerPartT $ generalBracket (unServerPartT acquire) (\resource result -> unServerPartT $ release resource result) (unServerPartT . use)
 
 instance MonadThrow m => MonadThrow (ServerPartT m) where
     throwM = ServerPartT . throwM
@@ -320,6 +325,11 @@ newtype FilterT a m b = FilterT { unFilterT :: Lazy.WriterT (FilterFun a) m b }
 instance MonadCatch m => MonadCatch (FilterT a m) where
     catch action handle = FilterT $ catch (unFilterT action) (unFilterT . handle)
 
+instance MonadMask m => MonadMask (FilterT a m) where
+    mask restore = FilterT $ mask $ \action -> unFilterT $ restore (FilterT . action . unFilterT)
+    uninterruptibleMask restore = FilterT $ uninterruptibleMask $ \action -> unFilterT $ restore (FilterT . action . unFilterT)
+    generalBracket acquire release use = FilterT $ generalBracket (unFilterT acquire) (\resource result -> unFilterT $ release resource result) (unFilterT . use)
+
 instance MonadThrow m => MonadThrow (FilterT a m) where
     throwM = FilterT . throwM
 
@@ -378,6 +388,11 @@ newtype WebT m a = WebT { unWebT :: ExceptT Response (FilterT (Response) (MaybeT
 
 instance MonadCatch m => MonadCatch (WebT m) where
     catch action handle = WebT $ catch (unWebT action) (unWebT . handle)
+
+instance MonadMask m => MonadMask (WebT m) where
+    mask restore = WebT $ mask $ \action -> unWebT $ restore (WebT . action . unWebT)
+    uninterruptibleMask restore = WebT $ uninterruptibleMask $ \action -> unWebT $ restore (WebT . action . unWebT)
+    generalBracket acquire release use = WebT $ generalBracket (unWebT acquire) (\resource result -> unWebT $ release resource result) (unWebT . use)
 
 instance MonadThrow m => MonadThrow (WebT m) where
     throwM = WebT . throwM
