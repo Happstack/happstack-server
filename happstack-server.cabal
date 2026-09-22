@@ -88,7 +88,6 @@ Library
                        containers,
                        directory              >=1.2,
                        exceptions,
-                       extensible-exceptions,
                        filepath,
                        hslogger               >= 1.0.2,
                        html,

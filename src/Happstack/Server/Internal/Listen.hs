@@ -8,7 +8,7 @@ import Happstack.Server.Internal.Socket         (acceptLite)
 import Happstack.Server.Internal.TimeoutManager (cancel, initialize, register, forceTimeoutAll)
 import Happstack.Server.Internal.TimeoutSocket  as TS
 import qualified Control.Concurrent.Thread.Group as TG
-import Control.Exception.Extensible             as E
+import Control.Exception                        as E
 import Control.Concurrent                       (forkIO, killThread, myThreadId)
 import Control.Monad
 import qualified Data.Maybe as Maybe
