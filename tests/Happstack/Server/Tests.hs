@@ -19,6 +19,7 @@ import Happstack.Server.FileServe.BuildingBlocks (sendFileResponse)
 import Happstack.Server.Cookie
 import Happstack.Server.Internal.Compression
 import Happstack.Server.Internal.Cookie
+import Happstack.Server.Internal.Handler (consumeChunks)
 import Happstack.Server.Internal.Multipart
 import Happstack.Server.Internal.MessageWrap
 import Happstack.Server.Internal.RFC822Headers (ContentDisposition(..), parseContentDisposition)
@@ -37,6 +38,7 @@ allTests =
                                 , cookieHeaderOrderTest
                                 , pContentDispositionFilename
                                 , applicativeTest
+                                , consumeChunksTest
                                 ]
 
 cookieParserTest :: Test
@@ -250,6 +252,21 @@ pContentDispositionFilename =
     do let doesNotWorkWithOldParserButWithNew = "form-data; filename=\"file.pdf\"; name=\"file\"" :: String
        c <- parseContentDisposition doesNotWorkWithOldParserButWithNew
        assertEqual "parseContentDisposition" c (ContentDisposition "form-data" [("filename","file.pdf"),("name","file")])
+
+consumeChunksTest :: Test
+consumeChunksTest =
+  "consumeChunks decodes Transfer-Encoding: chunked" ~:
+    [ -- Single chunk
+      consumeChunks (pack "5\r\nhello\r\n0\r\n\r\n") @?= (pack "hello", pack "")
+      -- Multiple chunks concatenated
+    , consumeChunks (pack "5\r\nhello\r\n5\r\nworld\r\n0\r\n\r\n")
+        @?= (pack "helloworld", pack "")
+      -- Empty body (only terminator)
+    , consumeChunks (pack "0\r\n\r\n") @?= (pack "", pack "")
+      -- Trailing bytes after final chunk are returned as remainder
+    , consumeChunks (pack "5\r\nhello\r\n0\r\n\r\nNEXT")
+        @?= (pack "hello", pack "NEXT")
+    ]
 
 applicativeTest :: Test
 applicativeTest =
