@@ -4,13 +4,14 @@ module Happstack.Server.Internal.Handler
     ( request
     , parseResponse
     , putRequest
+    , consumeChunks
     ) where
 
 import qualified Paths_happstack_server as Paths
 import qualified Data.Version as DV
 import Control.Applicative (pure)
 import Control.Concurrent (newMVar, newEmptyMVar, tryTakeMVar)
-import Control.Exception.Extensible as E
+import Control.Exception as E
 import Control.Monad
 import Data.List(elemIndex)
 import Data.Char(toLower)
@@ -154,24 +155,32 @@ parseResponse inputStr =
                  mbCL
        return $ Response {rsCode=code,rsHeaders=headers,rsBody=body,rsFlags=RsFlags ContentLength,rsValidator=Nothing}
 
--- http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html
--- note this does NOT handle extenions
-consumeChunks::L.ByteString->(L.ByteString,L.ByteString)
-consumeChunks str = let (parts,tr,rest) = consumeChunksImpl str in (L.concat . (++ [tr]) .map snd $ parts,rest)
+-- | Decode an HTTP/1.1 Transfer-Encoding: chunked body.
+-- See http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html (chunk extensions are not handled).
+-- Returns @(decoded body, bytes following the chunked stream)@. The trailer (optional headers
+-- after the terminating 0-chunk, RFC 2616 §3.6.1) is dropped from the body — trailers are
+-- headers, not body content.
+consumeChunks :: L.ByteString -> (L.ByteString, L.ByteString)
+consumeChunks str = let (parts,_tr,rest) = consumeChunksImpl str in (L.concat . map snd $ parts, rest)
 
+-- | Worker for 'consumeChunks'. Returns @(chunks, trailer, remainder)@, where each chunk is
+-- @(declared-length, body-bytes)@ and the terminating 0-chunk has empty body.
 consumeChunksImpl :: L.ByteString -> ([(Int64, L.ByteString)], L.ByteString, L.ByteString)
 consumeChunksImpl str
     | L.null str = ([],L.empty,str)
-    | chunkLen == 0 = let (last,rest') = L.splitAt lenLine1 str
+    | chunkLen == 0 = let (_sizeLine,rest') = L.splitAt lenLine1 str
                           (tr',rest'') = getTrailer rest'
-                      in ([(0,last)],tr',rest'')
-    | otherwise = ((chunkLen,part):crest,tr,rest2)
+                      in ([(0,L.empty)],tr',rest'')
+    | otherwise = ((chunkLen,body):crest,tr,rest2)
     where
       line1 = head $ lazylines str
       lenLine1 = (L.length line1) + 1 -- endchar
       chunkLen = (fst $ head $ readHex $ L.unpack line1)
       len = chunkLen + lenLine1 + 2
-      (part,rest) = L.splitAt len str
+      -- Each frame on the wire is "<hex-size>\r\n<body-bytes>\r\n". Skip the size-line and
+      -- take exactly chunkLen bytes so the trailing CRLF stays out of the decoded body.
+      (frame,rest) = L.splitAt len str
+      body = L.take chunkLen . L.drop lenLine1 $ frame
       (crest,tr,rest2) = consumeChunksImpl rest
       getTrailer s = L.splitAt index s
           where index | crlfLC `L.isPrefixOf` s = 2

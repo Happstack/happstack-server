@@ -1,5 +1,5 @@
 { mkDerivation, base, base64-bytestring, blaze-html, bytestring
-, containers, directory, exceptions, extensible-exceptions
+, containers, directory, exceptions
 , filepath, hslogger, html, HUnit, monad-control, mtl, network
 , network-uri, old-locale, parsec, process, semigroups, sendfile
 , stdenv, syb, system-filepath, template-haskell, text, threads
@@ -12,7 +12,7 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [
     base base64-bytestring blaze-html bytestring containers directory
-    exceptions extensible-exceptions filepath hslogger html
+    exceptions filepath hslogger html
     monad-control mtl network network-uri old-locale parsec process
     semigroups sendfile syb system-filepath template-haskell text
     threads time transformers transformers-base transformers-compat
