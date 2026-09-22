@@ -46,6 +46,7 @@ Library
                        Happstack.Server.Error
                        Happstack.Server.FileServe
                        Happstack.Server.FileServe.BuildingBlocks
+                       Happstack.Server.FileServe.Nix
                        Happstack.Server.I18N
                        Happstack.Server.Internal.Compression
                        Happstack.Server.Internal.Cookie
