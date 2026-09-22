@@ -266,6 +266,25 @@ consumeChunksTest =
       -- Trailing bytes after final chunk are returned as remainder
     , consumeChunks (pack "5\r\nhello\r\n0\r\n\r\nNEXT")
         @?= (pack "hello", pack "NEXT")
+
+      -- Trailer header after the 0-chunk is dropped, not appended to the body
+    , consumeChunks (pack "5\r\nhello\r\n0\r\nFoo: bar\r\n\r\n")
+        @?= (pack "hello", pack "")
+      -- Multiple trailer headers, followed by a pipelined request
+    , consumeChunks (pack "5\r\nhello\r\n0\r\nA: 1\r\nB: 2\r\n\r\nNEXT")
+        @?= (pack "hello", pack "NEXT")
+      -- Chunk extensions are skipped along with the size line
+    , consumeChunks (pack "5;name=val\r\nhello\r\n0;last\r\n\r\n")
+        @?= (pack "hello", pack "")
+      -- Hex sizes in upper and lower case
+    , consumeChunks (pack "A\r\n0123456789\r\na\r\nabcdefghij\r\n0\r\n\r\n")
+        @?= (pack "0123456789abcdefghij", pack "")
+      -- CRLFs inside the payload are body data, not framing
+    , consumeChunks (pack "6\r\nab\r\ncd\r\n0\r\n\r\n")
+        @?= (pack "ab\r\ncd", pack "")
+      -- Payload that looks like a terminating chunk is still body data
+    , consumeChunks (pack "5\r\n0\r\n\r\n\r\n0\r\n\r\n")
+        @?= (pack "0\r\n\r\n", pack "")
     ]
 
 applicativeTest :: Test
