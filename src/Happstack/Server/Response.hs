@@ -24,6 +24,8 @@ module Happstack.Server.Response
     , resp
     -- * Handling if-modified-since
     , ifModifiedSince
+    -- * Handling if-none-match
+    , ifNoneMatch
     ) where
 
 #if MIN_VERSION_xhtml(3000,3,0)
@@ -32,6 +34,8 @@ import qualified Data.ByteString.Builder         as L
 import qualified Data.ByteString.Char8           as B
 import qualified Data.ByteString.Lazy.Char8      as L
 import qualified Data.ByteString.Lazy.UTF8       as LU (fromString)
+import Data.Char                                 (isSpace)
+import Data.List                                 (dropWhileEnd)
 import qualified Data.Map                        as M
 import qualified Data.Text                       as T
 import qualified Data.Text.Encoding              as T
@@ -191,6 +195,50 @@ ifModifiedSince modTime request response =
     in if notmodified
           then noContentLength $ result 304 "" -- Not Modified
           else setHeader "Last-modified" repr response
+
+-- |Honor an @if-none-match@ header in a 'Request' using a strong entity tag.
+--
+-- Sets the @ETag@ header on the outgoing 'Response'. If the incoming
+-- @if-none-match@ header contains a matching entity tag (or @*@),
+-- returns 304 (Not Modified) instead.
+--
+-- Unlike 'ifModifiedSince', this does not depend on file modification
+-- times, so it stays correct even when the filesystem does not track
+-- them meaningfully -- e.g. files served out of the Nix store, whose
+-- timestamps are always reset to a fixed epoch. See
+-- "Happstack.Server.FileServe.Nix".
+ifNoneMatch :: String  -- ^ entity tag for the 'Response' (with or without surrounding quotes)
+            -> Request -- ^ incoming request (used to check for if-none-match)
+            -> Response -- ^ Response to send if the tag does not match
+            -> Response
+ifNoneMatch etag request response =
+    let quoted  = quoteETag etag
+        matches = case getHeader "if-none-match" request of
+                    Nothing  -> False
+                    Just val -> matchesETag quoted (B.unpack val)
+    in if matches
+          then noContentLength $ result 304 "" -- Not Modified
+          else setHeader "ETag" quoted response
+
+quoteETag :: String -> String
+quoteETag etag@('"':_) = etag
+quoteETag etag         = "\"" ++ etag ++ "\""
+
+matchesETag :: String -> String -> Bool
+matchesETag etag headerValue = any candidateMatches (splitETags headerValue)
+  where
+    candidateMatches "*"  = True
+    candidateMatches tag  = stripWeak tag == stripWeak etag
+    stripWeak ('W':'/':t) = t
+    stripWeak t           = t
+
+splitETags :: String -> [String]
+splitETags = map trim . splitOn ','
+  where
+    trim = dropWhileEnd isSpace . dropWhile isSpace
+    splitOn c s = case break (== c) s of
+                    (a, [])   -> [a]
+                    (a, _:bs) -> a : splitOn c bs
 
 -- | Deprecated:  use 'composeFilter'.
 modifyResponse :: (FilterMonad a m) => (a -> a) -> m()
