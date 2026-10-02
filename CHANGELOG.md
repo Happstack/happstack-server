@@ -1,3 +1,10 @@
+7.9.4
+=====
+ - added application/wasm to mimeTypes list
+ - Fix consumeChunks: actually strip chunk size-lines and trailing CRLFs
+ - Add MonadMask instance for ServerPartT etc
+ - Remove unnecessary `extensible-exceptions` dependency
+
 7.7.1
 =====
 
