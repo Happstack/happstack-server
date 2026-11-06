@@ -1,3 +1,8 @@
+7.9.5
+=====
+ - Do not depend on Monad(return) (Monad of no return compatibility, #93)
+ - Require base >= 4.8 and monad-control >= 1.0.3 (fixes GHC 9.14 builds)
+
 7.9.4
 =====
  - added application/wasm to mimeTypes list
