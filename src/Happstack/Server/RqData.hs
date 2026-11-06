@@ -114,7 +114,7 @@ instance (Monoid e) => Applicative (ReaderError r e) where
 #else
 instance (Monoid e, DeprecatedError.Error e) => Applicative (ReaderError r e) where
 #endif
-    pure = return
+    pure a = ReaderError $ pure a
     (ReaderError (ReaderT f)) <*> (ReaderError (ReaderT a))
         = ReaderError $ ReaderT $ \env -> (f env) `apEither` (a env)
 

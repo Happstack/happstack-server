@@ -61,7 +61,7 @@ import Happstack.Server.Internal.RFC822Headers   (parseContentType)
 import Happstack.Server.Internal.Types           (EscapeHTTP(..), canHaveBody)
 import Happstack.Server.Internal.TimeoutIO       (TimeoutIO)
 import Happstack.Server.Types
-import Prelude                                   (Bool(..), Either(..), Eq(..), Functor(..), IO, Monad(..), Char, Maybe(..), String, Show(..), ($), (.), (>), (++), (&&), (||), (=<<), const, concatMap, flip, id, otherwise, zip)
+import Prelude                                   (Bool(..), Either(..), Eq(..), Functor(..), IO, Monad(..), return, (>>), Char, Maybe(..), String, Show(..), ($), (.), (>), (++), (&&), (||), (=<<), const, concatMap, flip, id, otherwise, zip)
 
 -- | An alias for 'WebT' when using 'IO'.
 type Web a = WebT IO a
@@ -194,7 +194,7 @@ instance (Monad m, MonadPlus m) => Monoid (ServerPartT m a) where
     mappend = (SG.<>)
 
 instance (Monad m, Functor m) => Applicative (ServerPartT m) where
-    pure = return
+    pure a = ServerPartT $ pure a
     (<*>) = ap
 
 instance (Functor m, MonadPlus m) => Alternative (ServerPartT m) where
@@ -477,8 +477,6 @@ type UnWebT m a = m (Maybe (Either Response a, FilterFun Response))
 instance Monad m => Monad (WebT m) where
     m >>= f = WebT $ unWebT m >>= unWebT . f
     {-# INLINE (>>=) #-}
-    return a = WebT $ return a
-    {-# INLINE return #-}
 
 #if MIN_VERSION_base(4,9,0)
 instance MonadFail m => MonadFail (WebT m) where
@@ -567,7 +565,7 @@ localContext fn hs
     = withRequest $ \rq -> fn (runServerPartT hs rq)
 
 instance (Monad m, Functor m) => Applicative (WebT m) where
-    pure = return
+    pure a = WebT $ pure a
     (<*>) = ap
 
 instance (Functor m, MonadPlus m) => Alternative (WebT m) where
